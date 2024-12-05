@@ -14,6 +14,7 @@ def evaluate(
     NAG_max_iter,
     NAG_tol,
     only_first=False,
+    device="cuda" if torch.cuda.is_available() else "cpu",
 ):
 
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
@@ -51,6 +52,7 @@ def evaluate(
 
     psnrs = []
     for i, x in enumerate(dataloader):
+        x = x.to(device)
         y = physics(x)
         recon = reconstruct(y)
         psnrs.append(psnr(recon, x).squeeze().item())

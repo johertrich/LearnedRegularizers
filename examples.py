@@ -2,7 +2,9 @@ from deepinv.physics import Denoising, MRI, GaussianNoise
 from deepinv.optim import L2, Tikhonov
 from deepinv.utils.plotting import plot
 from evaluation import evaluate
-from datasets import get_dataset
+from dataset import get_dataset
+from operators import MRIonR
+from torchvision.transforms import CenterCrop
 import torch
 
 device = "cuda" if torch.cuda.is_available() else "cpu"  # select device
@@ -12,7 +14,7 @@ torch.random.manual_seed(0)  # make results deterministic
 
 # Problem selection
 
-problem = "Denoising"  # Select problem setups, which we consider.
+problem = "MRI"  # Select problem setups, which we consider.
 only_first = True  # just evaluate on the first image of the dataset for test purposes
 
 ############################################################
@@ -38,16 +40,28 @@ NAG_tol = 1e-4  # tolerance for the relative error (stopping criterion)
 
 if problem == "Denoising":
     noise_level = 0.1
-    physics = Denoising(GaussianNoise(sigma=noise_level))
+    physics = Denoising(noise_model=GaussianNoise(sigma=noise_level))
     data_fidelity = L2(sigma=noise_level)
+    dataset = get_dataset("BSDS500_gray")
 elif problem == "MRI":
-    raise NotImplementedError("MRI not implemented")
+    dataset = get_dataset("BSDS500_gray", transform=CenterCrop(256))
+    img_size = dataset[0].shape
+    noise_level = 0.05
+    # simple Cartesian mask generation from the deepinv tour...
+    mask = torch.rand((1, img_size[-1]), device=device) > 0.75
+    mask = torch.ones((img_size[-2], 1), device=device) * mask
+    mask[:, int(img_size[-1] / 2) - 2 : int(img_size[-1] / 2) + 2] = 1
+    # The MRI operator in deepinv operates on complex-valued images.
+    # The MRIonR operator wraps it for real-valued images
+    physics = MRIonR(
+        mask=mask, device=device, noise_model=GaussianNoise(sigma=noise_level)
+    )
+    data_fidelity = L2(sigma=noise_level)
 else:
     raise NotImplementedError("Problem not found")
 
 # Test dataset
 
-dataset = get_dataset("BSDS500_gray")
 
 # Call unified evaluation routine
 
