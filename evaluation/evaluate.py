@@ -63,5 +63,5 @@ def evaluate(
         if only_first:
             break
     mean_psnr = np.mean(psnrs)
-    print(mean_psnr)
+    print("Mean PSNR over the test set: {0:.2f}".format(mean_psnr))
     return mean_psnr, x_out, y_out, recon_out
