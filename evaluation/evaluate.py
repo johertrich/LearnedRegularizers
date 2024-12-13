@@ -68,6 +68,7 @@ def evaluate(
             NAG_step_size,
             NAG_max_iter,
             NAG_tol,
+            detach_grads=True,
         )
         psnrs.append(psnr(recon, x).squeeze().item())
         if i == 0:

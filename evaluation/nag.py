@@ -3,7 +3,15 @@ import numpy as np
 
 
 def reconstruct_NAG(
-    y, physics, data_fidelity, regularizer, lmbd, NAG_step_size, NAG_max_iter, NAG_tol
+    y,
+    physics,
+    data_fidelity,
+    regularizer,
+    lmbd,
+    NAG_step_size,
+    NAG_max_iter,
+    NAG_tol,
+    detach_grads=False,
 ):
     # run Nesterov Accelerated Gradient
 
@@ -13,7 +21,9 @@ def reconstruct_NAG(
     res = NAG_tol + 1
     for step in range(NAG_max_iter):
         x_old = torch.clone(x)
-        grad = data_fidelity.grad(x, y, physics) + lmbd * regularizer.grad(x).detach()
+        grad = data_fidelity.grad(x, y, physics) + lmbd * regularizer.grad(x)
+        if detach_grads:
+            grad = grad.detach()
         x = z - NAG_step_size * grad
         x = x.clamp(0, 1)
         t_old = t
