@@ -15,7 +15,7 @@ torch.random.manual_seed(0)  # make results deterministic
 
 # Problem selection
 
-problem = "MRI"  # Select problem setups, which we consider.
+problem = "Denoising"  # Select problem setups, which we consider.
 only_first = True  # just evaluate on the first image of the dataset for test purposes
 
 ############################################################
