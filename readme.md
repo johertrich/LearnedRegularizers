@@ -24,7 +24,7 @@ Helper functions for the evaluation script:
 In order to coordinate the implementations please respect the following structure of the repo:
 
 - Architectures should be implemented in the directory `priors`, training methods in `training_methods`. Please create in `priors` and `training_methods` exactly one file for every architecture/training method. If you require additional files, you can create subdirectories and put the additional there.
-- Example scripts for training the methods should be created top-level.
+- Example scripts for calling the training methods (problem specific with hyperparameters) should be created top-level.
 - To avoid confusions, it would be best if everyone only edits the files, which they have created/written. If you would like to edit existing files, please ask the person who created/has written them.
 - generally all images have the shape `(B,C,H,W)` with batch dimension `B`, channel dimension `C`, height `H` and width `W`.
 
