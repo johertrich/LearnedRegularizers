@@ -5,6 +5,7 @@ from evaluation import evaluate
 from dataset import get_dataset
 from operators import MRIonR
 from torchvision.transforms import CenterCrop
+from priors import ICNNPrior
 import torch
 
 device = "cuda" if torch.cuda.is_available() else "cpu"  # select device
@@ -21,14 +22,25 @@ only_first = True  # just evaluate on the first image of the dataset for test pu
 
 # Define regularizer
 
-regularizer = Tikhonov()
-lmbd = 1.0  # regularization parameter
+regularizer = ICNNPrior(
+    in_channels=1,
+    strong_convexity=0,
+    num_layers=3,
+    num_filters=16,
+    pretrained="weights/simple_ICNN_unrolling.pt",
+)
 
-# Parameters for the Nesterov Algorithm
+# reconstruction hyperparameters, might be problem dependent
+if problem == "Denoising":
+    lmbd = 20.0  # regularization parameter
+elif problem == "MRI":
+    lmbd = 0.1  # regularization parameter
 
-NAG_step_size = 1e-2  # step size in NAG
+# Parameters for the Nesterov Algorithm, might also be problem dependent...
+
+NAG_step_size = 1e-4  # step size in NAG
 NAG_max_iter = 500  # maximum number of iterations in NAG
-NAG_tol = 1e-4  # tolerance for the relative error (stopping criterion)
+NAG_tol = 1e-6  # tolerance for the relative error (stopping criterion)
 
 
 #############################################################
@@ -41,10 +53,10 @@ NAG_tol = 1e-4  # tolerance for the relative error (stopping criterion)
 if problem == "Denoising":
     noise_level = 0.1
     physics = Denoising(noise_model=GaussianNoise(sigma=noise_level))
-    data_fidelity = L2(sigma=noise_level)
-    dataset = get_dataset("BSDS500_gray")
+    data_fidelity = L2(sigma=1.0)
+    dataset = get_dataset("BSDS500_gray", test=True)
 elif problem == "MRI":
-    dataset = get_dataset("BSDS500_gray", transform=CenterCrop(256))
+    dataset = get_dataset("BSDS500_gray", transform=CenterCrop(256), test=True)
     img_size = dataset[0].shape
     noise_level = 0.05
     # simple Cartesian mask generation from the deepinv tour...
@@ -56,7 +68,7 @@ elif problem == "MRI":
     physics = MRIonR(
         mask=mask, device=device, noise_model=GaussianNoise(sigma=noise_level)
     )
-    data_fidelity = L2(sigma=noise_level)
+    data_fidelity = L2(sigma=1.0)
 else:
     raise NotImplementedError("Problem not found")
 

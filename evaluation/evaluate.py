@@ -1,5 +1,6 @@
 import numpy as np
 from torch.utils.data import DataLoader
+from .nag import reconstruct_NAG
 import torch
 from deepinv.loss.metric import PSNR
 
@@ -19,6 +20,10 @@ def evaluate(
 
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
     psnr = PSNR()
+
+    regularizer.eval()
+    for p in regularizer.parameters():
+        p.requires_grad_(False)
 
     def reconstruct(y):
         # run Nesterov Accelerated Gradient
@@ -52,9 +57,18 @@ def evaluate(
 
     psnrs = []
     for i, x in enumerate(dataloader):
-        x = x.to(device)
+        x = x.to(device).to(torch.float)
         y = physics(x)
-        recon = reconstruct(y)
+        recon = reconstruct_NAG(
+            y,
+            physics,
+            data_fidelity,
+            regularizer,
+            lmbd,
+            NAG_step_size,
+            NAG_max_iter,
+            NAG_tol,
+        )
         psnrs.append(psnr(recon, x).squeeze().item())
         if i == 0:
             y_out = y
