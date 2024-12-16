@@ -1,8 +1,8 @@
-from .datasets import BSDS500Dataset
+from .datasets import BSDS500Dataset, FastMRISlices
 from torchvision.transforms import ToTensor, Compose, Grayscale
 
 
-def get_dataset(key, test=False, transform=None):
+def get_dataset(key, test=False, transform=None, root=None):
     if key == "BSDS500_gray":
         if transform is None:
             transforms = Compose([ToTensor(), Grayscale()])
@@ -19,3 +19,9 @@ def get_dataset(key, test=False, transform=None):
         return BSDS500Dataset(
             root="BSDS500", download=True, test=test, transform=transforms
         )
+    elif key == "fastMRI":
+        if transform is None:
+            transforms = ToTensor()
+        else:
+            transforms = Compose([ToTensor(), transform])
+        return FastMRISlices(root, test=test, transform=transforms)
