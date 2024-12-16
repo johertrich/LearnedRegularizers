@@ -11,17 +11,19 @@ def get_dataset(key, test=False, transform=None, root=None):
         return BSDS500Dataset(
             root="BSDS500", download=True, test=test, transform=transforms
         )
-    elif key == "BSDS500_color":
-        if transform is None:
-            transforms = ToTensor()
-        else:
-            transforms = Compose([ToTensor(), transform])
-        return BSDS500Dataset(
-            root="BSDS500", download=True, test=test, transform=transforms
-        )
+    # elif key == "BSDS500_color":
+    #     if transform is None:
+    #         transforms = ToTensor()
+    #     else:
+    #         transforms = Compose([ToTensor(), transform])
+    #     return BSDS500Dataset(
+    #         root="BSDS500", download=True, test=test, transform=transforms
+    #     )
     elif key == "fastMRI":
         if transform is None:
             transforms = ToTensor()
         else:
             transforms = Compose([ToTensor(), transform])
         return FastMRISlices(root, test=test, transform=transforms)
+    else:
+        raise NameError("Unknown dataset!")
