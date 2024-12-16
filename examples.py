@@ -88,6 +88,4 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
 )
 
 # plot ground truth, observation and reconstruction for the first image from the test dataset
-plot(
-    [x_out, y_out, recon_out], titles=["ground truth", "observation", "reconstruction"]
-)
+plot([x_out, y_out, recon_out])
