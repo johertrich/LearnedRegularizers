@@ -56,7 +56,7 @@ if problem == "Denoising":
     data_fidelity = L2(sigma=1.0)
     dataset = get_dataset("BSDS500_gray", test=True)
 elif problem == "MRI":
-    dataset = get_dataset("fastMRI", transform=None, test=True)
+    dataset = get_dataset("BSDS500_gray", transform=CenterCrop(256), test=True)
     img_size = dataset[0].shape
     noise_level = 0.05
     # simple Cartesian mask generation from the deepinv tour...

@@ -16,7 +16,7 @@ There is
 
 - a script `examples.py` which evaluates a denoising or a MRI (toy version with real-valued images) task on the BSDS500 dataset with the unrolled ICNN
 - a script `training_simple_ICNN_unrolling.py` training a small ICNN via unrolling
-- a `dataset.get_dataset(key, test=False, transform=None)` method to select a dataset. The main idea of using a centralized dataset generation is to make sure that everyone really uses exactly the same datasets. Currently the available keys are `"BSDS500_gray"` and `"BSDS500_color"` and `"fastMRI"`. While the BSDS dataset loads automatically, the fastMRI dataset requires to download the dataset first. A description on the preparation/loading of the dataset is included below.
+- a `dataset.get_dataset(key, test=False, transform=None)` method to select a dataset. The main idea of using a centralized dataset generation is to make sure that everyone really uses exactly the same datasets. Currently the only available keys is `"BSDS500_gray"`. The dataset is downloaded automatically when creating the dataset.
 
 Helper functions for the evaluation script:
 
@@ -60,7 +60,8 @@ Training methods should be callable functions. To ensure the interoperability fo
 
 Any other hyperparameters should be keyword arguments, where the defaults are adjusted to the denoising problem on BSD500 with noise level 0.1.
 
-## FastMRI Dataset
+
+<!-- ## FastMRI Dataset
 
 We use 2D slices from the singlecoil knee [fastMRI dataset](https://fastmri.med.nyu.edu/). The training dataset consists out the slices from all images from the original train split, where we cut the first and last 5 slices (since they usually contain only noise). Since the actual test split does not contain reconstructions (and we only use the images from fastMRI), we use the validation split for testing. Here, we just use the middle slice to ensure that the test images are independent.
 
@@ -78,4 +79,5 @@ fastMRI --- knee_singlecoil_train --- singlecoil_train --- file1000001.h5
                                                         -- file1002570.h5
 ```
 
-Alternatively the path to the directory with the `.h5` files as keyword argument `root` in the `get_dataset` method.
+Alternatively the path to the directory with the `.h5` files as keyword argument `root` in the `get_dataset` method. 
+-->
