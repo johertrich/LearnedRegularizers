@@ -27,7 +27,7 @@ class ICNNPrior(Prior):
         )
         self.add_module("ICNN", self.icnn)
         if pretrained is not None:
-            self.load_state_dict(torch.load(pretrained))
+            self.load_state_dict(torch.load(pretrained, map_location=device))
 
     def g(self, x):
         return self.icnn(x)
