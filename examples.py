@@ -1,4 +1,4 @@
-from deepinv.physics import Denoising, MRI, GaussianNoise
+from deepinv.physics import Denoising, MRI, GaussianNoise, Tomography
 from deepinv.optim import L2, Tikhonov
 from deepinv.utils.plotting import plot
 from evaluation import evaluate
@@ -33,8 +33,8 @@ regularizer = ICNNPrior(
 # reconstruction hyperparameters, might be problem dependent
 if problem == "Denoising":
     lmbd = 20.0  # regularization parameter
-elif problem == "MRI":
-    lmbd = 0.1  # regularization parameter
+elif problem == "CT":
+    lmbd = 500.0  # regularization parameter
 
 # Parameters for the Nesterov Algorithm, might also be problem dependent...
 
@@ -55,20 +55,28 @@ if problem == "Denoising":
     physics = Denoising(noise_model=GaussianNoise(sigma=noise_level))
     data_fidelity = L2(sigma=1.0)
     dataset = get_dataset("BSDS500_gray", test=True)
-elif problem == "MRI":
-    dataset = get_dataset("BSDS500_gray", transform=CenterCrop(256), test=True)
-    img_size = dataset[0].shape
-    noise_level = 0.05
-    # simple Cartesian mask generation from the deepinv tour...
-    mask = torch.rand((1, img_size[-1]), device=device) > 0.75
-    mask = torch.ones((img_size[-2], 1), device=device) * mask
-    mask[:, int(img_size[-1] / 2) - 2 : int(img_size[-1] / 2) + 2] = 1
-    # The MRI operator in deepinv operates on complex-valued images.
-    # The MRIonR operator wraps it for real-valued images
-    physics = MRIonR(
-        mask=mask, device=device, noise_model=GaussianNoise(sigma=noise_level)
+elif problem == "CT":
+    noise_level = 0.5
+    dataset = get_dataset("BSDS500_gray", transform=CenterCrop(300), test=True)
+    imsize = dataset[0].shape[-1]
+    physics = Tomography(
+        imsize // 3, imsize, device=device, noise_model=GaussianNoise(sigma=noise_level)
     )
     data_fidelity = L2(sigma=1.0)
+# elif problem == "MRI":
+#    dataset = get_dataset("BSDS500_gray", transform=CenterCrop(256), test=True)
+#    img_size = dataset[0].shape
+#    noise_level = 0.05
+#    # simple Cartesian mask generation from the deepinv tour...
+#    mask = torch.rand((1, img_size[-1]), device=device) > 0.75
+#    mask = torch.ones((img_size[-2], 1), device=device) * mask
+#    mask[:, int(img_size[-1] / 2) - 2 : int(img_size[-1] / 2) + 2] = 1
+#    # The MRI operator in deepinv operates on complex-valued images.
+#    # The MRIonR operator wraps it for real-valued images
+#    physics = MRIonR(
+#        mask=mask, device=device, noise_model=GaussianNoise(sigma=noise_level)
+#    )
+#    data_fidelity = L2(sigma=1.0)
 else:
     raise NotImplementedError("Problem not found")
 
