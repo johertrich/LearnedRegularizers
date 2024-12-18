@@ -14,13 +14,13 @@ Below, we describe:
 
 There is
 
-- a script `examples.py` which evaluates a denoising or a MRI (toy version with real-valued images) task on the BSDS500 dataset with the unrolled ICNN
+- a script `examples.py` which evaluates a denoising or a CT task on the BSDS500 dataset with the unrolled ICNN
 - a script `training_simple_ICNN_unrolling.py` training a small ICNN via unrolling
 - a `dataset.get_dataset(key, test=False, transform=None)` method to select a dataset. The main idea of using a centralized dataset generation is to make sure that everyone really uses exactly the same datasets. Currently the only available keys is `"BSDS500_gray"`. The dataset is downloaded automatically when creating the dataset.
 
 Helper functions for the evaluation script:
 
-- in operators there is the MRI operator `operators.MRIonR` (it wraps the `deepinv` version, which considers complex-valued images; but I think, we should stay with real-valued images, even though its a bit academic).
+<!-- - in operators there is the MRI operator `operators.MRIonR` (it wraps the `deepinv` version, which considers complex-valued images; but I think, we should stay with real-valued images, even though its a bit academic). -->
 - a `evaluation.evaluate` implements the evaluation procedure with some Nesterov accelerated gradient algorithm and iterates the evaluation over the test dataset.
 
 ## How to add something to the repo
