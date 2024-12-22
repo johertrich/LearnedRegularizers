@@ -12,6 +12,7 @@ def reconstruct_NAG(
     NAG_max_iter,
     NAG_tol,
     detach_grads=False,
+    verbose=False
 ):
     # run Nesterov Accelerated Gradient
 
@@ -36,5 +37,9 @@ def reconstruct_NAG(
             )
             res = torch.max(res_vec)
         if res < NAG_tol:
+            if verbose:
+                print(f"Converged in iter {step}, tol {res.item():.6f}")
             break
+    if verbose and res >= NAG_tol:
+        print(f"max iter reached, tol {res.item():.6f}")
     return x

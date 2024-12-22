@@ -16,6 +16,7 @@ def evaluate(
     NAG_tol,
     only_first=False,
     device="cuda" if torch.cuda.is_available() else "cpu",
+    verbose=False
 ):
 
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
@@ -57,7 +58,11 @@ def evaluate(
 
     psnrs = []
     for i, x in enumerate(dataloader):
-        x = x.to(device).to(torch.float)
+        if device == "mps":
+            # mps does not support float64
+            x = x.to(torch.float32).to(device)
+        else:
+            x = x.to(device).to(torch.float)
         y = physics(x)
         recon = reconstruct_NAG(
             y,
@@ -69,6 +74,7 @@ def evaluate(
             NAG_max_iter,
             NAG_tol,
             detach_grads=True,
+            verbose=verbose,
         )
         psnrs.append(psnr(recon, x).squeeze().item())
         if i == 0:

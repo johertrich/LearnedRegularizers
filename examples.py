@@ -8,7 +8,14 @@ from torchvision.transforms import CenterCrop
 from priors import ICNNPrior
 import torch
 
-device = "cuda" if torch.cuda.is_available() else "cpu"  # select device
+if torch.backends.mps.is_available():
+    # mps backend is used in Apple Silicon chips
+    device = "mps"
+elif torch.cuda.is_available():
+    device = "cuda"
+else:
+    device = "cpu"
+print("device: ", device)
 torch.random.manual_seed(0)  # make results deterministic
 
 ############################################################
@@ -27,7 +34,8 @@ regularizer = ICNNPrior(
     strong_convexity=0,
     num_layers=3,
     num_filters=16,
-    pretrained="weights/simple_ICNN_unrolling.pt",
+    pretrained="weights/simple_ICNN_unrolling.pt", 
+    device=device,
 )
 
 # reconstruction hyperparameters, might be problem dependent
@@ -49,7 +57,6 @@ NAG_tol = 1e-6  # tolerance for the relative error (stopping criterion)
 #############################################################
 
 # Define forward operator
-
 if problem == "Denoising":
     noise_level = 0.1
     physics = Denoising(noise_model=GaussianNoise(sigma=noise_level))
@@ -80,7 +87,6 @@ elif problem == "CT":
 else:
     raise NotImplementedError("Problem not found")
 
-
 # Call unified evaluation routine
 
 mean_psnr, x_out, y_out, recon_out = evaluate(
@@ -93,6 +99,8 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
     NAG_max_iter=NAG_max_iter,
     NAG_tol=NAG_tol,
     only_first=only_first,
+    device=device,
+    verbose=True
 )
 
 # plot ground truth, observation and reconstruction for the first image from the test dataset
