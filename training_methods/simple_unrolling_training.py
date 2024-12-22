@@ -21,7 +21,10 @@ def simple_unrolling_training(
     for epoch in range(epochs):
         loss_vals = []
         for x in tqdm(train_dataloader):
-            x = x.to(device).to(torch.float)
+            if device == "mps":
+                x = x.to(torch.float32).to(device)
+            else:
+                x = x.to(device).to(torch.float)
             y = physics(x)
             x_recon = reconstruct_NAG(
                 y,
@@ -48,7 +51,10 @@ def simple_unrolling_training(
         if True:
             loss_vals = []
             for x in tqdm(val_dataloader):
-                x = x.to(device).to(torch.float)
+                if device == "mps":
+                    x = x.to(torch.float32).to(device)
+                else:
+                    x = x.to(device).to(torch.float)
                 y = physics(x)
                 x_recon = reconstruct_NAG(
                     y,
