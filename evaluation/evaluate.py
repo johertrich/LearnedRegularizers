@@ -16,7 +16,7 @@ def evaluate(
     NAG_tol,
     only_first=False,
     device="cuda" if torch.cuda.is_available() else "cpu",
-    verbose=False
+    verbose=False,
 ):
 
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)

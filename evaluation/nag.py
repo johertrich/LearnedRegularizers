@@ -12,7 +12,7 @@ def reconstruct_NAG(
     NAG_max_iter,
     NAG_tol,
     detach_grads=False,
-    verbose=False
+    verbose=False,
 ):
     # run Nesterov Accelerated Gradient
 

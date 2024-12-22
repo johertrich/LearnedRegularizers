@@ -13,7 +13,7 @@ elif torch.cuda.is_available():
     device = "cuda"
 else:
     device = "cpu"
-    
+
 problem = "Denoising"
 
 # problem dependent parameters
@@ -40,7 +40,9 @@ val_dataloader = torch.utils.data.DataLoader(
 )
 
 # define regularizer
-regularizer = ICNNPrior(in_channels=1, strong_convexity=0, num_layers=3, num_filters=16).to(device)
+regularizer = ICNNPrior(
+    in_channels=1, strong_convexity=0, num_layers=3, num_filters=16
+).to(device)
 
 
 simple_unrolling_training(
@@ -50,7 +52,7 @@ simple_unrolling_training(
     lmbd,
     train_dataloader,
     val_dataloader,
-    device = device
+    device=device,
 )
 
 torch.save(regularizer.state_dict(), "weights/simple_ICNN_unrolling.pt")

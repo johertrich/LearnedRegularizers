@@ -34,7 +34,7 @@ regularizer = ICNNPrior(
     strong_convexity=0,
     num_layers=3,
     num_filters=16,
-    pretrained="weights/simple_ICNN_unrolling.pt", 
+    pretrained="weights/simple_ICNN_unrolling.pt",
     device=device,
 )
 
@@ -100,7 +100,7 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
     NAG_tol=NAG_tol,
     only_first=only_first,
     device=device,
-    verbose=True
+    verbose=True,
 )
 
 # plot ground truth, observation and reconstruction for the first image from the test dataset
