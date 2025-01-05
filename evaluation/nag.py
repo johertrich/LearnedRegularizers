@@ -13,11 +13,16 @@ def reconstruct_NAG(
     NAG_tol,
     detach_grads=False,
     verbose=False,
+    x_init=None,
 ):
     # run Nesterov Accelerated Gradient
-
-    x = physics.A_dagger(y)
-    z = x.clone()
+    if x_init is not None:
+        # User-defined initialization or warm start
+        x = torch.clone(x_init).detach().requires_grad_(True)
+    else:
+        x = physics.A_dagger(y)
+    z = torch.clone(x)
+    
     t = 1
     res = NAG_tol + 1
     for step in range(NAG_max_iter):
