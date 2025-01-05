@@ -4,9 +4,8 @@ from tqdm import tqdm
 from evaluation import reconstruct_NAG
 import matplotlib.pyplot as plt
 from deepinv.loss.metric import PSNR
-from torchvision.transforms import RandomCrop , Compose
+from torchvision.transforms import RandomCrop, Compose
 from torch.utils.data import RandomSampler
-
 
 
 def simple_bilevel_training(
@@ -140,7 +139,7 @@ def simple_bilevel_training(
             else:
                 x = x.to(device).to(torch.float)
             y = physics(x)
-            
+
             if epoch == 0 or optimizer_alg != "MAID":
                 x_init = y
             else:
@@ -160,7 +159,9 @@ def simple_bilevel_training(
                 x_init=x_init,
             )
             optimizer.zero_grad()
-            loss = lambda x_in: torch.sum(((x_in - x) ** 2).view(x.shape[0], -1), -1).mean()
+            loss = lambda x_in: torch.sum(
+                ((x_in - x) ** 2).view(x.shape[0], -1), -1
+            ).mean()
             loss_vals.append(loss(x_recon).item())
             x_recon = x_recon.requires_grad_(True)
             # Computing the gradient of the upper-level objective with respect to the input
@@ -197,8 +198,29 @@ def simple_bilevel_training(
                 optimizer.step()
             else:
                 if len(loss_vals) > 1:
-                        loss_vals.pop()
-                def closure(upper_grad_loss, loss , x_old , y, physics, data_fidelity, regularizer, lmbd, NAG_step_size, NAG_max_iter, NAG_tol, rho, eps, eps_old, max_line_search, fixed_eps, fixed_lr, verbose, eta = 1e-5):
+                    loss_vals.pop()
+
+                def closure(
+                    upper_grad_loss,
+                    loss,
+                    x_old,
+                    y,
+                    physics,
+                    data_fidelity,
+                    regularizer,
+                    lmbd,
+                    NAG_step_size,
+                    NAG_max_iter,
+                    NAG_tol,
+                    rho,
+                    eps,
+                    eps_old,
+                    max_line_search,
+                    fixed_eps,
+                    fixed_lr,
+                    verbose,
+                    eta=1e-5,
+                ):
                     """
                     Closure function for MAID optimizer
                     """
@@ -207,21 +229,37 @@ def simple_bilevel_training(
                     if fixed_lr:
                         rho = 1
                     success_flag = False
-                    norm_loss_grad = lambda x_in: torch.norm(upper_grad_loss(x_in.requires_grad_(True)), dim=(-2, -1), keepdim=True).mean()
-                    old_params = [param.clone() for param in optimizer.param_groups[0]['params'] if param.grad is not None]
+                    norm_loss_grad = lambda x_in: torch.norm(
+                        upper_grad_loss(x_in.requires_grad_(True)),
+                        dim=(-2, -1),
+                        keepdim=True,
+                    ).mean()
+                    old_params = [
+                        param.clone()
+                        for param in optimizer.param_groups[0]["params"]
+                        if param.grad is not None
+                    ]
+
                     def revert(params_before):
                         # Revert to the old parameters if condition not met
-                        for i, param in enumerate(optimizer.param_groups[0]['params']):
+                        for i, param in enumerate(optimizer.param_groups[0]["params"]):
                             if param.grad is not None:
                                 param.data = params_before[i].data
-                    old_step = optimizer.param_groups[0]['lr']
+
+                    old_step = optimizer.param_groups[0]["lr"]
                     for i in range(max_line_search):
-                        optimizer.param_groups[0]['lr'] = optimizer.param_groups[0]['lr'] * rho**i
-                        lr = optimizer.param_groups[0]['lr']
-                        grad_params = [param.grad for param in optimizer.param_groups[0]['params'] if param.grad is not None]
+                        optimizer.param_groups[0]["lr"] = (
+                            optimizer.param_groups[0]["lr"] * rho**i
+                        )
+                        lr = optimizer.param_groups[0]["lr"]
+                        grad_params = [
+                            param.grad
+                            for param in optimizer.param_groups[0]["params"]
+                            if param.grad is not None
+                        ]
                         hypergrad = torch.cat([g.reshape(-1) for g in grad_params])
                         # normalise the hypergradient by the norm of the hypergradient
-                        for _ , param in enumerate(optimizer.param_groups[0]['params']):
+                        for _, param in enumerate(optimizer.param_groups[0]["params"]):
                             if param.grad is not None:
                                 param.grad = param.grad / torch.norm(hypergrad)
                         optimizer.step()
@@ -239,28 +277,65 @@ def simple_bilevel_training(
                             x_init=x_old,
                         )
                         if verbose:
-                            print("loss", loss(x_new).item(), "loss_old", loss_vals[-1], f'eps: {eps}', f'lr: {lr}', f'iter: {i}')
-                        if loss(x_new) - loss_vals[-1] + norm_loss_grad(x_old) * eps_old + norm_loss_grad(x_new) * eps <= - lr * eta**2 * torch.norm(hypergrad)**2:
+                            print(
+                                "loss",
+                                loss(x_new).item(),
+                                "loss_old",
+                                loss_vals[-1],
+                                f"eps: {eps}",
+                                f"lr: {lr}",
+                                f"iter: {i}",
+                            )
+                        if (
+                            loss(x_new)
+                            - loss_vals[-1]
+                            + norm_loss_grad(x_old) * eps_old
+                            + norm_loss_grad(x_new) * eps
+                            <= -lr * eta**2 * torch.norm(hypergrad) ** 2
+                        ):
                             x_old = x_new
                             loss_old = loss(x_new)
                             if loss(x_new) < loss_vals[-1]:
                                 loss_vals.append(loss(x_new).item())
                             success_flag = True
-                            return loss(x_new) , x_new , success_flag , regularizer
+                            return loss(x_new), x_new, success_flag, regularizer
                         revert(old_params)
-                        optimizer.param_groups[0]['lr'] = old_step
+                        optimizer.param_groups[0]["lr"] = old_step
                         loss_old = loss_vals[-1]
-                    return loss_old , x_old , success_flag, regularizer
-                 
-                grad_loss = lambda x_in : torch.autograd.grad(loss(x_in).mean(), x_in, create_graph=False)[0].detach()
-                loss = lambda x_in: (torch.sum(((x_in - x) ** 2).view(x.shape[0], -1), -1)).mean()
-                _ , x_recon , success , regularizer = closure(grad_loss, loss, x_recon, y, physics, data_fidelity, regularizer, lmbd, NAG_step_size, NAG_max_iter, NAG_tol, rho, eps, eps_old, max_line_search, fixed_eps, fixed_lr, verbose)
+                    return loss_old, x_old, success_flag, regularizer
+
+                grad_loss = lambda x_in: torch.autograd.grad(
+                    loss(x_in).mean(), x_in, create_graph=False
+                )[0].detach()
+                loss = lambda x_in: (
+                    torch.sum(((x_in - x) ** 2).view(x.shape[0], -1), -1)
+                ).mean()
+                _, x_recon, success, regularizer = closure(
+                    grad_loss,
+                    loss,
+                    x_recon,
+                    y,
+                    physics,
+                    data_fidelity,
+                    regularizer,
+                    lmbd,
+                    NAG_step_size,
+                    NAG_max_iter,
+                    NAG_tol,
+                    rho,
+                    eps,
+                    eps_old,
+                    max_line_search,
+                    fixed_eps,
+                    fixed_lr,
+                    verbose,
+                )
                 if not success:
                     print("Line search failed")
                     eps_old = eps
                     NAG_tol = NAG_tol * nu_under
                     eps = NAG_tol
-                    CG_tol = CG_tol * nu_under  
+                    CG_tol = CG_tol * nu_under
                     max_line_search += 1
                 else:
                     eps_old = eps
@@ -268,16 +343,22 @@ def simple_bilevel_training(
                     eps = NAG_tol
                     CG_tol = CG_tol * nu_over
                     max_line_search = 5
-                    optimizer.param_groups[0]['lr'] = optimizer.param_groups[0]['lr'] * nu_over
+                    optimizer.param_groups[0]["lr"] = (
+                        optimizer.param_groups[0]["lr"] * nu_over
+                    )
             psnr = PSNR()
-            print("Mean PSNR training {0:.2f}".format(psnr(x_recon, x).mean().item()), "loss", loss_vals[-1])
-        if optimizer_alg != "MAID":            
+            print(
+                "Mean PSNR training {0:.2f}".format(psnr(x_recon, x).mean().item()),
+                "loss",
+                loss_vals[-1],
+            )
+        if optimizer_alg != "MAID":
             print(
                 "Average training loss in epoch {0}: {1:.2E}".format(
                     epoch + 1, np.mean(loss_vals)
                 )
             )
-        
+
         # set regularizer parameters to the parameters of the trained regularizer
         for param, reg in zip(
             optimizer.param_groups[0]["params"], regularizer.parameters()
@@ -305,7 +386,9 @@ def simple_bilevel_training(
                     NAG_tol,
                     detach_grads=True,
                 )
-                loss_validation = lambda x_in: torch.sum(((x_in - x_val) ** 2).view(x_val.shape[0], -1), -1).mean()
+                loss_validation = lambda x_in: torch.sum(
+                    ((x_in - x_val) ** 2).view(x_val.shape[0], -1), -1
+                ).mean()
                 loss_vals_val.append(loss_validation(x_recon_val).item())
             print(
                 "Average validation loss in epoch {0}: {1:.2E}".format(

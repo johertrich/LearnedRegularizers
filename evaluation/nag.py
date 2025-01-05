@@ -22,7 +22,7 @@ def reconstruct_NAG(
     else:
         x = physics.A_dagger(y)
     z = torch.clone(x)
-    
+
     t = 1
     res = NAG_tol + 1
     for step in range(NAG_max_iter):

@@ -16,7 +16,7 @@ else:
     device = "cpu"
 
 problem = "Denoising"
-algorithm = "AdamW" # or "MAID", "Adam", "AdamW", "ISGD_Momentum"
+algorithm = "AdamW"  # or "MAID", "Adam", "AdamW", "ISGD_Momentum"
 
 # problem dependent parameters
 if problem == "Denoising":
@@ -28,7 +28,7 @@ if problem == "Denoising":
         crop = CenterCrop((64, 64))
     else:
         crop = RandomCrop((64, 64))
-    dataset = get_dataset("BSDS500_gray", test=False, transform= crop)
+    dataset = get_dataset("BSDS500_gray", test=False, transform=crop)
     lmbd = 1.0
 
 
@@ -40,7 +40,7 @@ train_set, val_set = torch.utils.data.random_split(dataset, [train_len, test_len
 batch_size = 8
 shuffle = True
 if algorithm == "MAID":
-    training_size_full_batch = 32 # Can be increased up to GPU memory
+    training_size_full_batch = 32  # Can be increased up to GPU memory
     train_set = subset(train_set, list(range(training_size_full_batch)))
     batch_size = training_size_full_batch
     shuffle = False
@@ -54,7 +54,7 @@ val_dataloader = torch.utils.data.DataLoader(
 
 # define regularizer
 regularizer = ICNNPrior(
-    in_channels=1, strong_convexity= 0.0 , num_layers=3, num_filters=16
+    in_channels=1, strong_convexity=0.0, num_layers=3, num_filters=16
 ).to(device)
 
 regularizer = simple_bilevel_training(
@@ -67,7 +67,7 @@ regularizer = simple_bilevel_training(
     device=device,
     verbose=False,
     optimizer_alg=algorithm,
-    lr=1e-3, 
-    NAG_tol = 1e-4, # Set 1e-1 for MAID
+    lr=1e-3,
+    NAG_tol=1e-4,  # Set 1e-1 for MAID
 )
 torch.save(regularizer.state_dict(), "weights/simple_ICNN_bilevel.pt")
