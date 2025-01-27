@@ -15,6 +15,7 @@ def simple_unrolling_training(
     unrolling_steps=10,
     NAG_step_size=1e-2,
     lr=1e-3,
+    lr_decay=1.0,
     device="cuda" if torch.cuda.is_available() else "cpu",
 ):
     optimizer = torch.optim.Adam(regularizer.parameters(), lr=lr)
@@ -47,6 +48,9 @@ def simple_unrolling_training(
                 epoch + 1, np.mean(loss_vals)
             )
         )
+        for g in optimizer.param_groups:
+            lr = lr * lr_decay
+            g["lr"] = lr
 
         if True:
             loss_vals = []
