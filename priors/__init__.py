@@ -1,3 +1,4 @@
 #from .deepinv_ICNN_prior import ICNNPrior
 from .wcrr import WCRR
 from .patchnr import PatchNR
+from .epll import EPLL

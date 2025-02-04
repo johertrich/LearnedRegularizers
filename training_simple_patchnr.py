@@ -7,6 +7,7 @@ from deepinv.loss.metric import PSNR
 from deepinv.utils import plot
 from tqdm import tqdm
 from deepinv.optim.data_fidelity import L2
+import numpy as np 
 
 from dataset import get_dataset
 from torchvision.transforms import RandomCrop
@@ -18,10 +19,12 @@ import matplotlib.pyplot as plt
 device = "cuda" if torch.cuda.is_available() else "cpu"
 dtype = torch.float32
 
-dataset = get_dataset("BSDS500_gray", test=False, transform=RandomCrop(128))
+dataset = get_dataset("BSDS500_gray", test=False, transform=RandomCrop(256))
+
+print("Length of BSD Dataset: ", len(dataset))
 
 train_imgs = [] 
-for i in range(10):
+for i in range(100):
     train_imgs.append(dataset[i].unsqueeze(0).float())
 
 train_imgs = torch.concat(train_imgs)
@@ -32,9 +35,9 @@ patch_size = 6
 verbose = True
 train_dataset = PatchDataset(train_imgs, patch_size=patch_size, transforms=None)
 
-patchnr_subnetsize = 128
-patchnr_epochs = 6
-patchnr_batch_size = 32
+patchnr_subnetsize = 512
+patchnr_epochs = 8
+patchnr_batch_size = 512
 patchnr_learning_rate = 1e-4
 
 patchnr_dataloader = DataLoader(
@@ -44,34 +47,10 @@ patchnr_dataloader = DataLoader(
     drop_last=True,
 )
 
-class NFTrainer(Trainer):
-    def compute_loss(self, physics, x, y, train=True):
-        logs = {}
 
-        self.optimizer.zero_grad()  # Zero the gradients
-
-        # Evaluate reconstruction network
-        invs, jac_inv = self.model(y)
-
-        # Compute the Kullback Leibler loss
-        loss_total = torch.mean(
-            0.5 * torch.sum(invs.view(invs.shape[0], -1) ** 2, -1)
-            - jac_inv.view(invs.shape[0])
-        )
-        current_log = (
-            self.logs_total_loss_train if train else self.logs_total_loss_eval
-        )
-        current_log.update(loss_total.item())
-        logs["TotalLoss"] = current_log.avg
-
-        if train:
-            loss_total.backward()  # Backward the total loss
-            self.optimizer.step()  # Optimizer step
-
-        return invs, logs
     
 
-patch_nr = PatchNR(patch_size=patch_size, channels=1,num_layers=10, sub_net_size=patchnr_subnetsize, device=device, n_patches=-1)
+patch_nr = PatchNR(patch_size=patch_size, channels=1,num_layers=5, sub_net_size=patchnr_subnetsize, device=device, n_patches=-1)
 
 
 optimizer = torch.optim.Adam(
@@ -81,24 +60,36 @@ optimizer = torch.optim.Adam(
 pretrain = "patchnr.pt"
 
 if pretrain is None:
+    for epoch in range(patchnr_epochs):
+        mean_loss = [] 
+        with tqdm(total=len(patchnr_dataloader)) as pbar:
+            for idx, batch in enumerate(patchnr_dataloader):
+                optimizer.zero_grad()
 
-    trainer = NFTrainer(
-        model=patch_nr.normalizing_flow,
-        physics=Denoising(UniformNoise(1.0 / 255.0)),
-        optimizer=optimizer,
-        train_dataloader=patchnr_dataloader,
-        device=device,
-        losses=[],
-        epochs=patchnr_epochs,
-        online_measurements=True,
-        verbose=verbose,
-    )
-    trainer.train()
+                x = batch[0].to(device)
+
+                invs, jac_inv = patch_nr.normalizing_flow(x) # x -> z (we never need the other direction)
+
+                # Compute the Kullback Leibler loss
+                loss_total = torch.mean(
+                    0.5 * torch.sum(invs.view(invs.shape[0], -1) ** 2, -1)
+                    - jac_inv.view(invs.shape[0])
+                )
+                mean_loss.append(loss_total.item())
+
+                loss_total.backward()  # Backward the total loss
+                optimizer.step()  # Optimizer step
+                
+                pbar.update(1)
+                pbar.set_description(f"Loss {np.round(loss_total.item(), 5)}")
+
+        print("Mean loss: ", np.mean(mean_loss))
+
     torch.save(patch_nr.normalizing_flow.state_dict(), "patchnr.pt")
 else:
     patch_nr.normalizing_flow.load_state_dict(torch.load(pretrain))
 
-image = dataset[15].unsqueeze(0).float().to(device)
+image = dataset[10].unsqueeze(0).float().to(device)
 
 
 sigma = 0.1
@@ -111,7 +102,7 @@ observation = physics(image)
 print(image.shape, observation.shape)
 
 optim_steps = 200
-lr_variational_problem = 0.02
+lr_variational_problem = 0.04
 
 
 def minimize_variational_problem(prior, lam):
@@ -126,26 +117,26 @@ def minimize_variational_problem(prior, lam):
         progress_bar.set_description("Step {} || Loss {}".format(i + 1, loss.item()))
     return imgs.detach()
 
-lam_list = [0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
-psnr_list = [] 
-for lam_patchnr in lam_list:
-    #lam_patchnr = 0.2
+lam = 7.0
 
-    recon_patchnr = minimize_variational_problem(patch_nr, lam_patchnr)
+patch_nr.n_patches = -1 
+recon_patchnr = minimize_variational_problem(patch_nr, lam)
 
-    psnr_patchnr = PSNR()(recon_patchnr, image)
-    psnr_list.append(psnr_patchnr.item())
-    print(psnr_patchnr)
-    """
-    fig, (ax1, ax2, ax3) = plt.subplots(1,3)
+patch_nr.n_patches = 5000 
+recon_patchnr_subset = minimize_variational_problem(patch_nr, lam)
 
-    ax1.imshow(image[0,0].cpu().numpy(), cmap="gray")
-    ax2.imshow(observation[0,0].cpu().numpy(), cmap="gray")
-    ax3.imshow(recon_patchnr[0,0].cpu().numpy(), cmap="gray")
-    ax3.set_title(f"lam = {lam_patchnr}")
-    plt.show()
-    """
+psnr_patchnr = PSNR()(recon_patchnr, image).cpu().squeeze().numpy()
+psnr_patchnr_subset = PSNR()(recon_patchnr_subset, image).cpu().squeeze().numpy()
 
-plt.figure()
-plt.plot(lam_list, psnr_list)
+print(psnr_patchnr, psnr_patchnr_subset)
+
+fig, (ax1, ax2, ax3, ax4) = plt.subplots(1,4)
+
+ax1.imshow(image[0,0].cpu().numpy(), cmap="gray")
+ax2.imshow(observation[0,0].cpu().numpy(), cmap="gray")
+ax3.imshow(recon_patchnr[0,0].cpu().numpy(), cmap="gray")
+ax3.set_title(f"PatchNR, all patches: {psnr_patchnr}")
+ax4.imshow(recon_patchnr_subset[0,0].cpu().numpy(), cmap="gray")
+ax4.set_title(f"PatchNR, subset patches: {psnr_patchnr_subset}")
 plt.show()
+    

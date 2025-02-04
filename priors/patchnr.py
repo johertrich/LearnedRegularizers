@@ -35,36 +35,37 @@ class RandomPermutation(torch.nn.Module):
         self.perm = torch.nn.Parameter(torch.LongTensor(self.perm), requires_grad=False)
         self.perm_inv = torch.nn.Parameter(torch.LongTensor(self.perm_inv), requires_grad=False)
 
-    def forward(self, x):
+    def forward(self, x, rev=False):
         """
         
         returns: output, log_likelihood
         """
-
-        return x[:, self.perm], 0
-
-    def inverse(self, x):
-        """
-        
-        returns: output, log_likelihood
-        """
-        return x[:, self.perm_inv], 0
-
+        if not rev:
+            return x[:, self.perm], 0
+        else:
+            return x[:, self.perm_inv], 0
 
 class AffineCouplingBlock(torch.nn.Module):
+    """The inputs are split in two halves. Two affine
+    coupling operations are performed in turn on both halves of the input."""
     def __init__(self, dims_in, subnet_constructor, clamp: float = 2.0, clamp_activation: str = "ATAN"):
         super().__init__()
 
         self.split_length1 = dims_in // 2 
         self.split_length2 = dims_in - self.split_length1
 
-        self.subnet = subnet_constructor(self.split_length1, self.split_length2 * 2)
+        self.subnet1 = subnet_constructor(self.split_length1, self.split_length2 * 2)
+        self.subnet2 = subnet_constructor(self.split_length2, self.split_length1 * 2)
 
         # initialise the last layer of the subnetwork with zero such that the full 
         # block is initialised as the identity 
-        if isinstance(self.subnet[-1], torch.nn.Linear):
-            self.subnet[-1].weight.data.fill_(0.0)
-            self.subnet[-1].bias.data.fill_(0.0)
+        if isinstance(self.subnet1[-1], torch.nn.Linear):
+            self.subnet1[-1].weight.data.fill_(0.0)
+            self.subnet1[-1].bias.data.fill_(0.0)
+
+        if isinstance(self.subnet2[-1], torch.nn.Linear):
+            self.subnet2[-1].weight.data.fill_(0.0)
+            self.subnet2[-1].bias.data.fill_(0.0)
 
         if isinstance(clamp_activation, str):
             if clamp_activation == "ATAN":
@@ -77,33 +78,65 @@ class AffineCouplingBlock(torch.nn.Module):
 
         self.clamp = clamp
 
-    def forward(self, x):
+    def forward(self, x, rev=False):
+        # notation:
+        # x1, x2: two halves of the input
+        # y1, y2: two halves of the output
+        # *_c: variable with condition concatenated
+        # j1, j2: Jacobians of the two coupling operations
 
         x1, x2 = torch.split(x, [self.split_length1, self.split_length2], dim=1)
 
-        a = self.subnet(x1)
-        s, t = a[:, :self.split_length2], a[:, self.split_length2:]
-        s = self.clamp * self.f_clamp(s)
+        if not rev:
+            y1, j1 = self._coupling1(x1, x2)
 
-        y2 = torch.exp(s) * x2 + t
+            y2, j2 = self._coupling2(x2, y1)
+        else:
+            # names of x and y are swapped for the reverse computation
+            y2, j2 = self._coupling2(x2, x1, rev=True)
 
-        log_jac = torch.sum(s, dim=1)
+            y1, j1 = self._coupling1(x1, y2, rev=True)
 
-        return torch.cat([x1, y2], dim=1), log_jac
+        return torch.cat((y1, y2), 1), j1 + j2
 
-    def inverse(self, x):
 
-        x1, x2 = torch.split(x, [self.split_length1, self.split_length2], dim=1)
+    def _coupling1(self, x1, u2, rev=False):
+        # notation (same for _coupling2):
+        # x: inputs (i.e. 'x-side' when rev is False, 'z-side' when rev is True)
+        # y: outputs (same scheme)
+        # *_c: variables with condition appended
+        # *1, *2: left half, right half
+        # a: all affine coefficients
+        # s, t: multiplicative and additive coefficients
+        # j: log det Jacobian
 
-        a = self.subnet(x1)
-        s, t = a[:, :self.split_length2], a[:, self.split_length2:]
-        s = self.clamp * self.f_clamp(s)
-        
-        y2 = (x2 - t) * torch.exp(-s) 
+        a2 = self.subnet2(u2)
+        s2, t2 = a2[:, :self.split_length1], a2[:, self.split_length1:]
+        s2 = self.clamp * self.f_clamp(s2)
 
-        log_jac = torch.sum(s, dim=1)
+        j1 = torch.sum(s2, dim=1)
 
-        return torch.cat([x1, y2], dim=1), -log_jac
+        if rev:
+            y1 = (x1 - t2) * torch.exp(-s2)
+            return y1, -j1
+        else:
+            y1 = torch.exp(s2) * x1 + t2
+            return y1, j1
+
+    def _coupling2(self, x2, u1, rev=False):
+        a1 = self.subnet1(u1)
+        s1, t1 = a1[:, :self.split_length2], a1[:, self.split_length2:]
+        s1 = self.clamp * self.f_clamp(s1)
+        j2 = torch.sum(s1, dim=1)
+
+        if rev:
+            y2 = (x2 - t1) * torch.exp(-s1)
+            return y2, -j2
+        else:
+            y2 = torch.exp(s1) * x2 + t1
+            return y2, j2
+
+
 
 class INN(torch.nn.Module):
     def __init__(self, dims_in, num_layers=10, sub_net_size=256):
@@ -125,26 +158,26 @@ class INN(torch.nn.Module):
         self.network = torch.nn.ModuleList()
         for i in range(self.num_layers):
             self.network.append(AffineCouplingBlock(dims_in=self.dims_in, subnet_constructor=subnet_fc))
-            if i < self.num_layers -1:
-                self.network.append(RandomPermutation(dims_in=dims_in))
+            #if i < self.num_layers -1:
+            #    self.network.append(RandomPermutation(dims_in=dims_in))
 
-    def forward(self, x):
+    def forward(self, x, rev=False):
         log_jac_full = torch.zeros(x.shape[0], device=x.device)
 
-        for module in self.network:
-            x, log_jac = module.forward(x)
-            log_jac_full += log_jac
+        if not rev:
+            for module in self.network:
+                x, log_jac = module(x, rev=rev)
+                log_jac_full += log_jac
 
-        return x, log_jac_full
-    
-    def inverse(self, x):
-        log_jac_full = torch.zeros(x.shape[0], device=x.device)
+            return x, log_jac_full
+        else:
+            for module in self.network[::-1]:
+                x, log_jac = module(x, rev=rev)
+                log_jac_full += log_jac
 
-        for module in self.network[::-1]:
-            x, log_jac = module.inverse(x)
-            log_jac_full += log_jac
+            return x, log_jac_full
 
-        return x, log_jac_full
+
 
 class PatchNR(Prior):
     def __init__(self, patch_size=6, n_patches=1000, channels=1,num_layers=10, sub_net_size=256, pad=True, device="cpu"):
@@ -203,8 +236,8 @@ if __name__ == "__main__":
     x = torch.randn(32, 64)
     random_permute = RandomPermutation(dims_in=64)
 
-    z, _ = random_permute.forward(x)
-    x_rev, _ = random_permute.inverse(z)
+    z, _ = random_permute(x)
+    x_rev, _ = random_permute(z, rev=False)
 
     print(torch.sum((x - x_rev)**2))
 
@@ -219,16 +252,16 @@ if __name__ == "__main__":
     
     affine_block = AffineCouplingBlock(dims_in=64, subnet_constructor=subnet_fc)
 
-    z, log_jac = affine_block.forward(x)
-    x_rev, _ = affine_block.inverse(z)
+    z, log_jac = affine_block(x)
+    x_rev, _ = affine_block(z, rev=True)
     print(log_jac.shape)
     print(torch.sum((x - x_rev)**2))
 
 
     inn = INN(dims_in=64)
 
-    z, log_jac = inn.forward(x)
-    x_rev, _ = inn.inverse(z)
+    z, log_jac = inn(x)
+    x_rev, _ = inn(z, rev=True)
     print(log_jac.shape)
     print(torch.sum((x - x_rev)**2))
 
