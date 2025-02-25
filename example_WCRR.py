@@ -60,10 +60,10 @@ if problem == "Denoising":
     noise_level = 0.1
     physics = Denoising(noise_model=GaussianNoise(sigma=noise_level))
     data_fidelity = L2(sigma=1.0)
-    dataset = get_dataset("BSDS500_gray", test=True)
+    dataset = get_dataset("BSD68")
 elif problem == "CT":
     noise_level = 0.5
-    dataset = get_dataset("BSDS500_gray", transform=CenterCrop(300), test=True)
+    dataset = get_dataset("BSD68", transform=CenterCrop(300))
     imsize = dataset[0].shape[-1]
     physics = Tomography(
         imsize // 3, imsize, device=device, noise_model=GaussianNoise(sigma=noise_level)

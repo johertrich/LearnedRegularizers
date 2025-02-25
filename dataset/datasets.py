@@ -64,6 +64,27 @@ class BSDS500Dataset(Dataset):
         return img
 
 
+class BSD68(Dataset):
+    def __init__(self, transform=None):
+        self.transforms = transform
+        image_path = "dataset/BSD68"
+        file_list = os.listdir(image_path)
+        self.file_list = [
+            os.path.join(image_path, f) for f in file_list if f.endswith("jpg")
+        ]
+        self.file_list.sort()
+
+    def __len__(self):
+        return len(self.file_list)
+
+    def __getitem__(self, IDX):
+        img = Image.open(self.file_list[IDX]).convert("RGB")
+        img = np.array(img) / 255.0
+        if self.transforms is not None:
+            img = self.transforms(img)
+        return img
+
+
 class FastMRISlices(Dataset):
     def __init__(self, root, test=False, transform=None):
         if root is None:
