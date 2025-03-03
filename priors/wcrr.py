@@ -17,6 +17,7 @@ class WCRR(Prior):
         self,
         sigma,
         weak_convexity,
+        tanh=False,
         nb_channels=[1, 4, 8, 64],
         filter_sizes=[5, 5, 5],
         device="cuda" if torch.cuda.is_available() else "cpu",
@@ -48,29 +49,42 @@ class WCRR(Prior):
         self.scaling = nn.Parameter(
             torch.log(torch.tensor(2.0) / sigma) * torch.ones(1, self.nb_filters, 1, 1)
         )
-        self.beta = nn.Parameter(torch.tensor(3.0))
+        self.beta = nn.Parameter(torch.tensor(4.0))
         self.weak_cvx = weak_convexity
+        self.tanh = tanh
 
         if pretrained is not None:
             self.load_state_dict(torch.load(pretrained, map_location=device))
 
     def smooth_l1(self, x):
+        if self.tanh:
+            x_abs = torch.abs(x)
+            return torch.log((torch.exp(x - x_abs) + torch.exp(-x - x_abs)) / 2) + x_abs
         return torch.clip(x**2, 0.0, 1.0) / 2 + torch.clip(torch.abs(x), 1.0) - 1.0
 
     def grad_smooth_l1(self, x):
-        return torch.clip(x, -1.0, 1.0)
+        if self.tanh:
+            return torch.tanh(x)
+        else:
+            return torch.clip(x, -1.0, 1.0)
+        
+    def get_conv_lip(self):
+        impulse = self.filters(self.dirac)
+        for filt in reversed(self.filters):
+            impulse = F.conv_transpose2d(impulse, filt.weight, padding=filt.padding)
+        return torch.fft.fft2(impulse, s=[256, 256]).abs().max()
 
-    def conv_transpose(self, x):
-        for conv in reversed(self.conv):
-            x = F.conv_transpose2d(x, conv.weight, padding=conv.padding)
+    def conv(self, x):
+        x = x / torch.sqrt(self.get_conv_lip())
+        for filt in self.filters:
+            x = F.conv2d(x, filt.weight, padding=filt.padding)
         return x
 
-    def grad_lipschitz(self):
-        impulse = self.conv(self.dirac)
-        impulse = impulse * torch.exp(self.beta)
-        impulse = self.conv_transpose(impulse)
-        lipschitz = torch.fft.fft2(impulse, s=[256, 256]).abs().max()
-        return lipschitz
+    def conv_transpose(self, x):
+        x = x / torch.sqrt(self.get_conv_lip())
+        for filt in reversed(self.filters):
+            x = F.conv_transpose2d(x, filt.weight, padding=filt.padding)
+        return x
 
     def grad(self, x):
         grad = self.conv(x)
