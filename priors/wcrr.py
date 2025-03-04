@@ -76,9 +76,7 @@ class WCRR(Prior):
 
     def conv(self, x):
         x = x / torch.sqrt(self.get_conv_lip())
-        for filt in self.filters:
-            x = F.conv2d(x, filt.weight, padding=filt.padding)
-        return x
+        return self.filters(x)
 
     def conv_transpose(self, x):
         x = x / torch.sqrt(self.get_conv_lip())
