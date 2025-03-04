@@ -27,7 +27,7 @@ class WCRR(Prior):
 
         self.nb_filters = nb_channels[-1]
         self.filter_size = sum(filter_sizes) - len(filter_sizes) + 1
-        self.conv = nn.Sequential(
+        self.filters = nn.Sequential(
             *[
                 nn.Conv2d(
                     nb_channels[i],
