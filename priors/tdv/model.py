@@ -14,18 +14,18 @@ class TDV(Prior):
     """
     total deep variation (TDV) regularizer
     """
-    def __init__(self, **config):
+    def __init__(self, in_channels=1, num_features=32, multiplier=1, num_mb=3, potential="quadratic", zero_mean=True, num_scales=3):
         super().__init__()
 
         self._fn = self.energy
 
-        self.in_channels = config['in_channels']
-        self.num_features = config['num_features']
-        self.multiplier = config['multiplier']
-        self.num_mb = config['num_mb']
-        self.pot, self.act = get_potential(config.get('potential', 'quadratic'))
-        self.zero_mean = config.get('zero_mean', True)
-        self.num_scales = config.get('num_scales', 3)
+        self.in_channels = in_channels
+        self.num_features = num_features
+        self.multiplier = multiplier
+        self.num_mb = num_mb
+        self.pot, self.act = get_potential(potential)
+        self.zero_mean = zero_mean
+        self.num_scales = num_scales
 
         # construct the regularizer
         self.K1 = Conv2d(self.in_channels, self.num_features, 3, zero_mean=self.zero_mean, invariant=False, bound_norm=True, bias=False)
