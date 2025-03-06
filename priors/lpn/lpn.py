@@ -60,3 +60,6 @@ class LPNPrior(Prior):
         y = invert(x_np, self.lpn, inv_alg="cvx_cg")
         y = torch.tensor(y, device=x.device)
         return y - x
+
+    def forward(self, x):
+        return self.lpn(x)
