@@ -2,3 +2,4 @@ from .simple_unrolling_training import simple_unrolling_training
 from .simple_bilevel_training import simple_bilevel_training
 from .simple_nett_training import simple_NETT_training
 from .simple_ar_training import simple_ar_training
+from .simple_lpn_training import simple_lpn_training
