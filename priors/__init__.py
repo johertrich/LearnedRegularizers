@@ -5,3 +5,4 @@ from .wcrr import WCRR
 from .NETT_prior import NETT
 from .tdv import TDV
 from .lpn.lpn import LPNPrior
+from .linear_IDCNN_prior import linearIDCNNPrior
