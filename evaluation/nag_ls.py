@@ -34,13 +34,13 @@ def reconstruct_NAG_LS(
 
     res = (NAG_tol + 1) * torch.ones(x.shape[0], device=x.device)
 
-    def f(x_in):
-        return (data_fidelity(x_in, y, physics) + lmbd * regularizer.g(x_in)).detach()
+    def f(x_in,y_in):
+        return (data_fidelity(x_in, y_in, physics) + lmbd * regularizer.g(x_in)).detach()
     
-    def grad_f(x_in):
-        return (data_fidelity.grad(x_in, y, physics) + lmbd * regularizer.grad(x_in)).detach()
+    def grad_f(x_in,y_in):
+        return (data_fidelity.grad(x_in, y_in, physics) + lmbd * regularizer.grad(x_in)).detach()
     
-    def backtracking(xcurr, xold, t, taubtinit, tau, rho):
+    def backtracking(y_in,xcurr, xold, t, taubtinit, tau, rho):
         id_bt = torch.arange(0, xcurr.shape[0], device=xcurr.device)
         tau_new = torch.clone(taubtinit)
         t_new = torch.clone(t)
@@ -51,9 +51,9 @@ def reconstruct_NAG_LS(
             tau_new[id_bt] = rho**i * taubtinit[id_bt]
             t_new[id_bt] = 0.5 * (1 + torch.sqrt(1 + 4 * tau[id_bt] * t[id_bt]**2 / tau_new[id_bt]))
             z[id_bt] = xcurr[id_bt] + (t[id_bt] - 1) / t_new[id_bt] * (xcurr[id_bt] - xold[id_bt])
-            grad_fz = grad_f(z)
+            grad_fz = grad_f(z,y_in)
             xnew[id_bt] = z[id_bt] - tau_new[id_bt] * grad_fz[id_bt]
-            breg_div = (f(xnew) - f(z) - torch.sum(grad_fz * (xnew - z), dim=(1, 2, 3)))
+            breg_div = (f(xnew,y_in) - f(z,y_in) - torch.sum(grad_fz * (xnew - z), dim=(1, 2, 3)))
             condition_bt = (breg_div > torch.sum((xnew - z)**2, dim=(1, 2, 3)) / (2 * tau_new).flatten())
             id_bt = condition_bt.nonzero().view(-1)
 
@@ -73,7 +73,7 @@ def reconstruct_NAG_LS(
 
     for step in range(NAG_max_iter):
         tau_bt_init = torch.min(tau[idx] / delta, torch.tensor(tau_threshold, device=x.device))
-        x[idx], x_old[idx], tau[idx], t[idx] = backtracking(x[idx], x_old[idx], t[idx], tau_bt_init, tau[idx], rho)
+        x[idx], x_old[idx], tau[idx], t[idx] = backtracking(y[idx], x[idx], x_old[idx], t[idx], tau_bt_init, tau[idx], rho)
         
         if step > 0:
             res[idx] = torch.norm(x[idx] - x_old[idx], p=2, dim=(1, 2, 3)) / torch.norm(x[idx], p=2, dim=(1, 2, 3))
@@ -91,7 +91,7 @@ def reconstruct_NAG_LS(
                 print(f"Converged in iter {step}, tol {torch.max(res).item():.6f}")
             break
         
-    if verbose and res >= NAG_tol:
+    if verbose and (torch.max(res) >= NAG_tol):
         print(f"max iter reached, tol {torch.max(res).item():.6f}")
     
     return (x, energy_list, grad_norm_list, res_list) if progress else x

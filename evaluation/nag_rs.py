@@ -36,11 +36,11 @@ def reconstruct_NAG_RS(
     t = torch.ones(x.shape[0], device=x.device).view(-1,1,1,1)
     
     # Def func and grad
-    def f(x_in):
-        return data_fidelity(x_in, y, physics) + lmbd * regularizer.g(x_in)
+    def f(x_in,y_in):
+        return data_fidelity(x_in, y_in, physics) + lmbd * regularizer.g(x_in)
     
-    def grad_f(x_in,detach_grads):
-        grad = data_fidelity.grad(x_in, y, physics).detach() + lmbd * regularizer.grad(x_in)
+    def grad_f(x_in,y_in,detach_grads):
+        grad = data_fidelity.grad(x_in, y_in, physics).detach() + lmbd * regularizer.grad(x_in)
         return grad.detach() if detach_grads else grad
             
     # the index of the images that have not converged yet
@@ -49,13 +49,13 @@ def reconstruct_NAG_RS(
     res = (NAG_tol + 1)*torch.ones(x.shape[0], device=x.device, dtype=x.dtype)
 
     if progress:
-        energy_list = [f(x).item()]
-        grad_norm_list = [torch.norm(grad_f(x,True)).item()]
+        energy_list = [f(x,y).item()]
+        grad_norm_list = [torch.norm(grad_f(x,y,True)).item()]
         res_list = []
 
     for step in range(NAG_max_iter):
         x_old = torch.clone(x)
-        grad = grad_f(z,detach_grads)[idx]
+        grad = grad_f(z,y,detach_grads)[idx]
         x[idx] = z[idx] - NAG_step_size * grad
         #x = x.clamp(0, 1)
         t_old = torch.clone(t)
@@ -75,8 +75,8 @@ def reconstruct_NAG_RS(
         idx = condition.nonzero().view(-1)
 
         if progress:
-            energy_list.append(f(x).item())
-            grad_norm_list.append(torch.norm(grad_f(x,True)).item())
+            energy_list.append(f(x,y).item())
+            grad_norm_list.append(torch.norm(grad_f(x,y,True)).item())
             res_list.append(res.item())
         
         if torch.max(res) < NAG_tol:
