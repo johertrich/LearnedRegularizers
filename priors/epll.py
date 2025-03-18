@@ -90,6 +90,8 @@ class EPLL(nn.Module):
                 )
             self.load_state_dict(ckpt)
 
+        self.n_patches = 5000
+
     def forward(self, y, physics, sigma=None, x_init=None, betas=None, batch_size=-1):
         r"""
         Approximated half-quadratic splitting method for image reconstruction as proposed by Zoran and Weiss.
@@ -205,3 +207,33 @@ class EPLL(nn.Module):
         op = lambda im: physics.A_adjoint(physics.A(im)) + beta * sigma_sq * im
         hat_x = conjugate_gradient(op, rhs, max_iter=1e2, tol=1e-5)
         return hat_x
+
+    def g(self, x, *args, **kwargs):
+        r"""
+        Evaluates the negative log likelihood function of the PatchNR.
+
+        :param torch.Tensor x: image tensor
+        """
+
+        patches, _ = patch_extractor(x, self.n_patches, self.patch_size)
+
+        B, n_patches = patches.shape[0:2]
+
+        nll = self.GMM.forward(patches.view(B * n_patches, -1))
+        nll = torch.mean(nll, -1)
+        
+        return nll
+
+    def grad(self, x, *args, **kwargs):
+        r"""
+        Evaluates the gradient of the negative log likelihood function of the PatchNR.
+
+        :param torch.Tensor x: image tensor
+        """
+        with torch.enable_grad():
+            x.requires_grad_()
+
+            nll = self.g(x).sum()
+            grad = torch.autograd.grad(outputs=nll, inputs=x)[0] 
+        
+        return grad 

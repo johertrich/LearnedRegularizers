@@ -4,46 +4,15 @@ Here will be the implementation for the PatchNR
 Altekrueger et al., PatchNR: learning from very few images by patch normalizing flow regularization, Inverse Problems 2023
 https://iopscience.iop.org/article/10.1088/1361-6420/acce5e
 
-The PatchNR used GlowCouplingBlocks and random permutations. 
-The implementation here is heavily inspired from the FrEIA library (https://github.com/vislearn/FrEIA).
+The PatchNR uses two-sided AffineCouplingBlocks. 
 
-(there actually is a bug in Deepinv at the moment Jan 2024, where no permutation are used)
-
+The implementation here is inspired from the FrEIA library (https://github.com/vislearn/FrEIA).
 """
 
 from deepinv.optim import Prior 
 from deepinv.utils import patch_extractor
 
 import torch 
-import numpy as np 
-
-class RandomPermutation(torch.nn.Module):
-    def __init__(self, dims_in, seed: int = None):
-        super().__init__()
-
-        self.dims_in = dims_in
-
-        if seed is not None:
-            np.random.seed(seed)
-
-        self.perm = np.random.permutation(self.dims_in)
-
-        self.perm_inv = np.zeros_like(self.perm)
-        for i, p in enumerate(self.perm):
-            self.perm_inv[p] = i
-
-        self.perm = torch.nn.Parameter(torch.LongTensor(self.perm), requires_grad=False)
-        self.perm_inv = torch.nn.Parameter(torch.LongTensor(self.perm_inv), requires_grad=False)
-
-    def forward(self, x, rev=False):
-        """
-        
-        returns: output, log_likelihood
-        """
-        if not rev:
-            return x[:, self.perm], 0
-        else:
-            return x[:, self.perm_inv], 0
 
 class AffineCouplingBlock(torch.nn.Module):
     """The inputs are split in two halves. Two affine
@@ -158,9 +127,7 @@ class INN(torch.nn.Module):
         self.network = torch.nn.ModuleList()
         for i in range(self.num_layers):
             self.network.append(AffineCouplingBlock(dims_in=self.dims_in, subnet_constructor=subnet_fc))
-            #if i < self.num_layers -1:
-            #    self.network.append(RandomPermutation(dims_in=dims_in))
-
+            
     def forward(self, x, rev=False):
         log_jac_full = torch.zeros(x.shape[0], device=x.device)
 
@@ -180,7 +147,7 @@ class INN(torch.nn.Module):
 
 
 class PatchNR(Prior):
-    def __init__(self, patch_size=6, n_patches=1000, channels=1,num_layers=10, sub_net_size=256, pad=True, device="cpu"):
+    def __init__(self, patch_size=6, n_patches=1000, channels=1,num_layers=10, sub_net_size=256, pad=True, device="cpu", pretrained=None):
         super(PatchNR, self).__init__()
 
         self.device = device 
@@ -189,9 +156,12 @@ class PatchNR(Prior):
         self.normalizing_flow = INN(dims_in=dims_in, num_layers=num_layers, sub_net_size=sub_net_size)
         self.normalizing_flow.to(self.device)
 
+        if pretrained is not None:
+            self.normalizing_flow.load_state_dict(torch.load(pretrained, map_location=self.device))
+
         self.n_patches = n_patches
         self.patch_size = patch_size
-        self.pad = True 
+        self.pad = pad 
 
     def g(self, x, *args, **kwargs):
         r"""
@@ -223,24 +193,33 @@ class PatchNR(Prior):
 
         # the normalising flow goes from image -> latent 
         latent_x, logdet = self.normalizing_flow(patches.view(B * n_patches, -1)) 
+
         logpz = 0.5 * torch.sum(latent_x.view(B, n_patches, -1) ** 2, -1)
 
         nll = logpz - logdet.view(B, n_patches)
 
         nll = torch.mean(nll, -1)
+        
         return nll
 
+    def grad(self, x, *args, **kwargs):
+        r"""
+        Evaluates the gradient of the negative log likelihood function of the PatchNR.
+
+        :param torch.Tensor x: image tensor
+        """
+        with torch.enable_grad():
+            x.requires_grad_()
+
+            nll = self.g(x).sum()
+            grad = torch.autograd.grad(outputs=nll, inputs=x)[0] 
+        
+        return grad 
 
 if __name__ == "__main__":
 
     x = torch.randn(32, 64)
-    random_permute = RandomPermutation(dims_in=64)
-
-    z, _ = random_permute(x)
-    x_rev, _ = random_permute(z, rev=False)
-
-    print(torch.sum((x - x_rev)**2))
-
+    
     def subnet_fc(c_in, c_out):
         return torch.nn.Sequential(
             torch.nn.Linear(c_in, 128),
@@ -275,3 +254,7 @@ if __name__ == "__main__":
     nll = patch_nr.g(x)
 
     print(nll)
+
+    reg_grad = patch_nr.grad(x)
+
+    print(reg_grad)

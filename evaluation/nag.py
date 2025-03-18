@@ -1,6 +1,8 @@
 import torch
 import numpy as np
+from tqdm import tqdm
 
+import matplotlib.pyplot as plt 
 
 def reconstruct_NAG(
     y,
@@ -25,8 +27,9 @@ def reconstruct_NAG(
 
     t = 1
     res = NAG_tol + 1
-    for step in range(NAG_max_iter):
+    for step in tqdm(range(NAG_max_iter), disable=not verbose):
         x_old = torch.clone(x)
+
         grad = data_fidelity.grad(x, y, physics) + lmbd * regularizer.grad(x)
         if detach_grads:
             grad = grad.detach()

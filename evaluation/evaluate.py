@@ -4,6 +4,7 @@ from .nag import reconstruct_NAG
 import torch
 from deepinv.loss.metric import PSNR
 
+from tqdm import tqdm 
 
 def evaluate(
     physics,
@@ -33,8 +34,9 @@ def evaluate(
         z = x.clone()
         t = 1
         res = NAG_tol + 1
-        for step in range(NAG_max_iter):
+        for step in tqdm(range(NAG_max_iter)):
             x_old = torch.clone(x)
+            
             grad = (
                 data_fidelity.grad(x, y, physics) + lmbd * regularizer.grad(x).detach()
             )
