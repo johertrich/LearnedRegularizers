@@ -13,19 +13,20 @@ def bilevel_training(
     lmbd,
     train_dataloader,
     val_dataloader,
-    epochs=50,
-    NAG_step_size=1e-2,
-    NAG_max_iter=500,
+    epochs=100,
+    NAG_step_size=1e-1,
+    NAG_max_iter=1000,
     NAG_tol_train=1e-4,
     NAG_tol_val=1e-6,
-    linesearch=False,
+    linesearch=True,
     minres_max_iter=1000,
     minres_tol=1e-6,
-    lr=1e-3,
-    lr_decay=0.9,
+    lr=0.005,
+    lr_decay=0.99,
     device="cuda" if torch.cuda.is_available() else "cpu",
     verbose=False,
     validation_epochs=10,
+    upper_loss=lambda x, y: torch.sum(((x - y) ** 2).view(x.shape[0], -1), -1),
 ):
 
     def hessian_vector_product(x, v, data_fidelity, y, regularizer, lmbd, physics):
@@ -116,9 +117,7 @@ def bilevel_training(
                 )
 
             optimizer.zero_grad()
-            loss = lambda x_in: torch.sum(
-                ((x_in - x) ** 2).view(x.shape[0], -1), -1
-            ).mean()
+            loss = lambda x_in: upper_loss(x, x_in).mean()
             loss_train_epoch += loss(x_recon).item()
             psnr_train_epoch += psnr(x_recon, x).mean().item()
             x_recon = x_recon.requires_grad_(True)
