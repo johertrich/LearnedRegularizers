@@ -18,6 +18,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 
+
 dataset = get_dataset("BSDS500_gray", test=False, transform=RandomCrop(256))
 
 train_imgs = [] 
@@ -40,4 +41,7 @@ patchnr_dataloader = DataLoader(
 )
 
 model_epll.GMM.fit(patchnr_dataloader, verbose=True, max_iters=10)
+
+print(model_epll.GMM._weights)
+
 torch.save(model_epll.GMM.state_dict(),"gmm.pt")
