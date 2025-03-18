@@ -27,7 +27,7 @@ problem = "Denoising"
 
 # problem dependent parameters
 if problem == "Denoising":
-    noise_level = 25.0 / 255
+    noise_level = 0.1
     physics = Denoising(noise_model=GaussianNoise(sigma=noise_level))
     data_fidelity = L2(sigma=1.0)
 
@@ -46,9 +46,8 @@ if problem == "Denoising":
     test_len = int(len(train_dataset) * 0.1)
     train_len = len(train_dataset) - test_len
     train_set = torch.utils.data.Subset(train_dataset, range(train_len))
-    val_set = get_dataset(
-        "BSD68"
-    )  # torch.utils.data.Subset(val_dataset,range(train_len,len(train_dataset)))
+    # val_set = get_dataset("BSD68")
+    val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
     lmbd = 1.0
 
 
