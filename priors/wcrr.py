@@ -39,7 +39,7 @@ class WCRR(Prior):
                 for i in range(len(filter_sizes))
             ]
         )
-        P.register_parametrization(self.conv[0], "weight", ZeroMean())
+        P.register_parametrization(self.filters[0], "weight", ZeroMean())
 
         self.dirac = torch.zeros(
             1, 1, 2 * self.filter_size - 1, 2 * self.filter_size - 1
