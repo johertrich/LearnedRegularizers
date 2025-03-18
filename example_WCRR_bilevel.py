@@ -22,17 +22,15 @@ torch.random.manual_seed(0)  # make results deterministic
 
 # Problem selection
 
-problem = "CT"  # Select problem setups, which we consider.
-only_first = True  # just evaluate on the first image of the dataset for test purposes
+problem = "Denoising"  # Select problem setups, which we consider.
+only_first = False  # just evaluate on the first image of the dataset for test purposes
 
 ############################################################
 
 # Define regularizer
 
 weakly = True
-pretrained = (
-    "weights/simple_WCRR_unrolling.pt" if weakly else "weights/simple_CRR_unrolling.pt"
-)
+pretrained = "weights/WCRR_bilevel.pt" if weakly else "weights/CRR_bilevel.pt"
 regularizer = WCRR(
     sigma=0.1, weak_convexity=1.0 if weakly else 0.0, pretrained=pretrained
 ).to(device)
@@ -45,8 +43,8 @@ elif problem == "CT":
 
 # Parameters for the Nesterov Algorithm, might also be problem dependent...
 
-NAG_step_size = 1e-4  # step size in NAG
-NAG_max_iter = 500  # maximum number of iterations in NAG
+NAG_step_size = 1e-1  # step size in NAG
+NAG_max_iter = 1000  # maximum number of iterations in NAG
 NAG_tol = 1e-6  # tolerance for the relative error (stopping criterion)
 
 
