@@ -2,11 +2,11 @@ import torch
 import numpy as np
 from tqdm import tqdm
 from deepinv.loss.metric import PSNR
-from deepinv.optim.utils import conjugate_gradient
+from deepinv.optim.utils import minres
 from evaluation import reconstruct_NAG_LS, reconstruct_NAG_RS
 
 
-def simple_bilevel_training_adam(
+def bilevel_training(
     regularizer,
     physics,
     data_fidelity,
@@ -19,46 +19,14 @@ def simple_bilevel_training_adam(
     NAG_tol_train=1e-4,
     NAG_tol_val=1e-6,
     linesearch=False,
-    cg_max_iter=100,
-    CG_tol=1e-6,
+    minres_max_iter=1000,
+    minres_tol=1e-6,
     lr=1e-3,
     lr_decay=0.9,
     device="cuda" if torch.cuda.is_available() else "cpu",
     verbose=False,
-    ICNN = False
+    validation_epochs=10,
 ):
-
-    # def cg(A, b, x0, tol, max_iter, verbose=False):
-    #     """
-    #     Conjugate Gradient method to solve linear systems Ax = b
-    #     """
-    #     x = x0
-    #     r = b - A(x)
-    #     p = r
-    #     rsold = torch.norm(r.view(r.size(0), -1), dim=1) ** 2
-    #     for i in range(max_iter):
-    #         Ap = A(p)
-    #         alpha = rsold / torch.sum(
-    #             p.view(p.size(0), -1) * Ap.view(Ap.size(0), -1), dim=1
-    #         )
-    #         alpha = alpha.view(-1, 1, 1, 1)
-    #         x = x + alpha * p
-    #         r = r - alpha * Ap
-    #         rsnew = torch.norm(r.view(r.size(0), -1), dim=1) ** 2
-
-    #         if torch.sqrt(torch.max(rsnew)) < tol * x.shape[0]:
-    #             break
-
-    #         p = r + (rsnew / rsold).view(-1, 1, 1, 1) * p
-    #         rsold = rsnew
-    #     if verbose:
-    #         print(
-    #             "CG iterations: ",
-    #             i + 1,
-    #             "max residual: ",
-    #             torch.sqrt(torch.max(rsnew)).item(),
-    #         )
-    #     return x.detach()
 
     def hessian_vector_product(x, v, data_fidelity, y, regularizer, lmbd, physics):
         """
@@ -88,7 +56,7 @@ def simple_bilevel_training_adam(
     # Initialize optimizer for the upper-level
     optimizer = torch.optim.Adam(regularizer.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=lr_decay)
-    
+
     psnr = PSNR()
 
     len_train = len(train_dataloader)
@@ -100,10 +68,10 @@ def simple_bilevel_training_adam(
     psnr_train = []
     psnr_val = []
     for epoch in range(epochs):
-        
+
         loss_train_epoch = 0
         psnr_train_epoch = 0
-        
+
         for x in tqdm(train_dataloader):
             if device == "mps":
                 x = x.to(torch.float32).to(device)
@@ -112,7 +80,7 @@ def simple_bilevel_training_adam(
             y = physics(x)
 
             x_init = y
-            
+
             if linesearch:
                 x_recon = reconstruct_NAG_LS(
                     y,
@@ -126,11 +94,11 @@ def simple_bilevel_training_adam(
                     rho=0.9,
                     delta=0.9,
                     verbose=verbose,
-                    x_init = x_init,
-                    progress=False
+                    x_init=x_init,
+                    progress=False,
                 )
             else:
-                #NAG_step_size = 1/torch.exp(regularizer.beta)
+                # NAG_step_size = 1/torch.exp(regularizer.beta)
                 x_recon = reconstruct_NAG_RS(
                     y,
                     physics,
@@ -142,12 +110,11 @@ def simple_bilevel_training_adam(
                     NAG_tol_train,
                     detach_grads=True,
                     verbose=verbose,
-                    x_init = x_init,
+                    x_init=x_init,
                     progress=False,
-                    restart=True
+                    restart=True,
                 )
-            
-            
+
             optimizer.zero_grad()
             loss = lambda x_in: torch.sum(
                 ((x_in - x) ** 2).view(x.shape[0], -1), -1
@@ -156,11 +123,11 @@ def simple_bilevel_training_adam(
             psnr_train_epoch += psnr(x_recon, x).mean().item()
             x_recon = x_recon.requires_grad_(True)
             # Computing the gradient of the upper-level objective with respect to the input
-            grad_loss = torch.autograd.grad(
-                loss(x_recon), x_recon, create_graph=False
-            )[0].detach()
+            grad_loss = torch.autograd.grad(loss(x_recon), x_recon, create_graph=False)[
+                0
+            ].detach()
             # Computing the approximate inverse Hessian vector product using CG
-            q = conjugate_gradient(
+            q = minres(
                 lambda input: hessian_vector_product(
                     x_recon.detach(),
                     input,
@@ -169,10 +136,10 @@ def simple_bilevel_training_adam(
                     regularizer,
                     lmbd,
                     physics,
-                ), 
+                ),
                 grad_loss,
-                cg_max_iter,
-                CG_tol
+                max_iter=minres_max_iter,
+                tol=minres_tol,
             )
 
             # Computing the approximate hypergradient using the Jacobian vector product
@@ -184,18 +151,23 @@ def simple_bilevel_training_adam(
             ):
                 if param.grad is not None:
                     param.grad = reg.grad
-            
+
             optimizer.step()
-            
-            if ICNN:
-                regularizer.icnn.zero_clip_weights()
-            
+
         scheduler.step()
         mean_loss_train = loss_train_epoch / len_train
         mean_psnr_train = psnr_train_epoch / len_train
-        
-        print("Mean PSNR training in epoch {0}: {1:.2f}".format(epoch+1,mean_psnr_train))
-        print("Mean loss training in epoch {0}: {1:.2E}".format(epoch+1,mean_loss_train))
+
+        print(
+            "Mean PSNR training in epoch {0}: {1:.2f}".format(
+                epoch + 1, mean_psnr_train
+            )
+        )
+        print(
+            "Mean loss training in epoch {0}: {1:.2E}".format(
+                epoch + 1, mean_loss_train
+            )
+        )
 
         loss_train.append(mean_loss_train)
         psnr_train.append(mean_psnr_train)
@@ -206,70 +178,70 @@ def simple_bilevel_training_adam(
         ):
             if param.grad is not None:
                 reg.data = torch.clone(param.data)
-        
-        
-        loss_val_epoch = 0
-        psnr_val_epoch = 0
-        for x_val in tqdm(val_dataloader):
-            if device == "mps":
-                x_val = x_val.to(torch.float32).to(device)
-            else:
-                x_val = x_val.to(device).to(torch.float)
-            y = physics(x_val)
-            x_init_val = y
 
-            if linesearch:
-                x_recon_val = reconstruct_NAG_LS(
-                    y,
-                    physics,
-                    data_fidelity,
-                    regularizer,
-                    lmbd,
-                    NAG_step_size,
-                    NAG_max_iter,
-                    NAG_tol_val,
-                    rho=0.9,
-                    delta=0.9,
-                    verbose=verbose,
-                    x_init = x_init_val,
-                    progress=False
+        if (epoch + 1) % validation_epochs == 0:
+            loss_val_epoch = 0
+            psnr_val_epoch = 0
+            for x_val in tqdm(val_dataloader):
+                if device == "mps":
+                    x_val = x_val.to(torch.float32).to(device)
+                else:
+                    x_val = x_val.to(device).to(torch.float)
+                y = physics(x_val)
+                x_init_val = y
+
+                if linesearch:
+                    x_recon_val = reconstruct_NAG_LS(
+                        y,
+                        physics,
+                        data_fidelity,
+                        regularizer,
+                        lmbd,
+                        NAG_step_size,
+                        NAG_max_iter,
+                        NAG_tol_val,
+                        rho=0.9,
+                        delta=0.9,
+                        verbose=verbose,
+                        x_init=x_init_val,
+                        progress=False,
+                    )
+                else:
+                    x_recon_val = reconstruct_NAG_RS(
+                        y,
+                        physics,
+                        data_fidelity,
+                        regularizer,
+                        lmbd,
+                        NAG_step_size,
+                        NAG_max_iter,
+                        NAG_tol_val,
+                        detach_grads=True,
+                        verbose=verbose,
+                        x_init=x_init_val,
+                        progress=False,
+                        restart=True,
+                    )
+
+                loss_validation = lambda x_in: torch.sum(
+                    ((x_in - x_val) ** 2).view(x_val.shape[0], -1), -1
+                ).mean()
+                loss_val_epoch += loss_validation(x_recon_val).item()
+                psnr_val_epoch += psnr(x_recon_val, x_val).mean().item()
+
+            mean_loss_val = loss_val_epoch / len_val
+            mean_psnr_val = psnr_val_epoch / len_val
+
+            print(
+                "Average validation psnr in epoch {0}: {1:.2f}".format(
+                    epoch + 1, mean_psnr_val
                 )
-            else:
-                x_recon_val = reconstruct_NAG_RS(
-                    y,
-                    physics,
-                    data_fidelity,
-                    regularizer,
-                    lmbd,
-                    NAG_step_size,
-                    NAG_max_iter,
-                    NAG_tol_val,
-                    detach_grads=True,
-                    verbose=verbose,
-                    x_init = x_init_val,
-                    progress=False,
-                    restart=True
+            )
+            print(
+                "Average validation loss in epoch {0}: {1:.2E}".format(
+                    epoch + 1, mean_loss_val
                 )
-        
-            loss_validation = lambda x_in: torch.sum(
-                ((x_in - x_val) ** 2).view(x_val.shape[0], -1), -1
-            ).mean()
-            loss_val_epoch += loss_validation(x_recon_val).item()
-            psnr_val_epoch += psnr(x_recon_val, x_val).mean().item()
-            
-        mean_loss_val = loss_val_epoch / len_val
-        mean_psnr_val = psnr_val_epoch / len_val
-        
-        print(
-            "Average validation psnr in epoch {0}: {1:.2f}".format(
-                epoch + 1, mean_psnr_val
             )
-        )
-        print(
-            "Average validation loss in epoch {0}: {1:.2E}".format(
-                epoch + 1, mean_loss_val
-            )
-        )
-        loss_val.append(mean_loss_val)
-        psnr_val.append(mean_psnr_val)
+            loss_val.append(mean_loss_val)
+            psnr_val.append(mean_psnr_val)
     return regularizer, loss_train, loss_val, psnr_train, psnr_val

@@ -1,5 +1,5 @@
 from .simple_unrolling_training import simple_unrolling_training
 from .simple_nett_training import simple_NETT_training
 from .simple_ar_training import simple_ar_training
-from .simple_bilevel_training_adam import simple_bilevel_training_adam
+from .bilevel_training import bilevel_training
 from .simple_bilevel_training_maid import simple_bilevel_training_maid
