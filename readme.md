@@ -5,10 +5,10 @@ The code relies on the [DeepInverse package](https://deepinv.github.io), which c
 ```
 pip install deepinv
 ```
-
-Below, we describe:
-
-
+Overall to get started using conda, clone the repository and run (may take a few minutes)
+```
+conda env create --file=environment.yaml
+```
 
 ## What is currently in there
 

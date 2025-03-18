@@ -1,0 +1,12 @@
+name: learnR
+channels:
+  - defaults
+dependencies:
+  # basic programs
+  - python=3.12
+  - pip:
+    - numpy
+    - matplotlib
+    - torch
+    - torchvision
+    - deepinv

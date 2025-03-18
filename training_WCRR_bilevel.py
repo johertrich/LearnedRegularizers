@@ -1,11 +1,19 @@
 from priors import WCRR
 import torch
 from deepinv.physics import Denoising, GaussianNoise
-from training_methods import simple_bilevel_training
+from training_methods import bilevel_training
 from deepinv.optim import L2
 from dataset import get_dataset
-from torchvision.transforms import RandomCrop, CenterCrop, Resize
-from torch.utils.data import Subset as subset
+from torchvision.transforms import RandomCrop, CenterCrop, Compose
+from torchvision.transforms import (
+    RandomCrop,
+    RandomVerticalFlip,
+    Compose,
+    RandomHorizontalFlip,
+    CenterCrop,
+    RandomApply,
+    RandomRotation,
+)
 
 if torch.backends.mps.is_available():
     # mps backend is used in Apple Silicon chips
@@ -16,58 +24,66 @@ else:
     device = "cpu"
 
 problem = "Denoising"
-algorithm = "AdamW"  # or "MAID", "Adam", "AdamW", "ISGD_Momentum"
 
 # problem dependent parameters
 if problem == "Denoising":
     noise_level = 0.1
     physics = Denoising(noise_model=GaussianNoise(sigma=noise_level))
     data_fidelity = L2(sigma=1.0)
-    # Set the transform to a deterministic one like CenterCrop or Resize for MAID
-    if algorithm == "MAID":
-        crop = CenterCrop((64, 64))
-    else:
-        crop = RandomCrop((64, 64))
-    dataset = get_dataset("BSDS500_gray", test=False, transform=crop)
+
+    transform = Compose(
+        [
+            RandomCrop(64),
+            RandomHorizontalFlip(p=0.5),
+            RandomVerticalFlip(p=0.5),
+            RandomApply([RandomRotation((90, 90))], p=0.5),
+        ]
+    )
+    train_dataset = get_dataset("BSDS500_gray", test=False, transform=transform)
+    val_dataset = get_dataset("BSDS500_gray", test=False, transform=CenterCrop(321))
+    # splitting in training and validation set
+    test_ratio = 0.1
+    test_len = int(len(train_dataset) * 0.1)
+    train_len = len(train_dataset) - test_len
+    train_set = torch.utils.data.Subset(train_dataset, range(train_len))
+    # val_set = get_dataset("BSD68")
+    val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
     lmbd = 1.0
 
 
-# splitting in training and validation set
-test_ratio = 0.1
-test_len = int(len(dataset) * 0.1)
-train_len = len(dataset) - test_len
-train_set, val_set = torch.utils.data.random_split(dataset, [train_len, test_len])
-batch_size = 8
-shuffle = True
-if algorithm == "MAID":
-    training_size_full_batch = 32  # Can be increased up to GPU memory
-    train_set = subset(train_set, list(range(training_size_full_batch)))
-    batch_size = training_size_full_batch
-    shuffle = False
 # create dataloaders
 train_dataloader = torch.utils.data.DataLoader(
-    train_set, batch_size=batch_size, shuffle=shuffle, drop_last=True
+    train_set, batch_size=32, shuffle=True, drop_last=True, num_workers=8
 )
 val_dataloader = torch.utils.data.DataLoader(
-    val_set, batch_size=8, shuffle=True, drop_last=True
+    val_set, batch_size=1, shuffle=False, drop_last=True, num_workers=8
 )
 
 # define regularizer
 regularizer = WCRR(
-    sigma=0.1, weak_convexity=1.0, pretrained='weights/WCRR_sigma_25.pt'
+    sigma=noise_level,
+    weak_convexity=1.0,
 ).to(device)
 
-regularizer = simple_bilevel_training(
+regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
     regularizer,
     physics,
     data_fidelity,
     lmbd,
     train_dataloader,
     val_dataloader,
+    epochs=50,
+    NAG_step_size=1e-1,
+    NAG_max_iter=1000,
+    NAG_tol_train=1e-6,
+    NAG_tol_val=1e-6,
+    linesearch=True,
+    lr=0.005,
+    lr_decay=0.999,
     device=device,
     verbose=False,
-    optimizer_alg=algorithm,
-    lr=1e-3,
-    NAG_tol=1e-4,  # Set 1e-1 for MAID
 )
-torch.save(regularizer.state_dict(), "weights/simple_ICNN_bilevel.pt")
+
+torch.save(regularizer.state_dict(), f"weights/WCRR_bilevel.pt")
+
+# %%
