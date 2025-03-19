@@ -212,9 +212,9 @@ class EPLL(Prior):
 
         return nll.mean(-1)
 
-    def grad(self, x, *args, **kwargs):
+    def full_grad(self, x, *args, **kwargs):
         r"""
-        Evaluates the gradient of the negative log likelihood function of the EPLL
+        Evaluates the gradient of the negative log likelihood function of the EPLL (without batching)
 
         :param torch.Tensor x: image tensor
         """
@@ -224,3 +224,38 @@ class EPLL(Prior):
             nll = self.g(x_)
             grad = torch.autograd.grad(outputs=nll, inputs=x_)[0]  
         return grad
+    
+    def patch_g(self, x, patch_inds, *args, **kwargs):
+        r"""
+        Evaluates the negative log likelihood function of the EPLL for a subset of patches
+
+        :param torch.Tensor x: image tensor
+        :param torch.Tensor patch_inds: indices of the patches to evaluate the negative log likelihood function
+        """
+        patches, _ = patch_extractor(
+                    x, len(patch_inds), self.patch_size, position_inds_linear=patch_inds
+                )
+        nll = self.GMM.forward(patches.view(patches.shape[0] * patches.shape[1], -1))
+        return nll.sum()
+
+    def grad(self, x, *args, **kwargs):
+        r"""
+        Evaluates the gradient of the negative log likelihood function of the EPLL by batching the patches for the gradient computation in order to lower the memory consumption
+
+        :param torch.Tensor x: image tensor
+        """
+        num_patches = (x.shape[2] - self.patch_size + 1) * (x.shape[3] - self.patch_size + 1)
+        with torch.enable_grad():
+            x_ = x.clone()
+            x_.requires_grad_(True)
+            grad = torch.zeros_like(x)
+            ind = 0
+            while ind < num_patches:
+                n_patches = min(5000, num_patches - ind)
+                patch_inds = torch.LongTensor(range(ind, ind + n_patches)).to(x.device)
+                grad += torch.autograd.grad(outputs = self.patch_g(x_, patch_inds), inputs = x_)[0]
+                ind = ind + n_patches
+        return grad / num_patches
+
+    def analytic_grad(self, x, *args, **kwargs):
+        pass

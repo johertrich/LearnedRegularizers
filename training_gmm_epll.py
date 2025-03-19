@@ -10,9 +10,10 @@ from deepinv.utils.demo import load_url_image, get_image_url
 from deepinv.datasets import PatchDataset
 from deepinv.optim.data_fidelity import L2
 
+from deepinv.optim.utils import GaussianMixtureModel
+
 from dataset import get_dataset
 from torchvision.transforms import RandomCrop
-
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 dtype = torch.float32
@@ -28,7 +29,11 @@ train_imgs = torch.concat(train_imgs)
 print(train_imgs.shape)
 patch_size = 6
 patchnr_batch_size = 256
-model_epll = EPLL(channels=train_imgs.shape[1], patch_size=patch_size, device=device, pretrained=None)
+n_gmm_components = 100
+channels = train_imgs.shape[1]
+GMM = GaussianMixtureModel(n_gmm_components, patch_size**2 * channels, device=device)
+
+# model_epll = EPLL(channels=train_imgs.shape[1], patch_size=patch_size, device=device, pretrained=None)
 
 train_dataset = PatchDataset(train_imgs, patch_size=patch_size, transforms=None)
 patchnr_dataloader = DataLoader(
@@ -38,8 +43,8 @@ patchnr_dataloader = DataLoader(
     drop_last=True,
 )
 
-model_epll.GMM.fit(patchnr_dataloader, verbose=True, max_iters=10)
+GMM.fit(patchnr_dataloader, verbose=True, max_iters=10)
 
-print(model_epll.GMM._weights)
+print(GMM._weights)
 
-torch.save(model_epll.GMM.state_dict(),"gmm_{}.pt".format(patch_size))
+torch.save(GMM.state_dict(),"gmm_{}x{}patchsize_{}components.pt".format(patch_size, patch_size, n_gmm_components))
