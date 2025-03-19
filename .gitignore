@@ -1,5 +1,5 @@
 #auxilary folders
-
+BSDS500/*
 data/*
 scripts/model_ckpt/*
 results/*

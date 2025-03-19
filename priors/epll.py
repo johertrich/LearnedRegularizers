@@ -9,15 +9,17 @@ https://ieeexplore.ieee.org/abstract/document/6126278
 
 import torch.nn as nn
 import torch
+import numpy as np
+from deepinv.priors.prior import Prior
 from deepinv.utils import patch_extractor
 from deepinv.optim.utils import conjugate_gradient
 from deepinv.models.utils import get_weights_url
 from deepinv.optim.utils import GaussianMixtureModel
 
 
-class EPLL(nn.Module):
+class EPLL(Prior):
     r"""
-    Expected Patch Log Likelihood reconstruction method.
+    Expected Patch Log Likelihood reconstruction method
 
     Reconstruction method based on the minimization problem
 
@@ -28,6 +30,7 @@ class EPLL(nn.Module):
     where the first term is a standard :math:`\ell_2` data-fidelity, and the second term represents a patch prior via
     Gaussian mixture models, where :math:`P_i` is a patch operator that extracts the ith (overlapping) patch from the image.
 
+    #TODO change this
     The reconstruction function is based on the approximated half-quadratic splitting method as in Zoran, D., and Weiss,
     Y.  "From learning models of natural image patches to whole image restoration." (ICCV 2011).
 
@@ -45,52 +48,34 @@ class EPLL(nn.Module):
     def __init__(
         self,
         GMM=None,
-        n_components=200,
-        pretrained="download",
+        n_gmm_components=200,
         patch_size=6,
         channels=1,
         device="cpu",
+        pretrained=None
     ):
         super(EPLL, self).__init__()
         if GMM is None:
             self.GMM = GaussianMixtureModel(
-                n_components, patch_size**2 * channels, device=device
+                n_gmm_components, patch_size**2 * channels, device=device
             )
         else:
             self.GMM = GMM
-        self.patch_size = patch_size
 
-        if pretrained:
+        self.patch_size = patch_size
+        self.n_components = n_gmm_components
+        self.n_channels = channels
+
+        if pretrained is not None: 
             if pretrained[-3:] == ".pt":
                 ckpt = torch.load(pretrained)
             else:
-                if pretrained.startswith("GMM_lodopab_small"):
-                    assert patch_size == 3
-                    assert channels == 1
-                    file_name = pretrained + ".pt"
-                elif (
-                    (pretrained == "GMM_BSDS_gray" or pretrained == "download")
-                    and patch_size == 6
-                    and channels == 1
-                ):
-                    file_name = "GMM_BSDS_gray2.pt"
-                elif (
-                    (pretrained == "GMM_BSDS_color" or pretrained == "download")
-                    and patch_size == 6
-                    and channels == 3
-                ):
-                    file_name = "GMM_BSDS_color2.pt"
-                else:
-                    raise ValueError(
-                        "No pretrained weights found for this configuration!"
-                    )
-                url = get_weights_url(model_name="EPLL", file_name=file_name)
-                ckpt = torch.hub.load_state_dict_from_url(
-                    url, map_location=lambda storage, loc: storage, file_name=file_name
-                )
-            self.load_state_dict(ckpt)
+                raise ValueError("Pretrained weights have to be provided as a .pt file.")
+            self.GMM.load_state_dict(ckpt)
+            self.n_components = self.GMM.n_components
+            self.patch_size = int(np.sqrt(self.GMM.dimension))
 
-        self.n_patches = 5000
+        self.device = device
 
     def forward(self, y, physics, sigma=None, x_init=None, betas=None, batch_size=-1):
         r"""
@@ -135,7 +120,7 @@ class EPLL(nn.Module):
         x = x_init
         Aty = physics.A_adjoint(y)
         for beta in betas:
-            x = self._reconstruction_step(Aty, x, sigma**2, beta, physics, batch_size)
+            x = self._hqs_reconstruction_step(Aty, x, sigma**2, beta, physics, batch_size)
         return x
 
 
@@ -150,7 +135,7 @@ class EPLL(nn.Module):
         return logpz.view(B, n_patches)
 
 
-    def _reconstruction_step(self, Aty, x, sigma_sq, beta, physics, batch_size):
+    def _hqs_reconstruction_step(self, Aty, x, sigma_sq, beta, physics, batch_size):
         # precomputations for GMM with covariance regularization
         self.GMM.set_cov_reg(1.0 / beta)
         N, M = x.shape[2:4]
@@ -210,30 +195,32 @@ class EPLL(nn.Module):
 
     def g(self, x, *args, **kwargs):
         r"""
-        Evaluates the negative log likelihood function of the PatchNR.
+        Evaluates the negative log likelihood function of the EPLL
 
         :param torch.Tensor x: image tensor
         """
-
-        patches, _ = patch_extractor(x, self.n_patches, self.patch_size)
-
-        B, n_patches = patches.shape[0:2]
-
-        nll = self.GMM.forward(patches.view(B * n_patches, -1))
-        nll = torch.mean(nll, -1)
         
-        return nll
+        num_patches = (x.shape[2] - self.patch_size + 1) * (x.shape[3] - self.patch_size + 1)
+
+        patches, _ = patch_extractor(
+            x, num_patches, self.patch_size
+        )
+        if patches.shape[1] != num_patches:
+            raise ValueError("Number of patches extracted is not equal to the expected number of patches")
+        
+        nll = self.GMM.forward(patches.view(patches.shape[0] * num_patches, -1))
+
+        return nll.mean(-1)
 
     def grad(self, x, *args, **kwargs):
         r"""
-        Evaluates the gradient of the negative log likelihood function of the PatchNR.
+        Evaluates the gradient of the negative log likelihood function of the EPLL
 
         :param torch.Tensor x: image tensor
         """
         with torch.enable_grad():
-            x.requires_grad_()
-
+            x_ = x.clone()
+            x_.requires_grad_(True)
             nll = self.g(x).sum()
-            grad = torch.autograd.grad(outputs=nll, inputs=x)[0] 
-        
-        return grad 
+            grad = torch.autograd.grad(outputs=nll, inputs=x)[0]         
+        return grad
