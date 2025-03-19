@@ -10,7 +10,7 @@ https://ieeexplore.ieee.org/abstract/document/6126278
 import torch.nn as nn
 import torch
 import numpy as np
-from deepinv.priors.prior import Prior
+from deepinv.optim import Prior
 from deepinv.utils import patch_extractor
 from deepinv.optim.utils import conjugate_gradient
 from deepinv.models.utils import get_weights_url
@@ -221,6 +221,6 @@ class EPLL(Prior):
         with torch.enable_grad():
             x_ = x.clone()
             x_.requires_grad_(True)
-            nll = self.g(x).sum()
-            grad = torch.autograd.grad(outputs=nll, inputs=x)[0]         
+            nll = self.g(x_)
+            grad = torch.autograd.grad(outputs=nll, inputs=x_)[0]  
         return grad
