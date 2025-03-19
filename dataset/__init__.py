@@ -6,7 +6,9 @@ import torch
 def get_dataset(key, test=False, transform=None, root=None):
     if key == "BSDS500_gray":
         if transform is None:
-            transforms = Compose([ToImage(), ToDtype(torch.float32, scale=True), Grayscale()])
+            transforms = Compose(
+                [ToImage(), ToDtype(torch.float32, scale=True), Grayscale()]
+            )
         else:
             transforms = Compose(
                 [ToImage(), ToDtype(torch.float32, scale=True), Grayscale(), transform]
@@ -16,7 +18,9 @@ def get_dataset(key, test=False, transform=None, root=None):
         )
     elif key == "BSD68":
         if transform is None:
-            transforms = Compose([ToImage(), ToDtype(torch.float32, scale=True), Grayscale()])
+            transforms = Compose(
+                [ToImage(), ToDtype(torch.float32, scale=True), Grayscale()]
+            )
         else:
             transforms = Compose(
                 [ToImage(), ToDtype(torch.float32, scale=True), Grayscale(), transform]
