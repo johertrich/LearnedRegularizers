@@ -47,7 +47,7 @@ if problem == "Denoising":
     physics = Denoising(noise_model=GaussianNoise(sigma=noise_level))
     data_fidelity = L2(sigma=1.0)
     NT = NETT_transform(0.0,physics)
-    tran = transforms.Compose([RandomCrop(64),NT])
+    tran = transforms.Compose([RandomCrop(256),NT])
     dataset = get_dataset("BSDS500_gray", test=False, transform=tran)
     lmbd = 1
 
@@ -55,7 +55,7 @@ if problem == "Denoising":
 # choose random image and generate data
 
 image = dataset[sample_idx][0].unsqueeze(1).to(device)
-data = physics.A(image)
+data = physics(image)
 
 # define regularizer
 
