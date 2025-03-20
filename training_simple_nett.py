@@ -24,7 +24,7 @@ elif torch.cuda.is_available():
 else:
     device = "cpu"
 
-problem = "Tomography"
+problem = "Denoising"
 algorithm = "Adam"  # or "MAID", "Adam", "AdamW", "ISGD_Momentum"
 
 # problem dependent parameters
@@ -40,12 +40,23 @@ if problem == "Tomography":
     lmbd = 1.0
 
 
+if problem == "Denoising":
+    noise_level = 0.1
+    physics = Denoising(noise_model=GaussianNoise(sigma=noise_level))
+    data_fidelity = L2(sigma=1.0)
+    NT = NETT_transform(0.5,physics)
+    tran = transforms.Compose([CenterCrop(256),NT])
+    dataset = get_dataset("BSDS500_gray", test=False, transform=tran)
+    lmbd = 1
+
+
+
 # splitting in training and validation set
 test_ratio = 0.1
 test_len = int(len(dataset) * 0.1)
 train_len = len(dataset) - test_len
 train_set, val_set = torch.utils.data.random_split(dataset, [train_len, test_len])
-batch_size = 8
+batch_size = 4
 shuffle = True
 
 # create dataloaders
@@ -68,4 +79,4 @@ regularizer = simple_NETT_training(
     lr=1e-3,
     num_epochs = 500
 )
-torch.save(regularizer.state_dict(), "weights/simple_NETT.pt")
+torch.save(regularizer.state_dict(), "weights/simple_NETT_denoising.pt")

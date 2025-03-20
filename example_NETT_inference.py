@@ -25,10 +25,10 @@ elif torch.cuda.is_available():
 else:
     device = "cpu"
 
-problem = "Tomography"
+problem = "Denoising"
 algorithm = "Adam"  # or "MAID", "Adam", "AdamW", "ISGD_Momentum"
 
-n_iter = 4000
+n_iter = 10000
 regularization_param = 0.001
 lam = 0.0005
 sample_idx = 55
@@ -42,6 +42,14 @@ if problem == "Tomography":
     tran = transforms.Compose([resize_trans,NT])
     dataset = get_dataset("BSDS500_gray", test=True, transform=tran)
 
+if problem == "Denoising":
+    noise_level = 0.1
+    physics = Denoising(noise_model=GaussianNoise(sigma=noise_level))
+    data_fidelity = L2(sigma=1.0)
+    NT = NETT_transform(0.0,physics)
+    tran = transforms.Compose([RandomCrop(64),NT])
+    dataset = get_dataset("BSDS500_gray", test=False, transform=tran)
+    lmbd = 1
 
 
 # choose random image and generate data
@@ -52,7 +60,7 @@ data = physics.A(image)
 # define regularizer
 
 regularizer = NETT(in_channels=1,out_channels = 1).to(device)
-regularizer.load_state_dict(torch.load('weights/simple_NETT.pt'))
+regularizer.load_state_dict(torch.load('weights/simple_NETT_denoising.pt'))
 
 # Initialize with zero
 
