@@ -31,7 +31,6 @@ def nmAPG(
     q = 1.0
     c = f(x, y)
     L = torch.full((x.shape[0], 1, 1, 1), L_init, dtype=torch.float32, device=x.device)
-    L_out = L.clone()
     res = (tol + 1) * torch.ones(x.shape[0], device=x.device, dtype=x.dtype)
     idx = torch.arange(0, x.shape[0], device=x.device)
     grad = torch.zeros_like(x)
@@ -47,14 +46,13 @@ def nmAPG(
         if i > 0:
             dx = grad[idx] - grad_old[idx]
             s = (dx * dx).sum((1, 2, 3), keepdim=True)
-            L = torch.clip(
+            L[idx] = torch.clip(
                 s / (dx * (x_bar[idx] - x_bar_old[idx])).sum((1, 2, 3), keepdim=True),
                 min=1.0,
                 max=None,
             )
-            L_out[idx] = L
         for ii in range(50):
-            z[idx] = x_bar[idx] - grad[idx] / L
+            z[idx] = x_bar[idx] - grad[idx] / L[idx]
             dx = z[idx] - x_bar[idx]
             bound = torch.max(
                 energy[:, None, None, None], c[idx, None, None, None]
@@ -62,8 +60,9 @@ def nmAPG(
 
             if torch.all((energy_new := f(z[idx], y[idx])) <= bound.view(-1)):
                 break
-            L = torch.where(energy_new[:, None, None, None] <= bound, L, L / rho)
-            L_out[idx] = L
+            L[idx] = torch.where(
+                energy_new[:, None, None, None] <= bound, L[idx], L[idx] / rho
+            )
         idx2 = (
             (energy_new[:] >= (c[idx] - delta * (dx * dx).sum((1, 2, 3))))
             .nonzero()
@@ -74,7 +73,7 @@ def nmAPG(
             if i > 0:
                 dx = gradx - grad_old[idx][idx2]
                 s = (dx * dx).sum((1, 2, 3), keepdim=True)
-                L = torch.clip(
+                L[idx][idx2] = torch.clip(
                     s
                     / (dx * (x[idx][idx2] - x_bar_old[idx][idx2])).sum(
                         (1, 2, 3), keepdim=True
@@ -82,17 +81,19 @@ def nmAPG(
                     min=1.0,
                     max=None,
                 )
-                L_out[idx][idx2] = L
             for ii in range(50):
-                v = x[idx][idx2] - gradx / L
+                v = x[idx][idx2] - gradx / L[idx][idx2]
                 dx = v - x[idx][idx2]
                 bound = c[idx2, None, None, None] - delta * (dx * dx).sum(
                     (1, 2, 3), keepdim=True
                 )
                 if torch.all((energy_new2 := f(v, y[idx][idx2])) <= bound.view(-1)):
                     break
-                L = torch.where(energy_new2[:, None, None, None] <= bound, L, L / rho)
-                L_out[idx][idx2] = L
+                L[idx][idx2] = torch.where(
+                    energy_new2[:, None, None, None] <= bound,
+                    L[idx][idx2],
+                    L[idx][idx2] / rho,
+                )
             x[idx] = z[idx]
             idx3 = (energy_new2 <= energy_new[idx2]).nonzero().view(-1)
             tmp = idx[idx2][idx3]
@@ -120,7 +121,7 @@ def nmAPG(
     if verbose and (torch.max(res) >= tol):
         print(f"max iter reached, tol {torch.max(res).item():.6f}")
     if return_L:
-        return x, L_out
+        return x, L
     return x
 
 
