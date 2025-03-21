@@ -3,7 +3,7 @@ import numpy as np
 from tqdm import tqdm
 from deepinv.loss.metric import PSNR
 from deepinv.optim.utils import minres
-from evaluation import reconstruct_NAG_RS, reconstruct_nmAPG
+from evaluation import reconstruct_nmAPG
 
 
 def bilevel_training(
@@ -18,7 +18,6 @@ def bilevel_training(
     NAG_max_iter=1000,
     NAG_tol_train=1e-4,
     NAG_tol_val=1e-4,
-    linesearch=True,
     minres_max_iter=1000,
     minres_tol=1e-6,
     lr=0.005,
@@ -82,36 +81,18 @@ def bilevel_training(
 
             x_init = y
 
-            if linesearch:
-                x_recon = reconstruct_nmAPG(
-                    y,
-                    physics,
-                    data_fidelity,
-                    regularizer,
-                    lmbd,
-                    NAG_step_size,
-                    NAG_max_iter,
-                    NAG_tol_train,
-                    verbose=verbose,
-                    x_init=x_init,
-                )
-            else:
-                # NAG_step_size = 1/torch.exp(regularizer.beta)
-                x_recon = reconstruct_NAG_RS(
-                    y,
-                    physics,
-                    data_fidelity,
-                    regularizer,
-                    lmbd,
-                    NAG_step_size,
-                    NAG_max_iter,
-                    NAG_tol_train,
-                    detach_grads=True,
-                    verbose=verbose,
-                    x_init=x_init,
-                    progress=False,
-                    restart=True,
-                )
+            x_recon = reconstruct_nmAPG(
+                y,
+                physics,
+                data_fidelity,
+                regularizer,
+                lmbd,
+                NAG_step_size,
+                NAG_max_iter,
+                NAG_tol_train,
+                verbose=verbose,
+                x_init=x_init,
+            )
 
             optimizer.zero_grad()
             loss = lambda x_in: upper_loss(x, x_in).mean()
@@ -186,36 +167,18 @@ def bilevel_training(
                 y = physics(x_val)
                 x_init_val = y
 
-                if linesearch:
-
-                    x_recon_val = reconstruct_nmAPG(
-                        y,
-                        physics,
-                        data_fidelity,
-                        regularizer,
-                        lmbd,
-                        NAG_step_size,
-                        NAG_max_iter,
-                        NAG_tol_val,
-                        verbose=verbose,
-                        x_init=x_init_val,
-                    )
-                else:
-                    x_recon_val = reconstruct_NAG_RS(
-                        y,
-                        physics,
-                        data_fidelity,
-                        regularizer,
-                        lmbd,
-                        NAG_step_size,
-                        NAG_max_iter,
-                        NAG_tol_val,
-                        detach_grads=True,
-                        verbose=verbose,
-                        x_init=x_init_val,
-                        progress=False,
-                        restart=True,
-                    )
+                x_recon_val = reconstruct_nmAPG(
+                    y,
+                    physics,
+                    data_fidelity,
+                    regularizer,
+                    lmbd,
+                    NAG_step_size,
+                    NAG_max_iter,
+                    NAG_tol_val,
+                    verbose=verbose,
+                    x_init=x_init_val,
+                )
 
                 loss_validation = lambda x_in: torch.sum(
                     ((x_in - x_val) ** 2).view(x_val.shape[0], -1), -1

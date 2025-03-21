@@ -29,7 +29,7 @@ torch.random.manual_seed(0)  # make results deterministic
 # Problem selection
 
 problem = "Denoising"  # Select problem setups, which we consider.
-only_first = True  # just evaluate on the first image of the dataset for test purposes
+only_first = False  # just evaluate on the first image of the dataset for test purposes
 
 ############################################################
 
@@ -41,9 +41,9 @@ elif problem == "CT":
 
 # Parameters for the Nesterov Algorithm, might also be problem dependent...
 
-NAG_step_size = 1e-3  # step size in NAG
+NAG_step_size = 1e-1  # step size in NAG
 NAG_max_iter = 500  # maximum number of iterations in NAG
-NAG_tol = 1e-10  # tolerance for the relative error (stopping criterion)
+NAG_tol = 1e-4  # tolerance for the relative error (stopping criterion)
 beta = 0.9
 
 #############################################################
@@ -56,7 +56,7 @@ if problem == "Denoising":
     noise_level = 0.1
     physics = Denoising(noise_model=GaussianNoise(sigma=noise_level))
     data_fidelity = L2(sigma=1.0)
-    # dataset = get_dataset("BSD68")
+    #dataset = get_dataset("BSD68")
     dataset = get_dataset("BSDS500_gray", test=True, transform=RandomCrop(64))
 elif problem == "CT":
     noise_level = 0.5
@@ -101,7 +101,7 @@ lmbd = estimate_lmbd(dataset, physics, device)
 
 
 ### Evauate using NAG with backtracking
-mean_psnr, x_out, y_out, recon_out = evaluate_backtrack(
+mean_psnr, x_out, y_out, recon_out = evaluate(
     physics=physics,
     data_fidelity=data_fidelity,
     dataset=dataset,
@@ -110,7 +110,6 @@ mean_psnr, x_out, y_out, recon_out = evaluate_backtrack(
     NAG_step_size=NAG_step_size,
     NAG_max_iter=NAG_max_iter,
     NAG_tol=NAG_tol,
-    beta = beta,
     only_first=only_first,
     device=device,
     verbose=True,

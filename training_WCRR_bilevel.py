@@ -77,7 +77,6 @@ regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
     NAG_max_iter=1000,
     NAG_tol_train=1e-4,
     NAG_tol_val=1e-4,
-    linesearch=True,
     lr=0.005,
     lr_decay=0.99,
     device=device,
