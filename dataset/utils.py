@@ -16,17 +16,18 @@ class NETT_transform(object):
         physics: defines the physics of the problem
     """
 
-    def __init__(self, percentage,physics):
+    def __init__(self, percentage,physics, circular_mask = False):
         self.percentage = percentage
         self.physics = physics
 
     def __call__(self, sample):
         image = sample.float()
-        image = circular_mask(image)
+        if circular_mask == True:
+            image = circular_mask(image)
         if torch.rand(1) > self.percentage:
             img = image
         else:
-            img = self.physics.A_dagger(self.physics.A(image.unsqueeze(1))).squeeze(1)
+            img = self.physics.A_dagger(self.physics(image.unsqueeze(1))).squeeze(1)
 
 
         return img, image

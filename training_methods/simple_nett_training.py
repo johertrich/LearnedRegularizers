@@ -47,6 +47,6 @@ def simple_NETT_training(model, train_dataloader, val_dataloader, device, optimi
         val_loss /= len(val_dataloader)
         scheduler.step(val_loss)
         
-        print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
+        print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {train_loss:.8f}, Val Loss: {val_loss:.8f}")
     
     return model
