@@ -3,7 +3,7 @@ import numpy as np
 from tqdm import tqdm
 from deepinv.loss.metric import PSNR
 from deepinv.optim.utils import minres
-from evaluation import reconstruct_NAG_LS, reconstruct_NAG_RS
+from evaluation import reconstruct_NAG_RS, reconstruct_nmAPG
 
 
 def bilevel_training(
@@ -17,7 +17,7 @@ def bilevel_training(
     NAG_step_size=1e-1,
     NAG_max_iter=1000,
     NAG_tol_train=1e-4,
-    NAG_tol_val=1e-6,
+    NAG_tol_val=1e-4,
     linesearch=True,
     minres_max_iter=1000,
     minres_tol=1e-6,
@@ -83,7 +83,7 @@ def bilevel_training(
             x_init = y
 
             if linesearch:
-                x_recon = reconstruct_NAG_LS(
+                x_recon = reconstruct_nmAPG(
                     y,
                     physics,
                     data_fidelity,
@@ -92,11 +92,8 @@ def bilevel_training(
                     NAG_step_size,
                     NAG_max_iter,
                     NAG_tol_train,
-                    rho=0.9,
-                    delta=0.9,
                     verbose=verbose,
                     x_init=x_init,
-                    progress=False,
                 )
             else:
                 # NAG_step_size = 1/torch.exp(regularizer.beta)
@@ -190,7 +187,8 @@ def bilevel_training(
                 x_init_val = y
 
                 if linesearch:
-                    x_recon_val = reconstruct_NAG_LS(
+
+                    x_recon_val = reconstruct_nmAPG(
                         y,
                         physics,
                         data_fidelity,
@@ -199,11 +197,8 @@ def bilevel_training(
                         NAG_step_size,
                         NAG_max_iter,
                         NAG_tol_val,
-                        rho=0.9,
-                        delta=0.9,
                         verbose=verbose,
                         x_init=x_init_val,
-                        progress=False,
                     )
                 else:
                     x_recon_val = reconstruct_NAG_RS(
