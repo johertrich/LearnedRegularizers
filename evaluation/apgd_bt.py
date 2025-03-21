@@ -76,7 +76,10 @@ def reconstruct_apgd_bt(
         x = physics.A_dagger(y)
 
     def energy(val, y_in):
-        return data_fidelity(val, y_in, physics) + lamda * regularizer.g(val)
+        fun = data_fidelity(val, y_in, physics) + lamda * regularizer.g(val)
+        if detach_grads:
+            fun = fun.detach()
+        return fun
 
     def energy_grad(val, y_in):
         grad = data_fidelity.grad(val, y_in, physics) + lamda * regularizer.grad(val)

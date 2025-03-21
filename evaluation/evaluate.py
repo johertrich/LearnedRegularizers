@@ -1,6 +1,6 @@
 import numpy as np
 from torch.utils.data import DataLoader
-from .nag_ls import reconstruct_NAG_LS
+from .nmAPG import reconstruct_nmAPG
 import torch
 from deepinv.loss.metric import PSNR
 
@@ -33,9 +33,9 @@ def evaluate(
             # mps does not support float64
             x = x.to(torch.float32).to(device)
         else:
-            x = x.to(device).to(torch.float)
+            x = x.to(device).to(torch.float32)
         y = physics(x)
-        recon = reconstruct_NAG_LS(
+        recon = reconstruct_nmAPG(
             y,
             physics,
             data_fidelity,
