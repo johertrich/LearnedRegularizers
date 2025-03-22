@@ -51,7 +51,7 @@ def nmAPG(
                 min=1.0,
                 max=None,
             )
-        for ii in range(50):
+        for ii in range(150):
             z[idx] = x_bar[idx] - grad[idx] / L[idx]
             dx = z[idx] - x_bar[idx]
             bound = torch.max(
@@ -69,30 +69,33 @@ def nmAPG(
             .view(-1)
         )
         if idx2.nelement() > 0:
-            gradx = nabla(x[idx][idx2], y[idx][idx2])
+            gradx = nabla(x[idx[idx2]], y[idx[idx2]])
             if i > 0:
-                dx = gradx - grad_old[idx][idx2]
+                dx = gradx - grad_old[idx[idx2]]
                 s = (dx * dx).sum((1, 2, 3), keepdim=True)
-                L[idx][idx2] = torch.clip(
+                L[idx[idx2]] = torch.clip(
                     s
-                    / (dx * (x[idx][idx2] - x_bar_old[idx][idx2])).sum(
+                    / (dx * (x[idx[idx2]] - x_bar_old[idx[idx2]])).sum(
                         (1, 2, 3), keepdim=True
                     ),
                     min=1.0,
                     max=None,
                 )
-            for ii in range(50):
-                v = x[idx][idx2] - gradx / L[idx][idx2]
-                dx = v - x[idx][idx2]
-                bound = c[idx2, None, None, None] - delta * (dx * dx).sum(
+            L_old = L.clone()
+            for ii in range(1500):
+                v = x[idx[idx2]] - gradx / L[idx[idx2]]
+                dx = v - x[idx[idx2]]
+                bound = c[idx[idx2], None, None, None] - delta * (dx * dx).sum(
                     (1, 2, 3), keepdim=True
                 )
-                if torch.all((energy_new2 := f(v, y[idx][idx2])) <= bound.view(-1)):
+                if torch.all(
+                    (energy_new2 := f(v, y[idx[idx2]])) <= bound.view(-1) * (1 + 1e-4)
+                ):
                     break
-                L[idx][idx2] = torch.where(
+                L[idx[idx2]] = torch.where(
                     energy_new2[:, None, None, None] <= bound,
-                    L[idx][idx2],
-                    L[idx][idx2] / rho,
+                    L[idx[idx2]],
+                    L[idx[idx2]] / rho,
                 )
             x[idx] = z[idx]
             idx3 = (energy_new2 <= energy_new[idx2]).nonzero().view(-1)
