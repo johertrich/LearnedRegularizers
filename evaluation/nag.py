@@ -3,6 +3,7 @@ import numpy as np
 from tqdm import tqdm
 
 import matplotlib.pyplot as plt 
+from deepinv.loss.metric import PSNR
 
 def reconstruct_NAG(
     y,
@@ -16,6 +17,7 @@ def reconstruct_NAG(
     detach_grads=False,
     verbose=False,
     x_init=None,
+    x_gt = None
 ):
     # run Nesterov Accelerated Gradient
     if x_init is not None:
@@ -27,10 +29,16 @@ def reconstruct_NAG(
 
     t = 1
     res = NAG_tol + 1
+    psnr = PSNR()
     for step in tqdm(range(NAG_max_iter), disable=not verbose):
         x_old = torch.clone(x)
+        
+        reg_grad = regularizer.grad(x)
+        data_fidelity_grad = data_fidelity.grad(x, y, physics)
 
-        grad = data_fidelity.grad(x, y, physics) + lmbd * regularizer.grad(x)
+        #print(torch.linalg.norm(reg_grad), torch.linalg.norm(data_fidelity_grad))
+
+        grad = data_fidelity_grad + lmbd * reg_grad
         if detach_grads:
             grad = grad.detach()
         x = z - NAG_step_size * grad
@@ -48,6 +56,9 @@ def reconstruct_NAG(
             if verbose:
                 print(f"Converged in iter {step}, tol {res.item():.6f}")
             break
+        
+        if x_gt is not None:
+            print("PSNR: ", psnr(x, x_gt).squeeze().item())
     if verbose and res >= NAG_tol:
         print(f"max iter reached, tol {res.item():.6f}")
     return x
