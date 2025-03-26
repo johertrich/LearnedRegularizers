@@ -172,17 +172,17 @@ class PatchNR(Prior):
         if self.pad:
             x = torch.cat(
                 (
-                    torch.flip(x[:, :, -self.patch_size : -1, :], (2,)),
+                    torch.flip(x[:, :, -self.patch_size : -1, :].detach(), (2,)),
                     x,
-                    torch.flip(x[:, :, 1 : self.patch_size, :], (2,)),
+                    torch.flip(x[:, :, 1 : self.patch_size, :].detach(), (2,)),
                 ),
                 2,
             )
             x = torch.cat(
                 (
-                    torch.flip(x[:, :, :, -self.patch_size : -1], (3,)),
+                    torch.flip(x[:, :, :, -self.patch_size : -1].detach(), (3,)),
                     x,
-                    torch.flip(x[:, :, :, 1 : self.patch_size], (3,)),
+                    torch.flip(x[:, :, :, 1 : self.patch_size].detach(), (3,)),
                 ),
                 3,
             )
@@ -214,6 +214,16 @@ class PatchNR(Prior):
             nll = self.g(x).sum()
             grad = torch.autograd.grad(outputs=nll, inputs=x)[0] 
         
+        #import matplotlib.pyplot as plt 
+        #fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(1,5)
+        #ax1.imshow(x[0,0].detach().cpu().numpy())
+        #ax2.imshow(grad[0,0].detach().cpu().numpy())
+        #ax3.imshow(patch_per_pixel[0,0].detach().cpu().numpy())
+        #ax4.imshow((grad /grad_norm)[0,0].detach().cpu().numpy())
+        #ax5.imshow(grad_norm[0,0].detach().cpu().numpy())
+
+        #plt.show()
+
         return grad 
 
 if __name__ == "__main__":
