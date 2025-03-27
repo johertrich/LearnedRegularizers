@@ -28,7 +28,7 @@ torch.random.manual_seed(0)  # make results deterministic
 
 # Problem selection
 
-problem = "Denoising"  # Select problem setups, which we consider.
+problem = "CT"  # Select problem setups, which we consider.
 only_first = True  # just evaluate on the first image of the dataset for test purposes
 
 ############################################################
@@ -55,7 +55,7 @@ if problem == "Denoising":
     dataset = torch.utils.data.Subset(dataset, range(2,3))
 elif problem == "CT":
     noise_level = 0.5
-    dataset = get_dataset("BSDS500_gray", transform=CenterCrop(300))
+    dataset = get_dataset("BSDS500_gray", test=True, transform=CenterCrop(300))
     dataset = torch.utils.data.Subset(dataset, range(0,10))
     imsize = dataset[0].shape[-1]
     physics = Tomography(

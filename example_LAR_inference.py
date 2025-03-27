@@ -28,7 +28,7 @@ torch.random.manual_seed(0)  # make results deterministic
 
 # Problem selection
 
-problem = "Denoising"  # Select problem setups, which we consider.
+problem = "CT"  # Select problem setups, which we consider.
 only_first = True  # just evaluate on the first image of the dataset for test purposes
 
 ############################################################
@@ -96,4 +96,4 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
 end = time.time() 
 print(f"TIME: {end-start}s")
 # plot ground truth, observation and reconstruction for the first image from the test dataset
-plot([x_out, y_out, recon_out])
+plot([x_out, physics.A_dagger(y_out), recon_out])

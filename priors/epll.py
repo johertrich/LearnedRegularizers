@@ -202,7 +202,7 @@ class EPLL(Prior):
         
         num_patches = (x.shape[2] - self.patch_size + 1) * (x.shape[3] - self.patch_size + 1)
 
-        patches, _ = patch_extractor(
+        patches, linear_inds = patch_extractor(
             x, num_patches, self.patch_size
         )
         if patches.shape[1] != num_patches:

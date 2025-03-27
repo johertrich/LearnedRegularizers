@@ -169,6 +169,8 @@ class PatchNR(Prior):
 
         :param torch.Tensor x: image tensor
         """
+        return_patch_per_pixel = kwargs.get('return_patch_per_pixel', False)
+
         if self.pad:
             x = torch.cat(
                 (
@@ -187,7 +189,7 @@ class PatchNR(Prior):
                 3,
             )
 
-        patches, _ = patch_extractor(x, self.n_patches, self.patch_size)
+        patches, linear_inds = patch_extractor(x, self.n_patches, self.patch_size)
 
         B, n_patches = patches.shape[0:2]
 
@@ -200,7 +202,16 @@ class PatchNR(Prior):
 
         nll = torch.mean(nll, -1)
         
-        return nll
+        if return_patch_per_pixel:
+            patch_per_pixel = torch.zeros_like(x).reshape(-1)
+            patch_per_pixel.index_put_(
+                    (linear_inds,), torch.ones_like(patches).view(-1), accumulate=True
+                )
+            patch_per_pixel = patch_per_pixel.reshape(x.shape)
+
+            return nll, patch_per_pixel
+        else:
+            return nll
 
     def grad(self, x, *args, **kwargs):
         r"""
@@ -211,9 +222,15 @@ class PatchNR(Prior):
         with torch.enable_grad():
             x.requires_grad_()
 
-            nll = self.g(x).sum()
+            nll, patch_per_pixel = self.g(x, return_patch_per_pixel=True)
+            nll = nll.sum()
             grad = torch.autograd.grad(outputs=nll, inputs=x)[0] 
-        
+            #print(torch.sum(grad**2))
+            grad_norm = (patch_per_pixel + 1) / torch.max(patch_per_pixel)
+            if self.pad:
+                grad_norm = grad_norm[:, :, self.patch_size - 1 : -(self.patch_size - 1), :]
+                # Remove the columns added for horizontal padding
+                grad_norm = grad_norm[:, :, :, self.patch_size - 1 : -(self.patch_size - 1)]
         #import matplotlib.pyplot as plt 
         #fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(1,5)
         #ax1.imshow(x[0,0].detach().cpu().numpy())
@@ -224,7 +241,7 @@ class PatchNR(Prior):
 
         #plt.show()
 
-        return grad 
+        return grad / grad_norm 
 
 if __name__ == "__main__":
 

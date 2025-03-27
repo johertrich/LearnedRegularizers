@@ -27,7 +27,7 @@ torch.random.manual_seed(0)  # make results deterministic
 
 # Problem selection
 
-problem = "Denoising"  # Select problem setups, which we consider.
+problem = "CT"  # Select problem setups, which we consider.
 only_first = True  # just evaluate on the first image of the dataset for test purposes
 
 ############################################################
@@ -36,7 +36,7 @@ only_first = True  # just evaluate on the first image of the dataset for test pu
 if problem == "Denoising":
     lmbd = 1e1  # regularization parameter
 elif problem == "CT":
-    lmbd = 3e2  # regularization parameter
+    lmbd = 275 #3e2  # regularization parameter
 
 
 
@@ -54,7 +54,7 @@ if problem == "Denoising":
     dataset = get_dataset("BSDS500_gray", test=True, transform=RandomCrop(300))
 elif problem == "CT":
     noise_level = 0.5
-    dataset = get_dataset("BSDS500_gray", transform=CenterCrop(300))
+    dataset = get_dataset("BSDS500_gray", test=True, transform=CenterCrop(300))
     imsize = dataset[0].shape[-1]
     physics = Tomography(
         imsize // 3, imsize, device=device, noise_model=GaussianNoise(sigma=noise_level)
@@ -65,12 +65,12 @@ else:
     raise NotImplementedError("Problem not found")
 
 regularizer = EPLL(
-    device=device, patch_size=6, channels=1, pretrained="gmm_6.pt"
+    device=device, patch_size=8, channels=1, n_gmm_components=200, pretrained="weights/gmm_8x8patchsize_200components.pt"
 )
 
 # Parameters for the Nesterov Algorithm, might also be problem dependent...
 NAG_step_size = 1e-4 # step size for NAG
-NAG_max_iter = 1000  # maximum number of NAG iterations
+NAG_max_iter = 500 #1000  # maximum number of NAG iterations
 NAG_tol = 1e-6  # tolerance for the relative error (stopping criterion)
 beta = 0.9
 
@@ -87,7 +87,7 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
     NAG_tol=NAG_tol,
     only_first=only_first,
     device=device,
-    verbose=False,
+    verbose=True,
 )
 print(f"Mean PSNR over the test set: {mean_psnr:.2f} with lmbd={lmbd}")
 plot([x_out, y_out, recon_out])
