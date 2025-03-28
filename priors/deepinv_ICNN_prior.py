@@ -25,6 +25,7 @@ class ICNNPrior(Prior):
             pos_weights=pos_weights,
             device=device,
         )
+        if(pos_weights): self.icnn.initialize_weights()
         self.add_module("ICNN", self.icnn)
         if pretrained is not None:
             self.load_state_dict(torch.load(pretrained, map_location=device))
