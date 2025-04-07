@@ -29,7 +29,7 @@ only_first = False  # just evaluate on the first image of the dataset for test p
 
 # Define regularizer
 
-weakly = True
+weakly = False
 pretrained = "weights/WCRR_bilevel.pt" if weakly else "weights/CRR_bilevel.pt"
 regularizer = wcrr.WCRR(
     sigma=0.1, weak_convexity=1.0 if weakly else 0.0, pretrained=pretrained
