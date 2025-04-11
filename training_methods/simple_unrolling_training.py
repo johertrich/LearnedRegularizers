@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from tqdm import tqdm
-from evaluation import reconstruct_NAG
+from evaluation import reconstruct_nmAPG as reconstruct_NAG
 
 
 def simple_unrolling_training(

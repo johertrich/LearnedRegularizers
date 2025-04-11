@@ -62,7 +62,7 @@ val_dataloader = torch.utils.data.DataLoader(
 # define regularizer
 regularizer = wcrr.WCRR(
     sigma=noise_level,
-    weak_convexity=1.0,
+    weak_convexity=0.0,
 ).to(device)
 
 regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
@@ -77,12 +77,12 @@ regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
     NAG_max_iter=1000,
     NAG_tol_train=1e-4,
     NAG_tol_val=1e-4,
-    lr=0.005,
+    lr=0.01,
     lr_decay=0.99,
     device=device,
     verbose=False,
 )
 
-torch.save(regularizer.state_dict(), f"weights/WCRR_bilevel.pt")
+torch.save(regularizer.state_dict(), f"weights/CRR_bilevel.pt")
 
 # %%

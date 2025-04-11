@@ -98,6 +98,8 @@ class linear_ICNN(nn.Module):
 
         self.pos_weights = pos_weights
         self.device = device
+        if(self.pos_weights): self.initialize_weights()
+        
 
 
     def forward(self, x):

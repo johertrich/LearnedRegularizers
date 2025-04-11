@@ -1,7 +1,7 @@
-from priors import wcrr
+from priors import WCRR
 import torch
 from deepinv.physics import Denoising, GaussianNoise
-from training_methods import bilevel_training
+from training_methods import unrolling_jfb
 from deepinv.optim import L2
 from dataset import get_dataset
 from torchvision.transforms import RandomCrop, CenterCrop, Compose
@@ -60,19 +60,19 @@ val_dataloader = torch.utils.data.DataLoader(
 )
 
 # define regularizer
-regularizer = wcrr.WCRR(
+regularizer = WCRR(
     sigma=noise_level,
     weak_convexity=1.0,
 ).to(device)
 
-regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
+regularizer, loss_train, loss_val, psnr_train, psnr_val = unrolling_jfb(
     regularizer,
     physics,
     data_fidelity,
     lmbd,
     train_dataloader,
     val_dataloader,
-    epochs=200,
+    epochs=100,
     NAG_step_size=1e-1,
     NAG_max_iter=1000,
     NAG_tol_train=1e-4,
@@ -83,6 +83,6 @@ regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
     verbose=False,
 )
 
-torch.save(regularizer.state_dict(), f"weights/WCRR_bilevel.pt")
+torch.save(regularizer.state_dict(), f"weights/WCRR_jfb.pt")
 
 # %%

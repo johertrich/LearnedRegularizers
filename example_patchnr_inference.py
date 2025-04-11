@@ -71,9 +71,9 @@ else:
 
 regularizer = PatchNR(patch_size=6, channels=1,num_layers=5, sub_net_size=512, device=device, n_patches=-1, pretrained="weights/patchnr.pt", pad=False)
 
-NAG_step_size = 1e-4  # step size in NAG
+NAG_step_size = 1e-1  # step size in NAG
 NAG_max_iter = 500  # maximum number of iterations in NAG
-NAG_tol = 1e-6  # tolerance for the relative error (stopping criterion)
+NAG_tol = 1e-4  # tolerance for the relative error (stopping criterion)
 
 start = time.time()
 ### Evauate using NAG 

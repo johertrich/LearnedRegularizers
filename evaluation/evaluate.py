@@ -1,7 +1,6 @@
 import numpy as np
 from torch.utils.data import DataLoader
-from .nag import reconstruct_NAG
-from .nag_ls import reconstruct_NAG_LS
+from .nmAPG import reconstruct_nmAPG
 import torch
 from deepinv.loss.metric import PSNR
 
@@ -29,16 +28,15 @@ def evaluate(
         p.requires_grad_(False)
 
     ## Evaluate on the test set
-
     psnrs = []
     for i, x in enumerate(dataloader):
         if device == "mps":
             # mps does not support float64
             x = x.to(torch.float32).to(device)
         else:
-            x = x.to(device).to(torch.float)
+            x = x.to(device).to(torch.float32)
         y = physics(x)
-        recon = reconstruct_NAG(
+        recon = reconstruct_nmAPG(
             y,
             physics,
             data_fidelity,
@@ -47,9 +45,7 @@ def evaluate(
             NAG_step_size,
             NAG_max_iter,
             NAG_tol,
-            detach_grads=True,
             verbose=verbose,
-            x_gt=None#x
         )
         psnrs.append(psnr(recon, x).squeeze().item())
         if i == 0:

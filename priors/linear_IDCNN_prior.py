@@ -2,17 +2,17 @@
 Created on Mon March 10 2025
 
 @author: Yasi Zhang
+
+Convolutional Input Difference-of-Convex Neural Network (IDCNN) proposed in https://arxiv.org/pdf/2502.00240.
+In short, IDCNN is the substraction of two ICNNs.
+The ICNNs used in IDCNN are linear without the quadratic layers following the original ICNN paper (https://arxiv.org/pdf/1609.07152).
+
 """
 from deepinv.optim import Prior
 import torch
 import torch.nn as nn
 
-class linear_IDCNN(nn.Module):
-    r"""
-    Convolutional Input Difference-of-Convex Neural Network (IDCNN) proposed in https://arxiv.org/pdf/2502.00240.
-    In short, IDCNN is the substraction of two ICNNs.
-    The ICNNs used in IDCNN are linear without the quadratic layers following the original ICNN paper (https://arxiv.org/pdf/1609.07152).
-    """
+class linear_ICNN(nn.Module):
 
     def __init__(
         self,
@@ -154,7 +154,7 @@ class linearIDCNNPrior(Prior):
         pretrained=None,
     ):
         super().__init__()
-        self.idcnn = linear_IDCNN(
+        self.icnn1 = linear_ICNN(
             in_channels=in_channels,
             num_filters=num_filters,
             kernel_dim=kernel_dim,
@@ -162,13 +162,22 @@ class linearIDCNNPrior(Prior):
             pos_weights=pos_weights,
             device=device,
         )
+        self.icnn2 = linear_ICNN(
+            in_channels=in_channels,
+            num_filters=num_filters,
+            kernel_dim=kernel_dim,
+            num_layers=num_layers,
+            pos_weights=pos_weights,
+            device=device,
+        )
+        self.add_module("ICNN1", self.icnn1)
+        self.add_module("ICNN2", self.icnn2)
         
-        self.add_module("IDCNN", self.idcnn)
         if pretrained is not None:
             self.load_state_dict(torch.load(pretrained, map_location=device))
 
     def g(self, x):
-        return self.idcnn(x)
+        return self.icnn1(x) - self.icnn2(x)
 
     def grad(self, x):
         with torch.enable_grad():
@@ -186,7 +195,7 @@ if __name__ == "__main__":
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    idcnn = linear_IDCNN(device=device)
+    idcnn = linear_ICNN(device=device)
     x = torch.tensor(np.random.randn(1, 3, 128, 128), dtype=torch.float32, device=device)
     x.requires_grad = True
     y = idcnn(x)

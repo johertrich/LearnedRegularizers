@@ -5,7 +5,8 @@ from deepinv.loss.metric import PSNR
 from torchvision.transforms import RandomCrop, Compose
 from torch.utils.data import RandomSampler
 from deepinv.optim.utils import conjugate_gradient
-from evaluation import reconstruct_NAG_LS, reconstruct_NAG_RS
+from evaluation import reconstruct_nmAPG
+
 
 def simple_bilevel_training_maid(
     regularizer,
@@ -19,14 +20,13 @@ def simple_bilevel_training_maid(
     NAG_max_iter=200,
     NAG_tol_train=1e-3,
     NAG_tol_val=1e-6,
-    linesearch=False,
     cg_max_iter=100,
     CG_tol=1e-6,
     lr=1e-3,
     lr_decay=0.9,
     device="cuda" if torch.cuda.is_available() else "cpu",
     verbose=False,
-    ICNN=False
+    ICNN=False,
 ):
     """
     Bilevel learning using inexact hypegradient methods described in
@@ -138,44 +138,23 @@ def simple_bilevel_training_maid(
 
             if epoch == 0:
                 x_init = y
-                
+
             else:
                 # Warm start with the previous reconstruction for MAID
                 x_init = x_recon
 
-            if linesearch:
-                x_recon = reconstruct_NAG_LS(
-                    y,
-                    physics,
-                    data_fidelity,
-                    regularizer,
-                    lmbd,
-                    NAG_step_size,
-                    NAG_max_iter,
-                    NAG_tol_train,
-                    rho=0.9,
-                    delta=0.9,
-                    verbose=verbose,
-                    x_init = x_init,
-                    progress=False
-                )
-            else:
-                #NAG_step_size = 1/torch.exp(regularizer.beta)
-                x_recon = reconstruct_NAG_RS(
-                    y,
-                    physics,
-                    data_fidelity,
-                    regularizer,
-                    lmbd,
-                    NAG_step_size,
-                    NAG_max_iter,
-                    NAG_tol_train,
-                    detach_grads=True,
-                    verbose=verbose,
-                    x_init = x_init,
-                    progress=False,
-                    restart=True
-                )
+            x_recon = reconstruct_nmAPG(
+                y,
+                physics,
+                data_fidelity,
+                regularizer,
+                lmbd,
+                NAG_step_size,
+                NAG_max_iter,
+                NAG_tol_train,
+                verbose=verbose,
+                x_init=x_init,
+            )
             optimizer.zero_grad()
             loss = lambda x_in: torch.sum(
                 ((x_in - x) ** 2).view(x.shape[0], -1), -1
@@ -184,9 +163,9 @@ def simple_bilevel_training_maid(
             psnr_vals.append(psnr(x_recon, x).mean().item())
             x_recon = x_recon.requires_grad_(True)
             # Computing the gradient of the upper-level objective with respect to the input
-            grad_loss = torch.autograd.grad(
-                loss(x_recon), x_recon, create_graph=False
-            )[0].detach()
+            grad_loss = torch.autograd.grad(loss(x_recon), x_recon, create_graph=False)[
+                0
+            ].detach()
             # Computing the approximate inverse Hessian vector product using CG
             q = conjugate_gradient(
                 lambda input: hessian_vector_product(
@@ -197,10 +176,10 @@ def simple_bilevel_training_maid(
                     regularizer,
                     lmbd,
                     physics,
-                ), 
+                ),
                 grad_loss,
                 cg_max_iter,
-                CG_tol
+                CG_tol,
             )
             # Computing the approximate hypergradient using the Jacobian vector product
             regularizer = jac_vector_product(
@@ -278,39 +257,18 @@ def simple_bilevel_training_maid(
                         if param.grad is not None:
                             param.grad = param.grad / torch.norm(hypergrad)
                     optimizer.step()
-                    if linesearch:
-                        x_new = reconstruct_NAG_LS(
-                            y,
-                            physics,
-                            data_fidelity,
-                            regularizer,
-                            lmbd,
-                            NAG_step_size,
-                            NAG_max_iter,
-                            NAG_tol_train,
-                            rho=0.9,
-                            delta=0.9,
-                            verbose=verbose,
-                            x_init = x_old,
-                            progress=False
-                        )
-                    else:
-                        #NAG_step_size = 1/torch.exp(regularizer.beta)
-                        x_new = reconstruct_NAG_RS(
-                            y,
-                            physics,
-                            data_fidelity,
-                            regularizer,
-                            lmbd,
-                            NAG_step_size,
-                            NAG_max_iter,
-                            NAG_tol_train,
-                            detach_grads=True,
-                            verbose=verbose,
-                            x_init = x_old,
-                            progress=False,
-                            restart=True
-                        )
+                    x_new = reconstruct_nmAPG(
+                        y,
+                        physics,
+                        data_fidelity,
+                        regularizer,
+                        lmbd,
+                        NAG_step_size,
+                        NAG_max_iter,
+                        NAG_tol_train,
+                        verbose=verbose,
+                        x_init=x_old,
+                    )
                     if verbose:
                         print(
                             "loss",
@@ -381,12 +339,20 @@ def simple_bilevel_training_maid(
                 optimizer.param_groups[0]["lr"] = (
                     optimizer.param_groups[0]["lr"] * nu_over
                 )
-        
+
         scheduler.step()
         mean_psnr_train = np.mean(psnr_vals)
         mean_loss_train = np.mean(loss_vals)
-        print("Mean PSNR training in epoch {0}: {1:.2f}".format(epoch+1,mean_psnr_train))
-        print("Mean loss training in epoch {0}: {1:.2E}".format(epoch+1,mean_loss_train))
+        print(
+            "Mean PSNR training in epoch {0}: {1:.2f}".format(
+                epoch + 1, mean_psnr_train
+            )
+        )
+        print(
+            "Mean loss training in epoch {0}: {1:.2E}".format(
+                epoch + 1, mean_loss_train
+            )
+        )
 
         loss_train.append(mean_loss_train)
         psnr_train.append(mean_psnr_train)
@@ -407,38 +373,20 @@ def simple_bilevel_training_maid(
                     x_val = x_val.to(device).to(torch.float)
                 y = physics(x_val)
                 x_init_val = y
-                if linesearch:
-                    x_recon_val = reconstruct_NAG_LS(
-                        y,
-                        physics,
-                        data_fidelity,
-                        regularizer,
-                        lmbd,
-                        NAG_step_size,
-                        NAG_max_iter,
-                        NAG_tol_val,
-                        rho=0.9,
-                        delta=0.9,
-                        verbose=verbose,
-                        x_init = x_init_val,
-                        progress=False
-                    )
-                else:
-                    x_recon_val = reconstruct_NAG_RS(
-                        y,
-                        physics,
-                        data_fidelity,
-                        regularizer,
-                        lmbd,
-                        NAG_step_size,
-                        NAG_max_iter,
-                        NAG_tol_val,
-                        detach_grads=True,
-                        verbose=verbose,
-                        x_init = x_init_val,
-                        progress=False,
-                        restart=True
-                    )
+                x_recon_val = reconstruct_nmAPG(
+                    y,
+                    physics,
+                    data_fidelity,
+                    regularizer,
+                    lmbd,
+                    NAG_step_size,
+                    NAG_max_iter,
+                    NAG_tol_val,
+                    rho=0.9,
+                    delta=0.9,
+                    verbose=verbose,
+                    x_init=x_init_val,
+                )
                 loss_validation = lambda x_in: torch.sum(
                     ((x_in - x_val) ** 2).view(x_val.shape[0], -1), -1
                 ).mean()
