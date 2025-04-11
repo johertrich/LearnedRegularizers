@@ -4,7 +4,6 @@ from .nmAPG import reconstruct_nmAPG
 import torch
 from deepinv.loss.metric import PSNR
 
-from tqdm import tqdm 
 
 def evaluate(
     physics,
