@@ -1,9 +1,3 @@
-"""
-Created on Wed Feb 26 2025
-
-@author: Zakobian
-"""
-
 from deepinv.physics import Denoising, MRI, GaussianNoise, Tomography
 from deepinv.optim import L2, Tikhonov
 from deepinv.utils.plotting import plot

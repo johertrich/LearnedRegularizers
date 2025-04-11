@@ -49,7 +49,7 @@ print(GMM._weights)
 
 torch.save(
     GMM.state_dict(),
-    "gmm_{}x{}patchsize_{}components.pt".format(
+    "weights/gmm_{}x{}patchsize_{}components.pt".format(
         patch_size, patch_size, n_gmm_components
     ),
 )
