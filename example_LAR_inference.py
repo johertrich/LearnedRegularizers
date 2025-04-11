@@ -2,6 +2,7 @@
 
 @author: Alex
 """
+
 from deepinv.physics import Denoising, MRI, GaussianNoise, Tomography
 from deepinv.optim import L2, Tikhonov
 from deepinv.utils.plotting import plot
@@ -9,7 +10,7 @@ from evaluation import evaluate
 from dataset import get_dataset
 from torchvision.transforms import CenterCrop, RandomCrop
 import torch
-import time 
+import time
 
 from priors import LocalAR
 
@@ -51,13 +52,13 @@ if problem == "Denoising":
     physics = Denoising(noise_model=GaussianNoise(sigma=noise_level))
     data_fidelity = L2(sigma=1.0)
     dataset = get_dataset("BSD68")
-    #dataset = get_dataset("BSDS500_gray", test=True, transform=RandomCrop(300))    
-    dataset = torch.utils.data.Subset(dataset, range(2,3))
+    # dataset = get_dataset("BSDS500_gray", test=True, transform=RandomCrop(300))
+    dataset = torch.utils.data.Subset(dataset, range(2, 3))
 
 elif problem == "CT":
     noise_level = 0.5
     dataset = get_dataset("BSDS500_gray", test=True, transform=CenterCrop(300))
-    dataset = torch.utils.data.Subset(dataset, range(0,10))
+    dataset = torch.utils.data.Subset(dataset, range(0, 10))
     imsize = dataset[0].shape[-1]
     physics = Tomography(
         imsize // 3, imsize, device=device, noise_model=GaussianNoise(sigma=noise_level)
@@ -70,7 +71,13 @@ else:
 # Call unified evaluation routine
 # Define regularizer
 
-regularizer = LocalAR(patch_size=15, n_patches=-1, in_channels=1, pretrained="weights/simple_LocalAR_mu=10.0_local_ar.pt", pad=False)
+regularizer = LocalAR(
+    patch_size=15,
+    n_patches=-1,
+    in_channels=1,
+    pretrained="weights/simple_LocalAR_mu=10.0_local_ar.pt",
+    pad=False,
+)
 regularizer.to(device)
 
 
@@ -79,7 +86,7 @@ NAG_max_iter = 750  # maximum number of iterations in NAG
 NAG_tol = 1e-6  # tolerance for the relative error (stopping criterion)
 
 start = time.time()
-### Evauate using NAG 
+### Evauate using NAG
 mean_psnr, x_out, y_out, recon_out = evaluate(
     physics=physics,
     data_fidelity=data_fidelity,
@@ -93,7 +100,7 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
     device=device,
     verbose=True,
 )
-end = time.time() 
+end = time.time()
 print(f"TIME: {end-start}s")
 # plot ground truth, observation and reconstruction for the first image from the test dataset
 plot([x_out, physics.A_dagger(y_out), recon_out])

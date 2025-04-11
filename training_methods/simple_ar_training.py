@@ -71,8 +71,8 @@ def simple_ar_training(
 ):
     adversarial_loss = WGAN_loss
     regularizer.to(device)
-    optimizer = torch.optim.Adam(regularizer.parameters(), lr=lr)
-    # optimizer = torch.optim.RMSprop(regularizer.parameters(), lr=lr)
+    # optimizer = torch.optim.Adam(regularizer.parameters(), lr=lr)
+    optimizer = torch.optim.RMSprop(regularizer.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=lr_decay, patience=2)
     
     

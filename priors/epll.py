@@ -6,7 +6,6 @@ https://ieeexplore.ieee.org/abstract/document/6126278
 
 """
 
-
 import torch.nn as nn
 import torch
 import numpy as np
@@ -52,7 +51,7 @@ class EPLL(Prior):
         patch_size=6,
         channels=1,
         device="cpu",
-        pretrained=None
+        pretrained=None,
     ):
         super(EPLL, self).__init__()
         if GMM is None:
@@ -66,11 +65,13 @@ class EPLL(Prior):
         self.n_components = n_gmm_components
         self.n_channels = channels
 
-        if pretrained is not None: 
+        if pretrained is not None:
             if pretrained[-3:] == ".pt":
                 ckpt = torch.load(pretrained)
             else:
-                raise ValueError("Pretrained weights have to be provided as a .pt file.")
+                raise ValueError(
+                    "Pretrained weights have to be provided as a .pt file."
+                )
             self.GMM.load_state_dict(ckpt)
             self.n_components = self.GMM.n_components
             self.patch_size = int(np.sqrt(self.GMM.dimension))
@@ -120,9 +121,10 @@ class EPLL(Prior):
         x = x_init
         Aty = physics.A_adjoint(y)
         for beta in betas:
-            x = self._hqs_reconstruction_step(Aty, x, sigma**2, beta, physics, batch_size)
+            x = self._hqs_reconstruction_step(
+                Aty, x, sigma**2, beta, physics, batch_size
+            )
         return x
-
 
     def negative_log_likelihood(self, x):
         r"""
@@ -133,7 +135,6 @@ class EPLL(Prior):
         B, n_patches = x.shape[0:2]
         logpz = self.GMM(x.view(B * n_patches, -1))
         return logpz.view(B, n_patches)
-
 
     def _hqs_reconstruction_step(self, Aty, x, sigma_sq, beta, physics, batch_size):
         # precomputations for GMM with covariance regularization
@@ -199,15 +200,17 @@ class EPLL(Prior):
 
         :param torch.Tensor x: image tensor
         """
-        
-        num_patches = (x.shape[2] - self.patch_size + 1) * (x.shape[3] - self.patch_size + 1)
 
-        patches, linear_inds = patch_extractor(
-            x, num_patches, self.patch_size
+        num_patches = (x.shape[2] - self.patch_size + 1) * (
+            x.shape[3] - self.patch_size + 1
         )
+
+        patches, linear_inds = patch_extractor(x, num_patches, self.patch_size)
         if patches.shape[1] != num_patches:
-            raise ValueError("Number of patches extracted is not equal to the expected number of patches")
-        
+            raise ValueError(
+                "Number of patches extracted is not equal to the expected number of patches"
+            )
+
         nll = self.GMM.forward(patches.view(patches.shape[0] * num_patches, -1))
 
         return nll.mean(-1)
@@ -222,9 +225,9 @@ class EPLL(Prior):
             x_ = x.clone()
             x_.requires_grad_(True)
             nll = self.g(x_)
-            grad = torch.autograd.grad(outputs=nll, inputs=x_)[0]  
+            grad = torch.autograd.grad(outputs=nll, inputs=x_)[0]
         return grad
-    
+
     def patch_g(self, x, patch_inds, *args, **kwargs):
         r"""
         Evaluates the negative log likelihood function of the EPLL for a subset of patches
@@ -233,8 +236,8 @@ class EPLL(Prior):
         :param torch.Tensor patch_inds: indices of the patches to evaluate the negative log likelihood function
         """
         patches, _ = patch_extractor(
-                    x, len(patch_inds), self.patch_size, position_inds_linear=patch_inds
-                )
+            x, len(patch_inds), self.patch_size, position_inds_linear=patch_inds
+        )
         nll = self.GMM.forward(patches.view(patches.shape[0] * patches.shape[1], -1))
         return nll.sum()
 
@@ -244,7 +247,9 @@ class EPLL(Prior):
 
         :param torch.Tensor x: image tensor
         """
-        num_patches = (x.shape[2] - self.patch_size + 1) * (x.shape[3] - self.patch_size + 1)
+        num_patches = (x.shape[2] - self.patch_size + 1) * (
+            x.shape[3] - self.patch_size + 1
+        )
         with torch.enable_grad():
             x_ = x.clone()
             x_.requires_grad_(True)
@@ -253,7 +258,9 @@ class EPLL(Prior):
             while ind < num_patches:
                 n_patches = min(5000, num_patches - ind)
                 patch_inds = torch.LongTensor(range(ind, ind + n_patches)).to(x.device)
-                grad += torch.autograd.grad(outputs = self.patch_g(x_, patch_inds), inputs = x_)[0]
+                grad += torch.autograd.grad(
+                    outputs=self.patch_g(x_, patch_inds), inputs=x_
+                )[0]
                 ind = ind + n_patches
         return grad / num_patches
 

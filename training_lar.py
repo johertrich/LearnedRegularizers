@@ -50,15 +50,22 @@ shuffle = True
 patch_size = 15
 
 train_imgs = torch.stack([train_set[i] for i in range(len(train_set))])
-#train_imgs = torch.stack([train_set[i] for i in range(5)])
+# train_imgs = torch.stack([train_set[i] for i in range(5)])
 
 val_imgs = torch.stack([val_set[i] for i in range(len(val_set))])
-#val_imgs = torch.stack([val_set[i] for i in range(2)])
+# val_imgs = torch.stack([val_set[i] for i in range(2)])
 
 print(train_imgs.shape, val_imgs.shape)
 
-train_dataset = PatchDataset(train_imgs, patch_size=patch_size, shapes=(1, patch_size, patch_size), transforms=None)
-val_dataset = PatchDataset(val_imgs, patch_size=patch_size, shapes=(1, patch_size, patch_size), transforms=None)
+train_dataset = PatchDataset(
+    train_imgs,
+    patch_size=patch_size,
+    shapes=(1, patch_size, patch_size),
+    transforms=None,
+)
+val_dataset = PatchDataset(
+    val_imgs, patch_size=patch_size, shapes=(1, patch_size, patch_size), transforms=None
+)
 
 # create dataloaders
 train_dataloader = torch.utils.data.DataLoader(
@@ -68,7 +75,7 @@ val_dataloader = torch.utils.data.DataLoader(
     val_dataset, batch_size=batch_size, shuffle=True, drop_last=True
 )
 
-lmbd = 1.0 #estimate_lmbd(train_dataloader,physics,device)
+lmbd = 1.0  # estimate_lmbd(train_dataloader,physics,device)
 
 print("Esimated lambda: ", lmbd)
 
@@ -79,9 +86,7 @@ print("Esimated lambda: ", lmbd)
 # regularizer = linearICNNPrior(
 #     in_channels=1, strong_convexity=0, num_layers=5, num_filters=16
 # ).to(device)
-regularizer = LocalAR(
-    in_channels=1
-).to(device)
+regularizer = LocalAR(in_channels=1).to(device)
 
 mu = 10.0
 simple_ar_training(
@@ -94,7 +99,10 @@ simple_ar_training(
     device=device,
     epochs=10,
     lr=1e-4,
-    mu=mu
+    mu=mu,
 )
 
-torch.save(regularizer.cnn.state_dict(), f"weights/simple_{regularizer.__class__.__name__}_mu={mu}_local_ar.pt")
+torch.save(
+    regularizer.cnn.state_dict(),
+    f"weights/simple_{regularizer.__class__.__name__}_mu={mu}_local_ar.pt",
+)

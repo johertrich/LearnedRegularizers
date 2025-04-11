@@ -1,6 +1,6 @@
 import torch
 from torch.utils.data import DataLoader
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
 
 from deepinv.optim import EPLL
 from deepinv.physics import GaussianNoise, Denoising, Inpainting
@@ -20,7 +20,7 @@ dtype = torch.float32
 
 dataset = get_dataset("BSDS500_gray", test=False, transform=RandomCrop(256))
 
-train_imgs = [] 
+train_imgs = []
 for i in range(100):
     train_imgs.append(dataset[i].unsqueeze(0).float())
 
@@ -47,4 +47,9 @@ GMM.fit(patchnr_dataloader, verbose=True, max_iters=10)
 
 print(GMM._weights)
 
-torch.save(GMM.state_dict(),"gmm_{}x{}patchsize_{}components.pt".format(patch_size, patch_size, n_gmm_components))
+torch.save(
+    GMM.state_dict(),
+    "gmm_{}x{}patchsize_{}components.pt".format(
+        patch_size, patch_size, n_gmm_components
+    ),
+)

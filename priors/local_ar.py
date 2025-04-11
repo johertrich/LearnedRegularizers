@@ -2,48 +2,57 @@
 Local (patch-based) Adversarial regulariser 
 """
 
-from deepinv.optim import Prior 
+from deepinv.optim import Prior
 from deepinv.utils import patch_extractor
 
-import torch 
+import torch
 
 import torch.nn as nn
 
+
 class cnn(nn.Module):
-    def __init__(self,in_channels=1):
+    def __init__(self, in_channels=1):
         super(cnn, self).__init__()
 
         self.act = nn.ReLU()
         self.convnet = nn.Sequential(
-            nn.Conv2d(in_channels, 16, 3,padding=0),
+            nn.Conv2d(in_channels, 16, 3, padding=0),
             self.act,
-            nn.Conv2d(16, 32, 3,padding=0),
+            nn.Conv2d(16, 32, 3, padding=0),
             self.act,
-            nn.Conv2d(32, 32, 3,padding=0),
+            nn.Conv2d(32, 32, 3, padding=0),
             self.act,
-            nn.Conv2d(32, 64, 3,padding=0),
+            nn.Conv2d(32, 64, 3, padding=0),
             self.act,
-            nn.Conv2d(64, 64, 3,padding=0),
+            nn.Conv2d(64, 64, 3, padding=0),
             self.act,
-            nn.Conv2d(64, 64, kernel_size=3,stride=1, padding=0),
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0),
             self.act,
-            nn.Conv2d(64, 1, kernel_size=3,stride=1, padding=0)
+            nn.Conv2d(64, 1, kernel_size=3, stride=1, padding=0),
         )
 
-
     def forward(self, image):
-        output = self.convnet(image)#.squeeze().unsqueeze(-1)
+        output = self.convnet(image)  # .squeeze().unsqueeze(-1)
         return output
-    
+
     def g(self, image):
         output = self.convnet(image).squeeze().unsqueeze(-1)
         return output
 
+
 class LocalAR(Prior):
-    def __init__(self, patch_size=15, n_patches=1000, in_channels=1, pad=True, device="cpu", pretrained=None):
+    def __init__(
+        self,
+        patch_size=15,
+        n_patches=1000,
+        in_channels=1,
+        pad=True,
+        device="cpu",
+        pretrained=None,
+    ):
         super(LocalAR, self).__init__()
 
-        self.device = device 
+        self.device = device
 
         self.cnn = cnn(in_channels=in_channels)
         self.cnn.to(self.device)
@@ -53,7 +62,7 @@ class LocalAR(Prior):
 
         self.n_patches = n_patches
         self.patch_size = patch_size
-        self.pad = pad 
+        self.pad = pad
 
     def g(self, x, *args, **kwargs):
         r"""
@@ -61,8 +70,8 @@ class LocalAR(Prior):
 
         :param torch.Tensor x: image tensor
         """
-        return_patch_per_pixel = kwargs.get('return_patch_per_pixel', False)
-        #print("RETURN EXTRA: ", return_patch_per_pixel)
+        return_patch_per_pixel = kwargs.get("return_patch_per_pixel", False)
+        # print("RETURN EXTRA: ", return_patch_per_pixel)
 
         if self.pad:
             x = torch.cat(
@@ -83,23 +92,27 @@ class LocalAR(Prior):
             )
 
         if self.n_patches == -1:
-            out = self.cnn(x).mean([1,2,3]).unsqueeze(-1)
-            #.mean([1,2,3]).unsqueeze(-1)
+            out = self.cnn(x).mean([1, 2, 3]).unsqueeze(-1)
+            # .mean([1,2,3]).unsqueeze(-1)
             patches, linear_inds = patch_extractor(x, self.n_patches, self.patch_size)
-     
+
         else:
             patches, linear_inds = patch_extractor(x, self.n_patches, self.patch_size)
             B, n_patches = patches.shape[0:2]
-            
-            out = self.cnn(patches.view(B * n_patches, patches.shape[2], patches.shape[3], patches.shape[3])) 
+
+            out = self.cnn(
+                patches.view(
+                    B * n_patches, patches.shape[2], patches.shape[3], patches.shape[3]
+                )
+            )
             out = out.view(B, n_patches, 1)
             out = out.mean(1)
 
         if return_patch_per_pixel:
             patch_per_pixel = torch.zeros_like(x).reshape(-1)
             patch_per_pixel.index_put_(
-                    (linear_inds,), torch.ones_like(patches).view(-1), accumulate=True
-                )
+                (linear_inds,), torch.ones_like(patches).view(-1), accumulate=True
+            )
             patch_per_pixel = patch_per_pixel.reshape(x.shape)
 
             return out, patch_per_pixel
@@ -116,38 +129,42 @@ class LocalAR(Prior):
             x.requires_grad_()
 
             nll, patch_per_pixel = self.g(x, return_patch_per_pixel=True)
-            #print(nll)
+            # print(nll)
             nll = nll.sum()
-            grad = torch.autograd.grad(outputs=nll, inputs=x)[0] 
-            #print(torch.sum(grad**2))
+            grad = torch.autograd.grad(outputs=nll, inputs=x)[0]
+            # print(torch.sum(grad**2))
             grad_norm = (patch_per_pixel + 1) / torch.max(patch_per_pixel)
             if self.pad:
-                grad_norm = grad_norm[:, :, self.patch_size - 1 : -(self.patch_size - 1), :]
+                grad_norm = grad_norm[
+                    :, :, self.patch_size - 1 : -(self.patch_size - 1), :
+                ]
                 # Remove the columns added for horizontal padding
-                grad_norm = grad_norm[:, :, :, self.patch_size - 1 : -(self.patch_size - 1)]
-            
-            #print(grad_norm.shape, grad.shape)
-            
-            #import matplotlib.pyplot as plt 
-            #fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(1,5)
-            #ax1.imshow(x[0,0].detach().cpu().numpy())
-            #ax2.imshow(grad[0,0].detach().cpu().numpy())
-            #ax3.imshow(patch_per_pixel[0,0].detach().cpu().numpy())
-            #ax4.imshow((grad /grad_norm)[0,0].detach().cpu().numpy())
-            #ax5.imshow(grad_norm[0,0].detach().cpu().numpy())
+                grad_norm = grad_norm[
+                    :, :, :, self.patch_size - 1 : -(self.patch_size - 1)
+                ]
 
-            #plt.show()
-            
+            # print(grad_norm.shape, grad.shape)
+
+            # import matplotlib.pyplot as plt
+            # fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(1,5)
+            # ax1.imshow(x[0,0].detach().cpu().numpy())
+            # ax2.imshow(grad[0,0].detach().cpu().numpy())
+            # ax3.imshow(patch_per_pixel[0,0].detach().cpu().numpy())
+            # ax4.imshow((grad /grad_norm)[0,0].detach().cpu().numpy())
+            # ax5.imshow(grad_norm[0,0].detach().cpu().numpy())
+
+            # plt.show()
 
         return grad / grad_norm
+
 
 if __name__ == "__main__":
 
     x = torch.randn(8, 1, 16, 16)
 
     prior = LocalAR(n_patches=10, pad=False)
-    
-    out_cnn = prior.cnn(x).mean([1,2,3])
+
+    out_cnn = prior.cnn(x).mean([1, 2, 3])
     print(out_cnn.shape)
     print(out_cnn)
 

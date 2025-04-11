@@ -3,6 +3,7 @@ Created on Wed Feb 26 2025
 
 @author: Zakobian
 """
+
 from deepinv.physics import Denoising, MRI, GaussianNoise, Tomography
 from deepinv.optim import L2, Tikhonov
 from deepinv.utils.plotting import plot
@@ -36,8 +37,7 @@ only_first = True  # just evaluate on the first image of the dataset for test pu
 if problem == "Denoising":
     lmbd = 1e1  # regularization parameter
 elif problem == "CT":
-    lmbd = 275 #3e2  # regularization parameter
-
+    lmbd = 275  # 3e2  # regularization parameter
 
 
 #############################################################
@@ -65,12 +65,16 @@ else:
     raise NotImplementedError("Problem not found")
 
 regularizer = EPLL(
-    device=device, patch_size=8, channels=1, n_gmm_components=200, pretrained="weights/gmm_8x8patchsize_200components.pt"
+    device=device,
+    patch_size=8,
+    channels=1,
+    n_gmm_components=200,
+    pretrained="weights/gmm_8x8patchsize_200components.pt",
 )
 
 # Parameters for the Nesterov Algorithm, might also be problem dependent...
-NAG_step_size = 1e-4 # step size for NAG
-NAG_max_iter = 500 #1000  # maximum number of NAG iterations
+NAG_step_size = 1e-4  # step size for NAG
+NAG_max_iter = 500  # 1000  # maximum number of NAG iterations
 NAG_tol = 1e-6  # tolerance for the relative error (stopping criterion)
 beta = 0.9
 
