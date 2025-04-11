@@ -152,7 +152,7 @@ def reconstruct_nmAPG(
         fun = data_fidelity(val, y_in, physics) + lamda * regularizer.g(val)
         if detach_grads:
             fun = fun.detach()
-        return fun
+        return fun.reshape(-1)
 
     def energy_grad(val, y_in):
         grad = data_fidelity.grad(val, y_in, physics) + lamda * regularizer.grad(val)
