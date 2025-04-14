@@ -5,14 +5,14 @@ Created on Fri Jan 31 12:30:12 2025
 @author: JohannesSchwab
 """
 
-from priors import NETT
+from priors import DRUNet, NETT
 import torch
 from deepinv.physics import Denoising, GaussianNoise, Tomography
 from training_methods import simple_NETT_training
-from deepinv.optim import L2
+from deepinv.optim import L2, L1
 from dataset import get_dataset
 from dataset.utils import NETT_transform
-from torchvision.transforms import RandomCrop, CenterCrop, Resize
+from torchvision.transforms import RandomCrop, RandomAutocontrast,CenterCrop, Resize, RandomHorizontalFlip, RandomVerticalFlip,RandomRotation
 from torch.utils.data import Subset as subset
 from torchvision import transforms
 
@@ -44,9 +44,12 @@ if problem == "Denoising":
     noise_level = 0.1
     physics = Denoising(noise_model=GaussianNoise(sigma=noise_level))
     data_fidelity = L2(sigma=1.0)
-    NT = NETT_transform(0.5,physics)
-    tran = transforms.Compose([CenterCrop(256),NT])
+    NT = NETT_transform(0.8,physics)
+    NT_val = NETT_transform(1,physics)
+    tran = transforms.Compose([RandomCrop(320),RandomHorizontalFlip(),RandomVerticalFlip(),NT])
+    tran_val = transforms.Compose([RandomCrop(320),RandomHorizontalFlip(),RandomVerticalFlip(),NT_val])
     dataset = get_dataset("BSDS500_gray", test=False, transform=tran)
+    dataset_val = get_dataset("BSDS500_gray", test=False, transform=tran_val)
     lmbd = 1
 
 
@@ -55,8 +58,13 @@ if problem == "Denoising":
 test_ratio = 0.1
 test_len = int(len(dataset) * 0.1)
 train_len = len(dataset) - test_len
-train_set, val_set = torch.utils.data.random_split(dataset, [train_len, test_len])
-batch_size = 4
+
+indices = torch.randperm(len(dataset))
+train_indices = indices[:train_len]
+val_indices = indices[test_len:]
+train_set = torch.utils.data.Subset(dataset, train_indices)
+val_set = torch.utils.data.Subset(dataset_val, val_indices)
+batch_size = 2
 shuffle = True
 
 # create dataloaders
@@ -64,11 +72,11 @@ train_dataloader = torch.utils.data.DataLoader(
     train_set, batch_size=batch_size, shuffle=shuffle, drop_last=True
 )
 val_dataloader = torch.utils.data.DataLoader(
-    val_set, batch_size=8, shuffle=True, drop_last=True
+    val_set, batch_size=batch_size, shuffle=True, drop_last=True
 )
 
 # define regularizer
-regularizer = NETT(in_channels=1,out_channels = 1).to(device)
+regularizer = DRUNet(in_channels=1,out_channels = 1,device = device)
 
 regularizer = simple_NETT_training(
     regularizer,
@@ -76,7 +84,9 @@ regularizer = simple_NETT_training(
     val_dataloader,
     device=device,
     optimizer=algorithm,
-    lr=1e-3,
-    num_epochs = 500
+    lr=1e-4,
+    num_epochs = 200,
+    save_best = True,
+    weight_dir = "weights/simple_DRUNETT_denoising.pt"
 )
-torch.save(regularizer.state_dict(), "weights/simple_NETT_denoising.pt")
+

@@ -6,7 +6,7 @@ Created on Wed Feb 26 2025
 from deepinv.physics import Denoising, MRI, GaussianNoise, Tomography
 from deepinv.optim import L2, Tikhonov
 from deepinv.utils.plotting import plot
-from evaluation import evaluate, evaluate_backtrack
+from evaluation import evaluate
 from dataset import get_dataset
 from operators import MRIonR
 from torchvision.transforms import CenterCrop, RandomCrop

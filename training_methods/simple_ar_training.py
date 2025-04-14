@@ -16,18 +16,19 @@ def WGAN_loss(regularizer, images, images_gt,mu=10):
     real_samples=images_gt
     fake_samples=images
     
-    alpha = torch.rand(real_samples.size(0), 1, 1, 1).type_as(real_samples)
-    interpolates = (alpha * real_samples + ((1 - alpha) * fake_samples)).requires_grad_(True)
-    net_interpolates = regularizer.g(interpolates)
-    fake = torch.Tensor(real_samples.shape[0], 1).fill_(1.0).type_as(real_samples).requires_grad_(False)
-    gradients = torch.autograd.grad(
-        outputs=net_interpolates,
-        inputs=interpolates,
-        grad_outputs=fake,
-        create_graph=True,
-        retain_graph=True,
-        only_inputs=True,
-    )[0]
+    with torch.enable_grad():
+        alpha = torch.rand(real_samples.size(0), 1, 1, 1).type_as(real_samples)
+        interpolates = (alpha * real_samples + ((1 - alpha) * fake_samples)).requires_grad_(True)
+        net_interpolates = regularizer.g(interpolates)
+        fake = torch.Tensor(real_samples.shape[0], 1).fill_(1.0).type_as(real_samples).requires_grad_(False)
+        gradients = torch.autograd.grad(
+            outputs=net_interpolates,
+            inputs=interpolates,
+            grad_outputs=fake,
+            create_graph=True,
+            retain_graph=True,
+            only_inputs=True,
+        )[0]
 
     gradients = gradients.view(gradients.size(0), -1)
     # print(model(real_samples).mean()-model(fake_samples).mean(),self.mu*(((gradients.norm(2, dim=1) - 1)) ** 2).mean())
@@ -36,10 +37,13 @@ def WGAN_loss(regularizer, images, images_gt,mu=10):
 
 def estimate_lmbd(dataset,physics,device):
     lmbd=None
-    if dataset is None: self.lamb=1.0
+    if dataset is None: lmbd=1.0
     else: 
         residual = 0.0
         for x in tqdm(dataset):
+            if isinstance(x, list):
+                x = x[0]
+
             if device == "mps":
                 x = x.to(torch.float32).to(device)
             else:
@@ -76,6 +80,8 @@ def simple_ar_training(
         loss_vals = []
         for x in tqdm(train_dataloader):
             optimizer.zero_grad()
+            if isinstance(x, list):
+                x = x[0]
             if device == "mps":
                 x = x.to(torch.float32).to(device)
             else:
@@ -83,6 +89,7 @@ def simple_ar_training(
             y = physics(x)
             x_noisy = physics.A_dagger(y)
             loss = adversarial_loss(regularizer, x_noisy, x, mu)
+        
             mean_loss = torch.mean(loss)
             mean_loss.backward()
             optimizer.step()
@@ -93,19 +100,21 @@ def simple_ar_training(
             )
         )
 
-        loss_vals = []
-        for x in tqdm(val_dataloader):
-            if device == "mps":
-                x = x.to(torch.float32).to(device)
-            else:
-                x = x.to(device).to(torch.float)
-            y = physics(x)
-            x_noisy = physics.A_dagger(y)
-            loss = adversarial_loss(regularizer, x_noisy, x, mu)
-            mean_loss = torch.mean(loss)
-            mean_loss.backward()
-            optimizer.step()
-            loss_vals.append(mean_loss.item())
+        with torch.no_grad():
+            loss_vals = []
+            for x in tqdm(val_dataloader):
+                if isinstance(x, list):
+                    x = x[0]
+                if device == "mps":
+                    x = x.to(torch.float32).to(device)
+                else:
+                    x = x.to(device).to(torch.float)
+                y = physics(x)
+                x_noisy = physics.A_dagger(y)
+                loss = adversarial_loss(regularizer, x_noisy, x, mu)
+                mean_loss = torch.mean(loss)
+                
+                loss_vals.append(mean_loss.item())
             
         scheduler.step(np.mean(loss_vals))
             
@@ -114,3 +123,5 @@ def simple_ar_training(
                 epoch + 1, np.mean(loss_vals)
             )
         )
+
+        print("Learning rate: ", scheduler.get_last_lr()[0])

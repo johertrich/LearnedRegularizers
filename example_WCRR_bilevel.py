@@ -5,7 +5,7 @@ from evaluation import evaluate
 from dataset import get_dataset
 from operators import MRIonR
 from torchvision.transforms import CenterCrop
-from priors import ICNNPrior, WCRR
+from priors import ICNNPrior, wcrr
 import torch
 
 if torch.backends.mps.is_available():
@@ -31,7 +31,7 @@ only_first = False  # just evaluate on the first image of the dataset for test p
 
 weakly = True
 pretrained = "weights/WCRR_bilevel.pt" if weakly else "weights/CRR_bilevel.pt"
-regularizer = WCRR(
+regularizer = wcrr.WCRR(
     sigma=0.1, weak_convexity=1.0 if weakly else 0.0, pretrained=pretrained
 ).to(device)
 

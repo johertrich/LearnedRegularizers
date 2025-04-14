@@ -1,4 +1,4 @@
-from priors import WCRR
+from priors import wcrr
 import torch
 from deepinv.physics import Denoising, GaussianNoise
 from training_methods import bilevel_training
@@ -60,7 +60,7 @@ val_dataloader = torch.utils.data.DataLoader(
 )
 
 # define regularizer
-regularizer = WCRR(
+regularizer = wcrr.WCRR(
     sigma=noise_level,
     weak_convexity=1.0,
 ).to(device)
@@ -72,7 +72,7 @@ regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
     lmbd,
     train_dataloader,
     val_dataloader,
-    epochs=100,
+    epochs=200,
     NAG_step_size=1e-1,
     NAG_max_iter=1000,
     NAG_tol_train=1e-4,
