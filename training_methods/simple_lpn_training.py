@@ -8,6 +8,7 @@ Train LPN by proximal matching.
 Source: https://github.com/ZhenghanFang/learned-proximal-networks
 """
 
+import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -36,9 +37,11 @@ def simple_lpn_training(
     writer=None,
     num_steps_pretrain: int = 20000,
     num_stages: int = 4,
-    sigma_min: float = 0.08 * np.sqrt(128**2 * 3),
+    sigma_min: float = 0.16,
     pretrain_lr: float = 1e-3,
     lr: float = 1e-4,
+    ckpt_dir: str = "weights",
+    loss_type: str = "l2",
 ):
     """
     Args:
@@ -53,6 +56,11 @@ def simple_lpn_training(
             For 128x128 RGB images, data dimension is 128^2 * 3
         pretrain_lr: Learning rate for L1 loss pretraining
         lr: Learning rate for prox matching
+        ckpt_dir: Checkpoint directory
+        loss_type: Loss function. ["l2", "l1", "pm"]
+            l2: L2 loss always
+            l1: L1 loss always
+            pm: L1 loss for pretraining, then prox matching loss
     """
     model = regularizer.lpn
 
@@ -71,23 +79,36 @@ def simple_lpn_training(
         for step, batch in enumerate(train_dataloader):
             if validate_every_n_steps > 0 and global_step % validate_every_n_steps == 0:
                 validator.validate(model, global_step)
+                with open(f"{ckpt_dir}/log.txt", "a") as f:
+                    f.write(
+                        f"{global_step=}, PSNR: {np.mean(validator.psnr_list):.4f}, SSIM: {np.mean(validator.ssim_list):.4f}\n"
+                    )
 
             model.train()
-            # get loss hyperparameters and learning rate
-            args = argparse.Namespace()
-            args.num_steps = num_steps
-            args.num_steps_pretrain = num_steps_pretrain
-            args.num_stages = num_stages
-            args.sigma_min = sigma_min
-            args.pretrain_lr = pretrain_lr
-            args.lr = lr
-            loss_hparams, lr = get_loss_hparams_and_lr(args, global_step)
 
+            # get loss hyperparameters and learning rate
+            if loss_type == "l2":
+                loss_hparams, lr = {"type": "l2"}, lr
+            elif loss_type == "l1":
+                loss_hparams, lr = {"type": "l1"}, lr
+            elif loss_type == "pm":
+                args = argparse.Namespace()
+                args.num_steps = num_steps
+                args.num_steps_pretrain = num_steps_pretrain
+                args.num_stages = num_stages
+                args.sigma_min = sigma_min
+                args.pretrain_lr = pretrain_lr
+                args.lr = lr
+                loss_hparams, lr = get_loss_hparams_and_lr(args, global_step)
+            else:
+                raise NotImplementedError
             # get loss
             loss_func = get_loss(loss_hparams)
             # set learning rate
             for g in optimizer.param_groups:
                 g["lr"] = lr
+
+            # print(loss_func)
 
             # Train step
             result = train_step(model, optimizer, batch, loss_func, sigma_noise, device)
@@ -95,7 +116,7 @@ def simple_lpn_training(
 
             logs = {
                 "loss": loss.detach().item(),
-                "set": loss_hparams,
+                "hparams": loss_hparams,
                 "lr": lr,
             }
             progress_bar.update(1)
@@ -105,6 +126,13 @@ def simple_lpn_training(
             if global_step >= num_steps:
                 break
 
+            if global_step == num_steps_pretrain:
+                print("Pretraining done.")
+                os.makedirs(ckpt_dir, exist_ok=True)
+                torch.save(
+                    regularizer.state_dict(), f"{ckpt_dir}/simple_LPN_pretrained.pt"
+                )
+
         if global_step >= num_steps:
             break
 
@@ -113,7 +141,10 @@ def simple_lpn_training(
 
 
 def train_step(model, optimizer, batch, loss_func, sigma_noise, device):
-    clean_images = batch["image"].to(device)
+    if type(batch) == dict:
+        clean_images = batch["image"].to(device)
+    else:
+        clean_images = batch.to(device)
     noise = torch.randn_like(clean_images)
     if type(sigma_noise) == list:
         # uniform random noise level
@@ -149,26 +180,42 @@ class Validator:
 
     def _validate(self, model):
         """Validate the model on the validation set."""
-
         model.eval()
         device = next(model.parameters()).device
 
         psnr_list = []
         ssim_list = []
-        for batch in self.dataloader:
-            clean_images = batch["image"].to(device)
+        img_list = []
+        for batch in tqdm(self.dataloader, total=len(self.dataloader), desc="Eval"):
+            if type(batch) == dict:
+                clean_images = batch["image"].to(device)
+            else:
+                clean_images = batch.to(device)
             noise = torch.randn_like(clean_images)
             noisy_images = clean_images + noise * self.sigma_noise
-            out = model(noisy_images)
+
+            # out = model(noisy_images)
+            # handles images larger than model's expected size
+            out = lpn_denoise_patch(
+                noisy_images, model, model.img_size, model.img_size // 2
+            )
+            out = torch.clamp(out, 0, 1)
 
             psnr_, ssim_ = self.compute_metrics(clean_images, out)
             psnr_list.extend(psnr_)
             ssim_list.extend(ssim_)
 
-        print(f"PSNR: {np.mean(psnr_list)}")
-        print(f"SSIM: {np.mean(ssim_list)}")
+            img_list.append(
+                {
+                    "gt": clean_images.cpu().detach(),
+                    "noisy": noisy_images.cpu().detach(),
+                    "pred": out.cpu().detach(),
+                }
+            )
+
         self.psnr_list = psnr_list
         self.ssim_list = ssim_list
+        self.img_list = img_list
 
     def compute_metrics(self, gt, out):
         """gt, out: batch, channel, height, width. torch.Tensor."""
@@ -191,11 +238,15 @@ class Validator:
         self.writer.add_scalar("val/psnr", np.mean(self.psnr_list), step)
         self.writer.add_scalar("val/ssim", np.mean(self.ssim_list), step)
 
-    def validate(self, model, step):
+    def validate(self, model, step=None):
         """Validate the model and log the metrics."""
 
         self._validate(model)
-        self._log(step)
+        print(
+            f"{step=}, PSNR: {np.mean(self.psnr_list)}, SSIM: {np.mean(self.ssim_list)}"
+        )
+        if self.writer is not None:
+            self._log(step)
 
 
 ##########################
@@ -235,7 +286,9 @@ def get_loss(loss_hparams):
     Parameters:
         loss_hparams (dict): Hyperparameters for loss function.
     """
-    if loss_hparams["type"] == "l1":
+    if loss_hparams["type"] == "l2":
+        return nn.MSELoss()
+    elif loss_hparams["type"] == "l1":
         return nn.L1Loss()
     elif loss_hparams["type"] == "prox_matching":
         return ExpDiracSrgt(sigma=loss_hparams["sigma"])
@@ -258,5 +311,43 @@ class ExpDiracSrgt(nn.Module):
         input, target: batch, *
         """
         bsize = input.shape[0]
-        dist = (input - target).pow(2).reshape(bsize, -1).sum(1).sqrt()
+        dist = (input - target).pow(2).reshape(bsize, -1).mean(1).sqrt()
         return exp_func(dist, self.sigma).mean()
+
+
+###############################################################################
+# Apply LPN on a 2D image by patch
+###############################################################################
+def lpn_denoise_patch(x: torch.Tensor, model, patch_size, stride_size) -> torch.Tensor:
+    """Apply LPN to denoise a 2D image by patch
+    Inputs:
+        x: image to be processed, shape: (B, C, H, W)
+        model: LPN model
+        patch_size: size of patch
+        stride_size: stride for patch
+    Outputs:
+        xhat: denoised image, shape: (B, C, H, W)
+    """
+
+    # Compute coordinates of patches
+    def get_coors_1d(size, p, s):
+        out = list(range(0, size - p + 1, s))
+        if out[-1] != size - p:
+            out.append(size - p)
+        return out
+
+    i_list = get_coors_1d(x.shape[2], patch_size, stride_size)
+    j_list = get_coors_1d(x.shape[3], patch_size, stride_size)
+    # print(i_list, j_list)
+
+    xhat = torch.zeros_like(x)
+    count = torch.zeros_like(x)
+    for i in i_list:
+        for j in j_list:
+            with torch.no_grad():
+                xhat[:, :, i : i + patch_size, j : j + patch_size] += model(
+                    x[:, :, i : i + patch_size, j : j + patch_size]
+                )
+                count[:, :, i : i + patch_size, j : j + patch_size] += 1
+    xhat = xhat / count
+    return xhat

@@ -7,7 +7,7 @@ Created on Wed Mar 5 2025
 import torch
 from deepinv.optim import Prior
 
-from .lpn_original import LPN
+
 from .prior import evaluate_prior
 from .invert_model import invert
 
@@ -15,11 +15,12 @@ from .invert_model import invert
 class LPNPrior(Prior):
     def __init__(
         self,
-        in_dim=3,
+        in_dim=1,
         hidden=256,
         beta=100.0,
         alpha=1e-6,
         pretrained=None,
+        model_name="lpn_64",
     ):
         """
         Args:
@@ -27,8 +28,13 @@ class LPNPrior(Prior):
             hidden: int, hidden channel size
             beta: float, beta in softplus
             alpha: float, strongly-convex parameter
+            model_name: str, select lpn model
         """
         super().__init__()
+        if model_name == "lpn_64_neg1":
+            from .lpn_64_neg1 import LPN
+        else:
+            raise ValueError(f"Unknown model name: {model_name}")
         self.lpn = LPN(in_dim, hidden, beta, alpha)
         if pretrained is not None:
             self.load_state_dict(torch.load(pretrained, map_location="cpu"))
