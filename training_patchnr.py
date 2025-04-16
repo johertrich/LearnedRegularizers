@@ -26,7 +26,7 @@ dataset = get_dataset(
 print("Length of BSD Dataset: ", len(dataset))
 
 train_imgs = []
-for i in range(100):
+for i in range(len(dataset)):
     train_imgs.append(dataset[i].unsqueeze(0).float())
 
 train_imgs = torch.concat(train_imgs)
@@ -38,8 +38,8 @@ verbose = True
 train_dataset = PatchDataset(train_imgs, patch_size=patch_size, transforms=None)
 
 patchnr_subnetsize = 512
-patchnr_epochs = 10
-patchnr_batch_size = 512
+patchnr_epochs = 5
+patchnr_batch_size = 1024
 patchnr_learning_rate = 1e-4
 
 patchnr_dataloader = DataLoader(
@@ -92,7 +92,7 @@ if pretrain is None:
 
         print("Mean loss: ", np.mean(mean_loss))
 
-    torch.save(patch_nr.normalizing_flow.state_dict(), "patchnr.pt")
+    torch.save(patch_nr.normalizing_flow.state_dict(), "weights/patchnr.pt")
 else:
     patch_nr.normalizing_flow.load_state_dict(torch.load(pretrain))
 
@@ -184,6 +184,6 @@ fig.colorbar(im, ax=ax4)
 # ax4.imshow(recon_patchnr_subset[0,0].cpu().numpy(), cmap="gray")
 ax4.set_title("A adjoint")
 # ax4.set_title(f"PatchNR, subset patches: {psnr_patchnr_subset}")
-plt.savefig("patchnr.png")
-# plt.show()
-plt.close()
+#plt.savefig("patchnr.png")
+plt.show()
+#plt.close()

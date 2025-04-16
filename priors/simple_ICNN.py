@@ -14,12 +14,14 @@ class ICNN_2l(nn.Module):
         super(ICNN_2l, self).__init__()
         self.in_c = in_c
         self.channels = channels
-        self.smoothing = smoothing
+        self.smoothing = nn.Parameter(torch.log(torch.tensor(smoothing)))
         self.padding = kernel_size // 2
         self.wx = nn.Conv2d(in_c,channels,kernel_size=kernel_size,padding=self.padding,bias=True)
         self.wz = nn.Conv2d(channels,channels,kernel_size=kernel_size,padding=self.padding,bias=True)
         self.scaling = nn.Parameter(torch.log(torch.tensor(0.001))*torch.ones(1,channels,1,1))
-        self.act = lambda x: torch.clip(x, 0.0, self.smoothing)**2/(2*self.smoothing) + torch.clip(x, self.smoothing) - self.smoothing
+        #self.act = lambda x: torch.clip(x, 0.0, self.smoothing)**2/(2*self.smoothing) + torch.clip(x, self.smoothing) - self.smoothing
+        self.act = lambda x: torch.clip(x, torch.zeros_like(self.smoothing), self.smoothing.exp())**2/(2*self.smoothing.exp()) + torch.clip(x, self.smoothing.exp()) - self.smoothing.exp()
+
         
         P.register_parametrization(self.wx, "weight", ZeroMean())
         

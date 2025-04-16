@@ -124,9 +124,9 @@ class INN(torch.nn.Module):
         def subnet_fc(c_in, c_out):
             return torch.nn.Sequential(
                 torch.nn.Linear(c_in, self.sub_net_size),
-                torch.nn.ReLU(),
+                torch.nn.SiLU(), #torch.nn.ReLU(),
                 torch.nn.Linear(self.sub_net_size, self.sub_net_size),
-                torch.nn.ReLU(),
+                torch.nn.SiLU(), #torch.nn.ReLU(),
                 torch.nn.Linear(self.sub_net_size, c_out),
             )
 
@@ -276,9 +276,9 @@ if __name__ == "__main__":
     def subnet_fc(c_in, c_out):
         return torch.nn.Sequential(
             torch.nn.Linear(c_in, 128),
-            torch.nn.ReLU(),
+            torch.nn.SiLU(), #torch.nn.ReLU(),
             torch.nn.Linear(128, 128),
-            torch.nn.ReLU(),
+            torch.nn.SiLU(), #torch.nn.ReLU(),
             torch.nn.Linear(128, c_out),
         )
 
