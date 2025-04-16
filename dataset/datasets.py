@@ -126,3 +126,55 @@ class FastMRISlices(Dataset):
         if self.transforms is not None:
             img = self.transforms(img)
         return img
+
+
+class LoDoPaB(Dataset):
+    def __init__(self, root, download=True, test=False, transform=None):
+        self.base_path = root
+        self.transforms = transform
+        if not os.path.exists(self.base_path):
+            os.makedirs(self.base_path)
+        zip_path = os.path.join(self.base_path, "download.zip")
+        if download and not os.path.exists(zip_path):
+            print(
+                "Download dataset. It has total size of about 1.6 GB, hence the download might take some time..."
+            )
+            urllib.request.urlretrieve(
+                "https://zenodo.org/records/3384092/files/ground_truth_test.zip",
+                zip_path,
+            )
+            print("Download completed, extracting dataset...")
+            with zipfile.ZipFile(zip_path, "r") as zip_ref:
+                zip_ref.extractall(self.base_path)
+            print("Dataset extracted.")
+        if not download and not os.path.exists(zip_path):
+            raise NameError(
+                "Dataset does not exist. Set download=True for downloading it."
+            )
+        self.test = test
+        if test:
+            self.length = 128
+        else:
+            fname = "ground_truth_test_027.hdf5"
+            with h5py.File(os.path.join(self.base_path, fname), "r") as f:
+                batch = f["data"][()]
+            self.length = 128 * 26 + np.sum(np.sum(np.abs(batch), (1, 2)) > 0)
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, IDX):
+        batch_idx = IDX // 128 + 1
+        img_idx = IDX % 128
+        if self.test:
+            fname = "ground_truth_test_000.hdf5"
+        else:
+            idx_str = str(batch_idx)
+            while len(idx_str) < 3:
+                idx_str = "0" + idx_str
+            fname = "ground_truth_test_" + idx_str + ".hdf5"
+        with h5py.File(os.path.join(self.base_path, fname), "r") as f:
+            img = f["data"][img_idx, :, :]
+        if self.transforms is not None:
+            img = self.transforms(img)
+        return img
