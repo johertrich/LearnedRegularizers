@@ -158,7 +158,7 @@ class LoDoPaB(Dataset):
             with zipfile.ZipFile(zip_path2, "r") as zip_ref:
                 zip_ref.extractall(self.base_path)
             print("Dataset extracted.")
-        if not download and not os.path.exists(zip_path):
+        if not download and (not os.path.exists(zip_path1) or not os.path.exists(zip_path2)):
             raise NameError(
                 "Dataset does not exist. Set download=True for downloading it."
             )
@@ -175,7 +175,7 @@ class LoDoPaB(Dataset):
         return self.length
 
     def __getitem__(self, IDX):
-        batch_idx = IDX // 128 + 1
+        batch_idx = IDX // 128
         img_idx = IDX % 128
         if self.test:
             fname = "ground_truth_test_000.hdf5"

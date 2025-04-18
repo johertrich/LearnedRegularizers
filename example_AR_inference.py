@@ -11,7 +11,7 @@ from dataset import get_dataset
 from operators import MRIonR
 from torchvision.transforms import CenterCrop, RandomCrop
 from training_methods.simple_ar_training import estimate_lmbd
-from priors import ICNNPrior, CNNPrior, linearICNNPrior
+from priors import ICNNPrior, CNNPrior, linearICNNPrior, WCRR
 import torch
 
 if torch.backends.mps.is_available():
@@ -57,7 +57,9 @@ if problem == "Denoising":
     physics = Denoising(noise_model=GaussianNoise(sigma=noise_level))
     data_fidelity = L2(sigma=1.0)
     #dataset = get_dataset("BSD68")
-    dataset = get_dataset("BSDS500_gray", test=True, transform=RandomCrop(64))
+    # dataset = get_dataset("BSDS500_gray", test=True, transform=RandomCrop(64))
+    # dataset = get_dataset("BSDS500_gray", test=True, transform=CenterCrop(300))
+    dataset = get_dataset("BSD68", transform=CenterCrop(300))
 elif problem == "CT":
     noise_level = 0.5
     dataset = get_dataset("BSD68", transform=CenterCrop(300))
@@ -91,8 +93,9 @@ else:
 #     # pretrained="./weights/simple_ICNN_unrolling.pt",
 #     device=device,
 # )
-regularizer = CNNPrior(
-    in_channels=1, size=64,pretrained="./weights/simple_CNNPrior_ar.pt",
+weakly=True
+regularizer = WCRR(
+    sigma=0.1, weak_convexity=1.0 if weakly else 0.0, pretrained="./weights/simple_WCRR_ar.pt"
 ).to(device)
 
 
