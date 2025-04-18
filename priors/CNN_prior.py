@@ -52,7 +52,7 @@ class CNNPrior(Prior):
         super().__init__()
         self.nn = network(
             in_channels=in_channels,
-            size = 64,
+            size = size,
             kernel_dim=kernel_dim,
         )
         self.nn.to(device)

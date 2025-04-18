@@ -10,25 +10,30 @@ import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
 import numpy as np
+from evaluation import evaluate
+from dataset import get_dataset
+from torchvision.transforms import CenterCrop, RandomCrop
 
 def WGAN_loss(regularizer, images, images_gt,mu=10):
     """Calculates the gradient penalty loss for WGAN GP"""
     real_samples=images_gt
     fake_samples=images
     
-    with torch.enable_grad():
-        alpha = torch.rand(real_samples.size(0), 1, 1, 1).type_as(real_samples)
-        interpolates = (alpha * real_samples + ((1 - alpha) * fake_samples)).requires_grad_(True)
-        net_interpolates = regularizer.g(interpolates)
-        fake = torch.Tensor(real_samples.shape[0], 1).fill_(1.0).type_as(real_samples).requires_grad_(False)
-        gradients = torch.autograd.grad(
-            outputs=net_interpolates,
-            inputs=interpolates,
-            grad_outputs=fake,
-            create_graph=True,
-            retain_graph=True,
-            only_inputs=True,
-        )[0]
+    # with torch.enable_grad():
+    alpha = torch.rand(real_samples.size(0), 1, 1, 1).type_as(real_samples)
+    interpolates = (alpha * real_samples + ((1 - alpha) * fake_samples)).requires_grad_(True)
+    net_interpolates = regularizer.g(interpolates)
+    if (len(net_interpolates.shape) == 1):
+        net_interpolates = net_interpolates.view(-1, 1)
+    fake = torch.Tensor(real_samples.shape[0], 1).fill_(1.0).type_as(real_samples).requires_grad_(False)
+    gradients = torch.autograd.grad(
+        outputs=net_interpolates,
+        inputs=interpolates,
+        grad_outputs=fake,
+        create_graph=True,
+        retain_graph=True,
+        only_inputs=True,
+    )[0]
 
     gradients = gradients.view(gradients.size(0), -1)
     # print(model(real_samples).mean()-model(fake_samples).mean(),self.mu*(((gradients.norm(2, dim=1) - 1)) ** 2).mean())
@@ -75,9 +80,37 @@ def simple_ar_training(
     optimizer = torch.optim.RMSprop(regularizer.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=lr_decay, patience=2)
     
-    
+    if physics.__class__.__name__ == "Tomography":
+        val_data = val_dataloader.dataset
+    else:
+        val_data = get_dataset("BSD68", transform=CenterCrop(256))
+    regularizer.train()
+    NAG_step_size = 1e-1  # step size in NAG
+    NAG_max_iter = 500  # maximum number of iterations in NAG
+    NAG_tol = 1e-4  # tolerance for therelative error (stopping criterion)
+    only_first = False
+    def eval_routine():
+        mean_psnr, x_out, y_out, recon_out = evaluate(
+                    physics=physics,
+                    data_fidelity=data_fidelity,
+                    dataset=val_data,  # Access only the dataset of the dataloader
+                    regularizer=regularizer,
+                    lmbd=lmbd,
+                    NAG_step_size=NAG_step_size,
+                    NAG_max_iter=NAG_max_iter,
+                    NAG_tol=NAG_tol,
+                    only_first=only_first,
+                    device=device,
+                    verbose=False,
+                )
+        for p in regularizer.parameters():
+            p.requires_grad_(True)
+        return mean_psnr, x_out, y_out, recon_out
+    mean_psnr, x_out, y_out, recon_out = eval_routine()
+    print("Initial reconstruction: ", mean_psnr)
     for epoch in range(epochs):
         loss_vals = []
+        regularizer.train()
         for x in tqdm(train_dataloader):
             optimizer.zero_grad()
             if isinstance(x, list):
@@ -100,28 +133,22 @@ def simple_ar_training(
             )
         )
 
-        with torch.no_grad():
-            loss_vals = []
-            for x in tqdm(val_dataloader):
-                if isinstance(x, list):
-                    x = x[0]
-                if device == "mps":
-                    x = x.to(torch.float32).to(device)
-                else:
-                    x = x.to(device).to(torch.float)
-                y = physics(x)
-                x_noisy = physics.A_dagger(y)
-                loss = adversarial_loss(regularizer, x_noisy, x, mu)
-                mean_loss = torch.mean(loss)
-                
-                loss_vals.append(mean_loss.item())
+        # with torch.no_grad():
+        
+        
+        loss_vals = []
+        # for x in tqdm(val_dataloader):
+        
+        mean_psnr, x_out, y_out, recon_out = eval_routine()
+        # print(mean_psnr)
+        loss_vals.append(mean_psnr.item())
             
         scheduler.step(np.mean(loss_vals))
             
-        print(
-            "Average validation loss in epoch {0}: {1:.2E}".format(
-                epoch + 1, np.mean(loss_vals)
-            )
-        )
+        # print(
+        #     "Average validation loss in epoch {0}: {1:.2E}".format(
+        #         epoch + 1, np.mean(loss_vals)
+        #     )
+        # )
 
         print("Learning rate: ", scheduler.get_last_lr()[0])

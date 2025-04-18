@@ -1,9 +1,14 @@
 from .datasets import BSDS500Dataset, FastMRISlices, BSD68, LoDoPaB
 from torchvision.transforms.v2 import ToImage, Compose, Grayscale, ToDtype
 import torch
+import os
 
 
 def get_dataset(key, test=False, transform=None, root=None):
+    if(root is not None):
+        location = os.path.join(root, key)
+    else:
+        location = key
     if key == "BSDS500_gray":
         if transform is None:
             transforms = Compose(
@@ -14,7 +19,7 @@ def get_dataset(key, test=False, transform=None, root=None):
                 [ToImage(), ToDtype(torch.float32, scale=True), Grayscale(), transform]
             )
         return BSDS500Dataset(
-            root="BSDS500", download=True, test=test, transform=transforms
+            root=location, download=True, test=test, transform=transforms
         )
     elif key == "BSD68":
         if transform is None:
@@ -33,7 +38,7 @@ def get_dataset(key, test=False, transform=None, root=None):
             transforms = Compose(
                 [ToImage(), ToDtype(torch.float32, scale=True), transform]
             )
-        return LoDoPaB(root="LoDoPaB", download=True, test=test, transform=transforms)
+        return LoDoPaB(root=location, download=True, test=test, transform=transforms)
     # elif key == "BSDS500_color":
     #     if transform is None:
     #         transforms = Compose([ToImage(), ToDtype(torch.float32, scale=True)])

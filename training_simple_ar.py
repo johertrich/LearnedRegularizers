@@ -5,7 +5,7 @@ Created on Wed Feb 26 2025
 @author: Zakobian
 """
 
-from priors import ICNNPrior, CNNPrior,linearICNNPrior
+from priors import ICNNPrior, CNNPrior,linearICNNPrior, WCRR, simple_ICNNPrior
 import torch
 from deepinv.physics import Denoising, GaussianNoise, Tomography
 from training_methods import simple_ar_training
@@ -25,8 +25,8 @@ elif torch.cuda.is_available():
 else:
     device = "cpu"
 
-# problem = "Tomography"
-problem = "Denoising"
+problem = "Tomography"
+# problem = "Denoising"
 
 # problem dependent parameters
 if problem == "Denoising":
@@ -34,8 +34,20 @@ if problem == "Denoising":
     physics = Denoising(noise_model=GaussianNoise(sigma=noise_level))
     data_fidelity = L2(sigma=1.0)
     # dataset = get_dataset("BSDS500_gray", test=False, transform=RandomCrop(64))
-    dataset = get_dataset("BSDS500_gray", test=False, transform=RandomCrop(64))
+    # dataset = get_dataset("BSDS500_gray", test=False, transform=RandomCrop(64))
+    dataset = get_dataset("BSDS500_gray", test=False, transform=CenterCrop(256))
     lmbd = 1
+
+if problem == "Tomography":
+    # physics = Tomography(angles=180, num_detectors=256)
+    # dataset = get_dataset("LoDoPaB", test=False, transform=CenterCrop(256))
+    dataset = get_dataset("LoDoPaB", test=False, transform=Resize(256))
+    
+    noise_level = 0.1
+    physics = Tomography(angles=30, img_width=256, circle=False, device=device, noise_model=GaussianNoise(sigma=noise_level))
+    data_fidelity = L2(sigma=1.0)
+
+    lmbd = 1.0
 
 # splitting in training and validation set
 test_ratio = 0.1
@@ -65,6 +77,11 @@ lmbd = estimate_lmbd(train_dataloader,physics,device)
 regularizer = CNNPrior(
     in_channels=1, size=64
 ).to(device)
+# regularizer = simple_ICNNPrior(in_channels=1,channels=32,device=device)
+# weakly=True
+# regularizer = WCRR(
+#     sigma=0.1, weak_convexity=1.0 if weakly else 0.0, pretrained=None
+# ).to(device)
 
 simple_ar_training(
     regularizer,
@@ -74,6 +91,11 @@ simple_ar_training(
     train_dataloader,
     val_dataloader,
     device=device,
+    epochs=50,
+    lr=1e-3,
+    mu=10,
 )
 
-torch.save(regularizer.state_dict(), f"weights/simple_{regularizer.__class__.__name__}_ar.pt")
+torch.save(regularizer.state_dict(), f"weights/simple_{regularizer.__class__.__name__}_ar_{problem}.pt")
+
+
