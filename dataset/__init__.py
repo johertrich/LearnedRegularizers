@@ -10,6 +10,7 @@ def get_dataset(key, test=False, transform=None, root=None):
     else:
         location = key
     if key == "BSDS500_gray":
+        location = location[:-5]
         if transform is None:
             transforms = Compose(
                 [ToImage(), ToDtype(torch.float32, scale=True), Grayscale()]
