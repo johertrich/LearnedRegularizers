@@ -1,1 +1,1 @@
-from .realMRI import MRIonR
+from .settings import get_evaluation_setting

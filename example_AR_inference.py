@@ -8,7 +8,6 @@ from deepinv.optim import L2, Tikhonov
 from deepinv.utils.plotting import plot
 from evaluation import evaluate
 from dataset import get_dataset
-from operators import MRIonR
 from torchvision.transforms import CenterCrop, RandomCrop
 from training_methods.simple_ar_training import estimate_lmbd
 from priors import ICNNPrior, CNNPrior, linearICNNPrior, WCRR

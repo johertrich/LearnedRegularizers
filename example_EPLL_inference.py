@@ -3,7 +3,6 @@ from deepinv.optim import L2, Tikhonov
 from deepinv.utils.plotting import plot
 from evaluation import evaluate, nag
 from dataset import get_dataset
-from operators import MRIonR
 from torchvision.transforms import CenterCrop, RandomCrop
 import torch
 from priors.epll import EPLL

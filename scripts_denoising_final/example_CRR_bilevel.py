@@ -3,7 +3,6 @@ from deepinv.optim import L2, Tikhonov
 from deepinv.utils.plotting import plot
 from evaluation import evaluate
 from dataset import get_dataset
-from operators import MRIonR
 from torchvision.transforms import CenterCrop
 from priors import ICNNPrior, wcrr
 import torch

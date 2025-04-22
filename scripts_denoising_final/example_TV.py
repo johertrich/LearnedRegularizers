@@ -1,15 +1,12 @@
 # Evaluates a TV baseline on the test problems. Consequently it does not use the
 # NAG-based evaluation routine but rather uses a primal-dual hybrid gradient algorithm.
 
-from deepinv.physics import Denoising, MRI, GaussianNoise, Tomography
-from deepinv.optim import L2
+from operators import get_evaluation_setting
 from deepinv.utils.plotting import plot
-from dataset import get_dataset
-from torchvision.transforms import CenterCrop
 import torch
 from deepinv.models import TVDenoiser
 from deepinv.physics import LinearPhysics
-from deepinv.optim import L1Prior, L2
+from deepinv.optim import L1Prior
 import numpy as np
 from torch.utils.data import DataLoader
 from deepinv.loss.metric import PSNR
@@ -39,7 +36,7 @@ if problem == "Denoising":
     lmbd = 6e-2  # regularization parameter
     step_size = 0.2  # step sizes in the PDHG
 elif problem == "CT":
-    lmbd = 1.  # regularization parameter
+    lmbd = 0.1  # regularization parameter
     step_size = 0.005
 
 
@@ -49,35 +46,7 @@ elif problem == "CT":
 #############################################################
 
 # Define forward operator
-if problem == "Denoising":
-    noise_level = 0.1
-    physics = Denoising(noise_model=GaussianNoise(sigma=noise_level))
-    data_fidelity = L2(sigma=1.0)
-    dataset = get_dataset("BSD68")
-elif problem == "CT":
-    noise_level = 0.5
-    dataset = get_dataset("BSD68", transform=CenterCrop(300))
-    imsize = dataset[0].shape[-1]
-    physics = Tomography(
-        imsize // 3, imsize, device=device, noise_model=GaussianNoise(sigma=noise_level)
-    )
-    data_fidelity = L2(sigma=1.0)
-# elif problem == "MRI":
-#    dataset = get_dataset("BSDS500_gray", transform=CenterCrop(256), test=True)
-#    img_size = dataset[0].shape
-#    noise_level = 0.05
-#    # simple Cartesian mask generation from the deepinv tour...
-#    mask = torch.rand((1, img_size[-1]), device=device) > 0.75
-#    mask = torch.ones((img_size[-2], 1), device=device) * mask
-#    mask[:, int(img_size[-1] / 2) - 2 : int(img_size[-1] / 2) + 2] = 1
-#    # The MRI operator in deepinv operates on complex-valued images.
-#    # The MRIonR operator wraps it for real-valued images
-#    physics = MRIonR(
-#        mask=mask, device=device, noise_model=GaussianNoise(sigma=noise_level)
-#    )
-#    data_fidelity = L2(sigma=1.0)
-else:
-    raise NotImplementedError("Problem not found")
+dataset, physics, data_fidelity = get_evaluation_setting(problem, device)
 
 
 class ParallelPrimalDualOptimizer:
@@ -155,7 +124,7 @@ optimizer = ParallelPrimalDualOptimizer(
     physics_list,
     prox_list,
     lambda_list,
-    2000,
+    20000,
     step_size,
     step_size,
     stopping_criterion=1e-4,
