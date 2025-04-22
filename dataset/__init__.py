@@ -1,11 +1,11 @@
-from .datasets import BSDS500Dataset, FastMRISlices, BSD68, LoDoPaB
+from .datasets import BSDS500Dataset, BSD68, LoDoPaB
 from torchvision.transforms.v2 import ToImage, Compose, Grayscale, ToDtype
 import torch
 import os
 
 
 def get_dataset(key, test=False, transform=None, root=None):
-    if(root is not None):
+    if root is not None:
         location = os.path.join(root, key)
     else:
         location = key
@@ -48,11 +48,5 @@ def get_dataset(key, test=False, transform=None, root=None):
     #     return BSDS500Dataset(
     #         root="BSDS500", download=True, test=test, transform=transforms
     #     )
-    # elif key == "fastMRI":
-    #     if transform is None:
-    #         transforms = Compose([ToImage(), ToDtype(torch.float32, scale=True)])
-    #     else:
-    #         transforms = Compose([ToImage(), ToDtype(torch.float32, scale=True), ToDtype(), transform])
-    #     return FastMRISlices(root, test=test, transform=transforms)
     else:
         raise NameError("Unknown dataset!")
