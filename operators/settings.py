@@ -4,13 +4,20 @@ from dataset import get_dataset
 
 
 def get_evaluation_setting(problem, device):
+    physics, data_fidelity = get_operator(problem, device)
+    if problem == "Denoising":
+        dataset = get_dataset("BSD68")
+    elif problem == "CT":
+        dataset = get_dataset("LoDoPaB", test=True)
+    return dataset, physics, data_fidelity
+
+
+def get_operator(problem, device):
     if problem == "Denoising":
         noise_level = 0.1
         physics = Denoising(noise_model=GaussianNoise(sigma=noise_level))
         data_fidelity = L2(sigma=1.0)
-        dataset = get_dataset("BSD68")
     elif problem == "CT":
-        dataset = get_dataset("LoDoPaB", test=True)
         noise_level = 0.1
         physics = Tomography(
             angles=60,
@@ -20,5 +27,4 @@ def get_evaluation_setting(problem, device):
             noise_model=GaussianNoise(sigma=noise_level),
         )
         data_fidelity = L2(sigma=1.0)
-
-    return dataset, physics, data_fidelity
+    return physics, data_fidelity
