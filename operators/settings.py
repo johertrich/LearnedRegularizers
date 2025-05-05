@@ -21,7 +21,7 @@ def get_operator(problem, device):
         noise_level = 0.1
         physics = Tomography(
             angles=60,
-            img_width=dataset[0].shape[-1],
+            img_width=362,
             circle=False,
             device=device,
             noise_model=GaussianNoise(sigma=noise_level),
