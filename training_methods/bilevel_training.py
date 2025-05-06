@@ -63,12 +63,12 @@ def bilevel_training(
         for x in tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{epochs} - Train"):
             x = x.to(device).to(torch.float32)
             y = physics(x)
-            x_init = y
-
+            x_noisy = physics.A_dagger(y)
+            
             x_recon = reconstruct_nmAPG(
                 y, physics, data_fidelity, regularizer, lmbd,
                 NAG_step_size, NAG_max_iter, NAG_tol_train,
-                verbose=verbose, x_init=x_init,
+                verbose=verbose, x_init=x_noisy,
             )
 
             optimizer.zero_grad()
@@ -108,11 +108,12 @@ def bilevel_training(
             for x_val in tqdm(val_dataloader, desc=f"Epoch {epoch+1}/{epochs} - Val"):
                 x_val = x_val.to(device).to(torch.float32)
                 y_val = physics(x_val)
+                x_val_noisy = physics.A_dagger(y_val)
 
                 x_recon_val = reconstruct_nmAPG(
                     y_val, physics, data_fidelity, regularizer, lmbd,
                     NAG_step_size, NAG_max_iter, NAG_tol_val,
-                    verbose=verbose, x_init=y_val,
+                    verbose=verbose, x_init=x_val_noisy,
                 )
 
                 val_loss_epoch += upper_loss(x_val, x_recon_val).mean().item()
