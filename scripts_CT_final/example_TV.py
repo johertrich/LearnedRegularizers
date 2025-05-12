@@ -131,7 +131,7 @@ optimizer = ParallelPrimalDualOptimizer(
 )
 
 dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
-psnr = PSNR()
+psnr = PSNR(max_pixel=None)
 
 psnrs = []
 for i, x in (progress_bar := tqdm(enumerate(dataloader))):

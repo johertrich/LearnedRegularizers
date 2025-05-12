@@ -15,12 +15,16 @@ def evaluate(
     NAG_max_iter,
     NAG_tol,
     only_first=False,
+    adaptive_range=False,
     device="cuda" if torch.cuda.is_available() else "cpu",
     verbose=False,
 ):
 
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
-    psnr = PSNR()
+    if adaptive_range:
+        psnr = PSNR(max_pixel=None)
+    else:
+        psnr = PSNR()
 
     regularizer.eval()
     for p in regularizer.parameters():
