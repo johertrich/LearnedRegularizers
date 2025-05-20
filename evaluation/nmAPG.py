@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 from typing import Callable
+import inspect
 
 # Implements Algorithm 4 from the supplementary material of
 #
@@ -17,6 +18,7 @@ def nmAPG(
     y: torch.Tensor,
     f: Callable[[torch.Tensor], torch.Tensor],
     nabla: Callable[[torch.Tensor], torch.Tensor],
+    f_and_nabla: Callable[[torch.Tensor], [torch.Tensor]],
     max_iter: int = 200,
     L_init: float = 1,
     tol: float = 1e-4,
@@ -59,7 +61,7 @@ def nmAPG(
             + (t_old - 1) / t * (x[idx] - x_old[idx])
         )  # Eq 148, x_bar = yk
         x_old.copy_(x)
-        energy, grad[idx] = f(x_bar[idx], y[idx]), nabla(x_bar[idx], y[idx])
+        energy, grad[idx] = f_and_nabla(x_bar[idx], y[idx])
 
         # NOT CHECKED YET
         if i > 0:
@@ -143,7 +145,7 @@ def nmAPG(
                 print(f"Converged in iter {i}, tol {torch.max(res).item():.6f}")
             break
         t_old = t
-        t = (np.sqrt(4.0 * t_old**2 + 1.0) + 1.0) / 2.0  # Eq 159
+        t = (np.sqrt(4.0 * t_old ** 2 + 1.0) + 1.0) / 2.0  # Eq 159
         q_old = q
         q = eta * q + 1.0  # Eq 160
         c[idx] = (eta * q_old * c[idx] + f(x[idx], y[idx])) / q  # Eq 161
@@ -179,7 +181,8 @@ def reconstruct_nmAPG(
         x = physics.A_dagger(y)
 
     def energy(val, y_in):
-        fun = data_fidelity(val, y_in, physics) + lamda * regularizer.g(val)
+        with torch.no_grad():
+            fun = data_fidelity(val, y_in, physics) + lamda * regularizer.g(val)
         if detach_grads:
             fun = fun.detach()
         return fun.reshape(-1)
@@ -190,6 +193,23 @@ def reconstruct_nmAPG(
             grad = grad.detach()
         return grad
 
+    # check if energy can be accessed during grad evaluation
+    signature = inspect.signature(regularizer.grad)
+    argument_names = [param.name for param in signature.parameters.values()]
+    if "get_energy" in argument_names:
+
+        def energy_and_grad(val, y_in):
+            fun, grad = regularizer.grad(val, get_energy=True)
+            fun = data_fidelity(val, y_in, physics) + lamda * fun
+            grad = data_fidelity.grad(val, y_in, physics) + lamda * grad
+            if detach_grads:
+                fun = fun.detach()
+                grad = grad.detach()
+            return fun, grad
+
+    else:
+        energy_and_grad = lambda val, y_in: (energy(val, y_in), energy_grad(val, y_in))
+
     # example energies
     rec = nmAPG(
         x0=x,
@@ -197,6 +217,7 @@ def reconstruct_nmAPG(
         max_iter=max_iter,
         f=energy,
         nabla=energy_grad,
+        f_and_nabla=energy_and_grad,
         L_init=1 / step_size,
         tol=tol,
         verbose=verbose,

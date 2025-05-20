@@ -60,14 +60,14 @@ class WCRR(Prior):
         if self.tanh:
             x_abs = torch.abs(x)
             return torch.log((torch.exp(x - x_abs) + torch.exp(-x - x_abs)) / 2) + x_abs
-        return torch.clip(x**2, 0.0, 1.0) / 2 + torch.clip(torch.abs(x), 1.0) - 1.0
+        return torch.clip(x ** 2, 0.0, 1.0) / 2 + torch.clip(torch.abs(x), 1.0) - 1.0
 
     def grad_smooth_l1(self, x):
         if self.tanh:
             return torch.tanh(x)
         else:
             return torch.clip(x, -1.0, 1.0)
-        
+
     def get_conv_lip(self):
         impulse = self.filters(self.dirac)
         for filt in reversed(self.filters):
@@ -84,16 +84,23 @@ class WCRR(Prior):
             x = F.conv_transpose2d(x, filt.weight, padding=filt.padding)
         return x
 
-    def grad(self, x):
+    def grad(self, x, get_energy=False):
         grad = self.conv(x)
         grad = grad * torch.exp(self.scaling)
+        if get_energy:
+            reg = (
+                self.smooth_l1(torch.exp(self.beta) * grad) * torch.exp(-self.beta)
+                - self.smooth_l1(grad) * self.weak_cvx
+            )
+            reg = reg * torch.exp(-2 * self.scaling)
+            reg = reg.sum(dim=(1, 2, 3))
         grad = (
             self.grad_smooth_l1(torch.exp(self.beta) * grad)
             - self.grad_smooth_l1(grad) * self.weak_cvx
         )
         grad = grad * torch.exp(-self.scaling)
         grad = self.conv_transpose(grad)
-        return grad
+        return reg, grad if get_energy else grad
 
     def g(self, x):
         reg = self.conv(x)
