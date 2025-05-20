@@ -100,7 +100,9 @@ class WCRR(Prior):
         )
         grad = grad * torch.exp(-self.scaling)
         grad = self.conv_transpose(grad)
-        return reg, grad if get_energy else grad
+        if get_energy:
+            return reg, grad
+        return grad
 
     def g(self, x):
         reg = self.conv(x)
