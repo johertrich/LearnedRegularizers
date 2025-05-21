@@ -3,6 +3,7 @@ import numpy as np
 from tqdm import tqdm
 from deepinv.loss.metric import PSNR
 from evaluation import reconstruct_nmAPG
+import copy
 
 
 def unrolling_jfb(
@@ -23,54 +24,40 @@ def unrolling_jfb(
     lr_decay=0.99,
     device="cuda" if torch.cuda.is_available() else "cpu",
     verbose=False,
-    validation_epochs=10,
     upper_loss=lambda x, y: torch.sum(((x - y) ** 2).view(x.shape[0], -1), -1),
 ):
 
-    # Initialize optimizer for the upper-level
-    optimizer = torch.optim.Adam(regularizer.parameters(), lr=lr, weight_decay=1e-3)
+    optimizer = torch.optim.Adam(regularizer.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=lr_decay)
-
     psnr = PSNR()
 
-    len_train = len(train_dataloader)
-    len_val = len(val_dataloader)
-
-    # Training loop
     loss_train = []
     loss_val = []
     psnr_train = []
     psnr_val = []
+
+    best_val_psnr = -float("inf")
+    best_regularizer_state = copy.deepcopy(regularizer.state_dict())
+
     for epoch in range(epochs):
+        # ---- Training ----
+        regularizer.train()
+        train_loss_epoch = 0
+        train_psnr_epoch = 0
 
-        loss_train_epoch = 0
-        psnr_train_epoch = 0
-
-        for x in tqdm(train_dataloader):
-            if device == "mps":
-                x = x.to(torch.float32).to(device)
-            else:
-                x = x.to(device).to(torch.float)
+        for x in tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{epochs} - Train"):
+            x = x.to(device).to(torch.float32)
             y = physics(x)
-
-            x_init = y
-
+            x_noisy = physics.A_dagger(y)
+            
             x_recon, L = reconstruct_nmAPG(
-                y,
-                physics,
-                data_fidelity,
-                regularizer,
-                lmbd,
-                NAG_step_size,
-                NAG_max_iter,
-                NAG_tol_train,
-                verbose=verbose,
-                x_init=x_init,
-                return_L=True,
+                y, physics, data_fidelity, regularizer, lmbd,
+                NAG_step_size, NAG_max_iter, NAG_tol_train,
+                verbose=verbose, x_init=x_noisy, return_L=True,
             )
 
             optimizer.zero_grad()
-            x_recon = x_recon.detach()
+	        x_recon = x_recon.detach().requires_grad_(True)
             for _ in range(jfb_steps):
                 grad = data_fidelity.grad(x_recon, y, physics) + regularizer.grad(
                     x_recon
@@ -78,71 +65,51 @@ def unrolling_jfb(
                 x_recon = x_recon - jfb_step_size_factor / L * grad
             loss = upper_loss(x_recon, x).mean()
             loss.backward()
-            loss_train_epoch += loss.item()
-            psnr_train_epoch += psnr(x_recon, x).mean().item()
+            train_loss_epoch += loss.item()
+            train_psnr_epoch += psnr(x_recon, x).mean().item()
+
             optimizer.step()
 
         scheduler.step()
-        mean_loss_train = loss_train_epoch / len_train
-        mean_psnr_train = psnr_train_epoch / len_train
+        mean_train_loss = train_loss_epoch / len(train_dataloader)
+        mean_train_psnr = train_psnr_epoch / len(train_dataloader)
+        loss_train.append(mean_train_loss)
+        psnr_train.append(mean_train_psnr)
 
-        print(
-            "Mean PSNR training in epoch {0}: {1:.2f}".format(
-                epoch + 1, mean_psnr_train
-            )
-        )
-        print(
-            "Mean loss training in epoch {0}: {1:.2E}".format(
-                epoch + 1, mean_loss_train
-            )
-        )
+        print(f"[Epoch {epoch+1}] Train Loss: {mean_train_loss:.2E}, PSNR: {mean_train_psnr:.2f}")
 
-        loss_train.append(mean_loss_train)
-        psnr_train.append(mean_psnr_train)
-
-        if (epoch + 1) % validation_epochs == 0:
-            loss_val_epoch = 0
-            psnr_val_epoch = 0
-            for x_val in tqdm(val_dataloader):
-                if device == "mps":
-                    x_val = x_val.to(torch.float32).to(device)
-                else:
-                    x_val = x_val.to(device).to(torch.float)
-                y = physics(x_val)
-                x_init_val = y
+        # ---- Validation ----
+        regularizer.eval()
+        with torch.no_grad():
+            val_loss_epoch = 0
+            val_psnr_epoch = 0
+            for x_val in tqdm(val_dataloader, desc=f"Epoch {epoch+1}/{epochs} - Val"):
+                x_val = x_val.to(device).to(torch.float32)
+                y_val = physics(x_val)
+                x_val_noisy = physics.A_dagger(y_val)
 
                 x_recon_val = reconstruct_nmAPG(
-                    y,
-                    physics,
-                    data_fidelity,
-                    regularizer,
-                    lmbd,
-                    NAG_step_size,
-                    NAG_max_iter,
-                    NAG_tol_val,
-                    verbose=verbose,
-                    x_init=x_init_val,
+                    y_val, physics, data_fidelity, regularizer, lmbd,
+                    NAG_step_size, NAG_max_iter, NAG_tol_val,
+                    verbose=verbose, x_init=x_val_noisy,
                 )
 
-                loss_validation = lambda x_in: torch.sum(
-                    ((x_in - x_val) ** 2).view(x_val.shape[0], -1), -1
-                ).mean()
-                loss_val_epoch += loss_validation(x_recon_val).item()
-                psnr_val_epoch += psnr(x_recon_val, x_val).mean().item()
+                val_loss_epoch += upper_loss(x_val, x_recon_val).mean().item()
+                val_psnr_epoch += psnr(x_recon_val, x_val).mean().item()
 
-            mean_loss_val = loss_val_epoch / len_val
-            mean_psnr_val = psnr_val_epoch / len_val
+            mean_val_loss = val_loss_epoch / len(val_dataloader)
+            mean_val_psnr = val_psnr_epoch / len(val_dataloader)
+            loss_val.append(mean_val_loss)
+            psnr_val.append(mean_val_psnr)
 
-            print(
-                "Average validation psnr in epoch {0}: {1:.2f}".format(
-                    epoch + 1, mean_psnr_val
-                )
-            )
-            print(
-                "Average validation loss in epoch {0}: {1:.2E}".format(
-                    epoch + 1, mean_loss_val
-                )
-            )
-            loss_val.append(mean_loss_val)
-            psnr_val.append(mean_psnr_val)
+            print(f"[Epoch {epoch+1}] Val Loss: {mean_val_loss:.2E}, PSNR: {mean_val_psnr:.2f}")
+
+            # ---- Save best regularizer based on validation PSNR ----
+            if mean_val_psnr > best_val_psnr:
+                best_val_psnr = mean_val_psnr
+                best_regularizer_state = copy.deepcopy(regularizer.state_dict())
+
+    # Load best regularizer
+    regularizer.load_state_dict(best_regularizer_state)
+
     return regularizer, loss_train, loss_val, psnr_train, psnr_val
