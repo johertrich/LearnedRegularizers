@@ -6,7 +6,7 @@ from evaluation import reconstruct_nmAPG
 import copy
 
 
-def unrolled_bilevel(
+def unrolled_bilevel_training(
     regularizer,
     physics,
     data_fidelity,
