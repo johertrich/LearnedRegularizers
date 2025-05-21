@@ -6,7 +6,7 @@ from evaluation import reconstruct_nmAPG
 import copy
 
 
-def unrolling_jfb(
+def unrolled_bilevel(
     regularizer,
     physics,
     data_fidelity,
