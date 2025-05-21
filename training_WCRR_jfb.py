@@ -1,8 +1,7 @@
 from priors import WCRR
 import torch
-from deepinv.physics import Denoising, GaussianNoise
+from operators import get_operator
 from training_methods import unrolling_jfb
-from deepinv.optim import L2
 from dataset import get_dataset
 from torchvision.transforms import RandomCrop, CenterCrop, Compose
 from torchvision.transforms import (
@@ -25,30 +24,25 @@ else:
 
 problem = "Denoising"
 
-# problem dependent parameters
-if problem == "Denoising":
-    noise_level = 0.1
-    physics = Denoising(noise_model=GaussianNoise(sigma=noise_level))
-    data_fidelity = L2(sigma=1.0)
+physics, data_fidelity = get_operator(problem, device)
 
-    transform = Compose(
-        [
-            RandomCrop(64),
-            RandomHorizontalFlip(p=0.5),
-            RandomVerticalFlip(p=0.5),
-            RandomApply([RandomRotation((90, 90))], p=0.5),
-        ]
-    )
-    train_dataset = get_dataset("BSDS500_gray", test=False, transform=transform)
-    val_dataset = get_dataset("BSDS500_gray", test=False, transform=CenterCrop(321))
-    # splitting in training and validation set
-    test_ratio = 0.1
-    test_len = int(len(train_dataset) * 0.1)
-    train_len = len(train_dataset) - test_len
-    train_set = torch.utils.data.Subset(train_dataset, range(train_len))
-    # val_set = get_dataset("BSD68")
-    val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
-    lmbd = 1.0
+transform = Compose(
+    [
+        RandomCrop(64),
+        RandomHorizontalFlip(p=0.5),
+        RandomVerticalFlip(p=0.5),
+        RandomApply([RandomRotation((90, 90))], p=0.5),
+    ]
+)
+train_dataset = get_dataset("BSDS500_gray", test=False, transform=transform)
+val_dataset = get_dataset("BSDS500_gray", test=False, transform=CenterCrop(321))
+# splitting in training and validation set
+test_ratio = 0.1
+test_len = int(len(train_dataset) * 0.1)
+train_len = len(train_dataset) - test_len
+train_set = torch.utils.data.Subset(train_dataset, range(train_len))
+val_set = get_dataset("BSD68")
+# val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
 
 
 # create dataloaders
@@ -60,11 +54,13 @@ val_dataloader = torch.utils.data.DataLoader(
 )
 
 # define regularizer
+noise_level = 0.1
 regularizer = WCRR(
     sigma=noise_level,
-    weak_convexity=1.0,
+    weak_convexity=0.0,
 ).to(device)
 
+lmbd = 1.0
 regularizer, loss_train, loss_val, psnr_train, psnr_val = unrolling_jfb(
     regularizer,
     physics,
@@ -72,17 +68,17 @@ regularizer, loss_train, loss_val, psnr_train, psnr_val = unrolling_jfb(
     lmbd,
     train_dataloader,
     val_dataloader,
-    epochs=100,
+    epochs=200,
     NAG_step_size=1e-1,
     NAG_max_iter=1000,
     NAG_tol_train=1e-4,
     NAG_tol_val=1e-4,
     lr=0.005,
-    lr_decay=0.99,
+    lr_decay=0.995,
     device=device,
     verbose=False,
 )
 
-torch.save(regularizer.state_dict(), f"weights/WCRR_jfb.pt")
+torch.save(regularizer.state_dict(), f"weights/CRR_jfb.pt")
 
 # %%

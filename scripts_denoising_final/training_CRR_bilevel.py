@@ -14,6 +14,7 @@ from torchvision.transforms import (
     RandomApply,
     RandomRotation,
 )
+from operators import get_operator
 
 if torch.backends.mps.is_available():
     # mps backend is used in Apple Silicon chips
@@ -25,30 +26,25 @@ else:
 
 problem = "Denoising"
 
-# problem dependent parameters
-if problem == "Denoising":
-    noise_level = 0.1
-    physics = Denoising(noise_model=GaussianNoise(sigma=noise_level))
-    data_fidelity = L2(sigma=1.0)
+physics, data_fidelity = get_operator(problem, device)
 
-    transform = Compose(
-        [
-            RandomCrop(64),
-            RandomHorizontalFlip(p=0.5),
-            RandomVerticalFlip(p=0.5),
-            RandomApply([RandomRotation((90, 90))], p=0.5),
-        ]
-    )
-    train_dataset = get_dataset("BSDS500_gray", test=False, transform=transform)
-    val_dataset = get_dataset("BSDS500_gray", test=False, transform=CenterCrop(321))
-    # splitting in training and validation set
-    test_ratio = 0.1
-    test_len = int(len(train_dataset) * 0.1)
-    train_len = len(train_dataset) - test_len
-    train_set = torch.utils.data.Subset(train_dataset, range(train_len))
-    # val_set = get_dataset("BSD68")
-    val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
-    lmbd = 1.0
+transform = Compose(
+    [
+        RandomCrop(64),
+        RandomHorizontalFlip(p=0.5),
+        RandomVerticalFlip(p=0.5),
+        RandomApply([RandomRotation((90, 90))], p=0.5),
+    ]
+)
+train_dataset = get_dataset("BSDS500_gray", test=False, transform=transform)
+val_dataset = get_dataset("BSDS500_gray", test=False, transform=CenterCrop(321))
+# splitting in training and validation set
+test_ratio = 0.1
+test_len = int(len(train_dataset) * 0.1)
+train_len = len(train_dataset) - test_len
+train_set = torch.utils.data.Subset(train_dataset, range(train_len))
+val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
+
 
 
 # create dataloaders
@@ -60,6 +56,8 @@ val_dataloader = torch.utils.data.DataLoader(
 )
 
 # define regularizer
+noise_level = 0.1
+lmbd = 1.0
 regularizer = wcrr.WCRR(
     sigma=noise_level,
     weak_convexity=0.0,
