@@ -59,21 +59,9 @@ class NETT(nn.Module):
         return x+self.final(dec1)
     
     def regularizer(self,x):
-        enc1 = self.encoder1(x)
-        enc2 = self.encoder2(self.pool(enc1))
-        enc3 = self.encoder3(self.pool(enc2))
-        enc4 = self.encoder4(self.pool(enc3))
-        
-        bottleneck = self.bottleneck(self.pool(enc4))
-        print(x.shape)
-        dec4 = self.decoder4(torch.cat([self.upconv4(bottleneck), enc4], dim=1))
-        dec3 = self.decoder3(torch.cat([self.upconv3(dec4), enc3], dim=1))
-        dec2 = self.decoder2(torch.cat([self.upconv2(dec3), enc2], dim=1))
-        dec1 = self.decoder1(torch.cat([self.upconv1(dec2), enc1], dim=1))
-        
-        return torch.sum(self.final(dec1)**2,dim = [1,2,3])
+        return torch.sum(self.forward(x)**2,dim = [1,2,3])
     
-    def grad(self,x):
+    def grad(self,x,create_graph=True):
         r"""
         Calculate the gradient of the potential function.
 
@@ -85,8 +73,7 @@ class NETT(nn.Module):
             outputs=out,
             inputs=x,
             grad_outputs=torch.ones_like(out),
-            create_graph=True,
-            retain_graph=True,
+            create_graph=create_graph,
             only_inputs=True,
         )[0]
     
