@@ -10,3 +10,4 @@ from .lpn.lpn import LPNPrior
 from .linear_IDCNN_prior import linearIDCNNPrior
 from .local_ar import LocalAR
 from .simple_ICNN import simple_ICNNPrior
+from .LSR import LSR
