@@ -73,7 +73,7 @@ class simple_ICNNPrior(Prior):
             x_ = x.clone()
             x_.requires_grad_(True)
             z = torch.sum(self.g(x_))
-            grad = torch.autograd.grad(z, x_)[0]
+            grad = torch.autograd.grad(z, x_, create_graph=True)[0]
         if get_energy:
             return z, grad
         return grad
