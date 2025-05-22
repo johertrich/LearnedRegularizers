@@ -128,6 +128,8 @@ def bilevel_training(
                 x_recon = x_recon - jfb_step_size_factor / L * grad
                 loss = upper_loss(x_recon, x).mean()
                 loss.backward()
+            else:
+                raise NameError("unknwon mode!")
 
             optimizer.step()
 
