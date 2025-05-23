@@ -22,6 +22,9 @@ In order to ensure that all methods work in the same setting please use for trai
 
 For training:
 ```
+from operators import get_operator
+from dataset import get_dataset
+
 problem = "Denoising" # or "CT"
 device = "cuda" # or whatever is used
 physics, data_fidelity = get_operator(problem, device)
@@ -35,6 +38,8 @@ elif problem == "CT":
 
 For evaluation:
 ```
+from operators import get_evaluation_setting
+
 dataset, physics, data_fidelity = get_evaluation_setting(problem, device)
 ```
 
