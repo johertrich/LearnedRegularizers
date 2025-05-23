@@ -10,74 +10,211 @@ Overall to get started using conda, clone the repository and run (may take a few
 conda env create --file=environment.yaml
 ```
 
-## What is currently in there
+## Naming and Structure of Training and Evaluation Scripts
 
-There is
+### Naming
 
-- a script `examples.py` which evaluates a denoising or a CT task on the BSDS500 dataset with the unrolled ICNN
-- a script `training_simple_ICNN_unrolling.py` training a small ICNN via unrolling
-- a `dataset.get_dataset(key, test=False, transform=None)` method to select a dataset. The main idea of using a centralized dataset generation is to make sure that everyone really uses exactly the same datasets. Currently the only available keys is `"BSDS500_gray"`. The dataset is downloaded automatically when creating the dataset.
+Each training script for denoising should be named by `training_ARCHITECTURE_ALGORITHM.py` specifying architecture and training algorithm. For the CT example the naming should be the same with appending `_CT` at the end. The evaluation scripts should be named `example_ARCHITECTURE_ALGORITHM(_CT).py`. We might replace the part `example` by `inference` at some point, but I think it currently does not matter too much as long as we can see architecture 
 
-Helper functions for the evaluation script:
+### Loading the forward operator and evaluation setting
 
-<!-- - in operators there is the MRI operator `operators.MRIonR` (it wraps the `deepinv` version, which considers complex-valued images; but I think, we should stay with real-valued images, even though its a bit academic). -->
-- a `evaluation.evaluate` implements the evaluation procedure with some Nesterov accelerated gradient algorithm and iterates the evaluation over the test dataset.
+In order to ensure that all methods work in the same setting please use for training the forward model (`physics` which contains both, the forward operator `physics.A` and its adjoint `physics.A_adjoint`, and the noise model such that `physics(x)` applies the forward operator and the noise level to `x`), dataset and data fidelity term, please load them as follows:
 
-## How to add something to the repo
-
-In order to coordinate the implementations please respect the following structure of the repo:
-
-- Architectures should be implemented in the directory `priors`, training methods in `training_methods`. Please create in `priors` and `training_methods` exactly one file for every architecture/training method. If you require additional files, you can create subdirectories and put the additional there.
-- Example scripts for calling the training methods (problem specific with hyperparameters) should be created top-level.
-- To avoid confusions, it would be best if everyone only edits the files, which they have created/written. If you would like to edit existing files, please ask the person who created/has written them.
-- generally all images have the shape `(B,C,H,W)` with batch dimension `B`, channel dimension `C`, height `H` and width `W`.
-
-If anything is unclear, you have questions, or you need help, contact me (Johannes). If you prefer you can also make any edits in a different branch and create a pull request.
-
-### Structure of Architectures
-
-Architectures should inherit from [`deepinv.optim.Prior`](https://deepinv.github.io/deepinv/api/stubs/deepinv.optim.Prior.html) (which inherits from `torch.nn.Module`). They should have:
-
-- An `__init__` method, which takes all hyperparameters and a keyword argument `pretrained`. If `pretrained` is a string the init method should load weights from the path which is defined by the `pretrained` argument.
-- A function `g(self, x)` which evaluates the regularizer.
-- A function `grad(self, x)` which evaluates the gradient of the regularizer
-- Do we need the following for the bilevel methods?: A function `hvp(self,x)` which evaluates the Hessian vector product.
-
-### Structure of Training Methods
-
-Training methods should be callable functions. To ensure the interoperability for different architectures they should have the positional arguments:
-
-- `regularizer`: The regularizer which is trained
-- `physics`: Defining the forward operator of the variational problem. This is a [`deepinv.physics.LinearPhysics`](https://deepinv.github.io/deepinv/api/stubs/deepinv.physics.LinearPhysics.html) object. That is, it implements
-    + the forward operator as `physics.A` and its adjoint as `physics.A_adjoint`
-    + the `physics(x)` applies the forward operator and the noise model to `x`.
-- `data_fidelitiy`: defining the data-fidelity term of the variational problem. This is a [`deepinv.optim.DataFidelity`](https://deepinv.github.io/deepinv/api/stubs/deepinv.optim.DataFidelity.html) implementing
-    + `data_fidelity(x,y,physics)`: evaluates $d(Ax,y)$ where $A$ is the forward operator
-    + `data_fidelity.grad(x,y,physics)`: evaluates the gradient of $d(Ax,y)$ wrt x (backprobagation through `data_fidelity(x,y,physics)` should work as well)
-- `lmbd`: regularization parameter of the variational problem
-- `train_dataloader`: A dataloader for the training dataset
-- `val_dataloader`: A dataloader for the validation set
-
-Any other hyperparameters should be keyword arguments, where the defaults are adjusted to the denoising problem on BSD500 with noise level 0.1.
-
-
-<!-- ## FastMRI Dataset
-
-We use 2D slices from the singlecoil knee [fastMRI dataset](https://fastmri.med.nyu.edu/). The training dataset consists out the slices from all images from the original train split, where we cut the first and last 5 slices (since they usually contain only noise). Since the actual test split does not contain reconstructions (and we only use the images from fastMRI), we use the validation split for testing. Here, we just use the middle slice to ensure that the test images are independent.
-
-### Preparation
-
-To load the fast MRI dataset with `from dataset import get_dataset` and `get_dataset("fastMRI",test=test)`, the dataset has to be downloaded and extracted into the following structure:
-
+For training:
 ```
-fastMRI --- knee_singlecoil_train --- singlecoil_train --- file1000001.h5
-         |                                              |
-         |                                              -- file1002569.h5
-         |
-         -- knee_singlecoil_val   --- singlecoil_val   --- file1000000.h5
-                                                        |
-                                                        -- file1002570.h5
+from operators import get_operator
+from dataset import get_dataset
+
+problem = "Denoising" # or "CT"
+device = "cuda" # or whatever is used
+physics, data_fidelity = get_operator(problem, device)
+
+transform = None  # feel free to use transforms for data augmentation etc.
+if problem == "Denoising":
+	train_dataset = get_dataset("BSDS500_gray", test=False, transform=transform) 
+elif problem == "CT":
+	train_dataset = get_dataset("LoDoPaB", test=False, transform=transform) 
 ```
 
-Alternatively the path to the directory with the `.h5` files as keyword argument `root` in the `get_dataset` method. 
--->
+For evaluation:
+```
+from operators import get_evaluation_setting
+
+dataset, physics, data_fidelity = get_evaluation_setting(problem, device)
+```
+
+### Placement in the repo
+
+Work in progress scripts can be kept top-level. Once you are happy with the results please move the training and evaluation script to the directories `scripts_denoising_final` or `scripts_CT_final`.
+
+### Example for a training script
+
+The training script should have the same structure as the following example:
+```
+####################################
+# Imports and device specification
+####################################
+from operators import get_operator
+import torch
+from training_methods import bilevel_training
+from dataset import get_dataset
+
+if torch.backends.mps.is_available():
+    device = "mps"
+elif torch.cuda.is_available():
+    device = "cuda"
+else:
+    device = "cpu"
+
+####################################
+# Problem specification
+####################################
+problem = "Denoising" # "CT" for the CT problem
+
+# call unified definition of the forward operator
+physics, data_fidelity = get_operator(problem, device)
+
+
+####################################
+# Load dataset and dataloader
+####################################
+
+# The dataset should always be loaded via the get_dataset function,
+# but you might define customized transforms (crops, data augmentation etc.) and  customized
+# training/validation splits
+transform = CenterCrop(321)
+# "BSDS500_gray" for Denoising, "LoDoPaB" for CT
+train_dataset = get_dataset("BSDS500_gray", test=False, transform=transform) 
+val_dataset = get_dataset("BSDS500_gray", test=False, transform=transform)
+# splitting in training and validation set
+test_ratio = 0.1
+test_len = int(len(train_dataset) * 0.1)
+train_len = len(train_dataset) - test_len
+train_set = torch.utils.data.Subset(train_dataset, range(train_len))
+val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
+
+# create dataloaders
+train_dataloader = torch.utils.data.DataLoader(
+    train_set, batch_size=32, shuffle=True, drop_last=True, num_workers=8
+)
+val_dataloader = torch.utils.data.DataLoader(
+    val_set, batch_size=1, shuffle=False, drop_last=True, num_workers=8
+)
+
+####################################
+# define regularizer and parameters
+####################################
+
+noise_level = 0.1
+lmbd = 1.0
+regularizer = wcrr.WCRR(
+    sigma=noise_level,
+    weak_convexity=0.0,
+).to(device)
+
+####################################
+# Call training script
+####################################
+
+regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
+    regularizer,
+    physics,
+    data_fidelity,
+    lmbd,
+    train_dataloader,
+    val_dataloader,
+    epochs=200,
+    NAG_step_size=1e-1,
+    NAG_max_iter=1000,
+    NAG_tol_train=1e-4,
+    NAG_tol_val=1e-4,
+    lr=0.01,
+    lr_decay=0.99,
+    device=device,
+    verbose=False,
+)
+
+####################################
+# save weights
+####################################
+
+torch.save(regularizer.state_dict(), f"weights/CRR_bilevel.pt")
+```
+
+### Example for a test script
+
+The evaluation scripts should have the same structure as the following example:
+```
+####################################
+# Imports and device and seed specification
+####################################
+from operators import get_evaluation_setting
+from deepinv.utils.plotting import plot
+from evaluation import evaluate
+from dataset import get_dataset
+from priors import WCRR
+import torch
+
+if torch.backends.mps.is_available():
+    device = "mps"
+elif torch.cuda.is_available():
+    device = "cuda"
+else:
+    device = "cpu"
+
+torch.random.manual_seed(0)  # make results deterministic
+
+############################################################
+
+# Problem selection
+
+problem = "Denoising"  # Select problem setups, which we consider.
+only_first = False  # just evaluate on the first image of the dataset for test purposes
+
+############################################################
+
+# Define regularizer and parameters
+
+weakly = True
+pretrained = "weights/WCRR_bilevel.pt" if weakly else "weights/CRR_bilevel.pt"
+regularizer = WCRR(
+    sigma=0.1, weak_convexity=1.0 if weakly else 0.0, pretrained=pretrained
+).to(device)
+
+# Parameters for the Nesterov Algorithm, might also be problem dependent...
+
+NAG_step_size = 1e-1  # step size in NAG
+NAG_max_iter = 1000  # maximum number of iterations in NAG
+NAG_tol = 1e-4  # tolerance for the relative error (stopping criterion)
+
+
+#############################################################
+############# Problem setup and evaluation ##################
+############# This should not be changed   ##################
+#############################################################
+
+# Define forward operator
+dataset, physics, data_fidelity = get_evaluation_setting(problem, device)
+
+# Call unified evaluation routine
+
+mean_psnr, x_out, y_out, recon_out = evaluate(
+    physics=physics,
+    data_fidelity=data_fidelity,
+    dataset=dataset,
+    regularizer=regularizer,
+    lmbd=lmbd,
+    NAG_step_size=NAG_step_size,
+    NAG_max_iter=NAG_max_iter,
+    NAG_tol=NAG_tol,
+    only_first=only_first,
+    device=device,
+    verbose=True,
+)
+
+# plot ground truth, observation and reconstruction for the first image from the test dataset
+plot([x_out, y_out, recon_out])
+
+```
+
+
