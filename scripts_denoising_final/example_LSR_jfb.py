@@ -27,7 +27,7 @@ only_first = False  # just evaluate on the first image of the dataset for test p
 
 # Define regularizer
 
-pretrained = "weights/LSR_jfb_pretraining.pt"
+pretrained = "weights/LSR_jfb.pt"
 regularizer = LSR(
     nc=[32, 64, 128, 256], pretrained_denoiser=False, pretrained=pretrained
 ).to(device)
