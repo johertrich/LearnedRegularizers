@@ -16,6 +16,8 @@ class LSR(Prior):
         self,
         device="cpu",
         pretrained=None,
+        nc=[64, 128, 256, 512],
+        pretrained_denoiser=True,
     ):
         super(LSR, self).__init__()
 
@@ -24,9 +26,9 @@ class LSR(Prior):
             in_channels=1,
             out_channels=1,
             nb=2,
-            nc=[64, 128, 256, 512],
+            nc=nc,
             act_mode="E",
-            pretrained="download",
+            pretrained="download" if pretrained_denoiser else None,
             device=device,
         )
 
