@@ -57,5 +57,3 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
     verbose=False,
     adaptive_range=True,
 )
-
-print(f"PSNR: {mean_psnr:.4f} dB")
