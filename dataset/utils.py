@@ -7,6 +7,7 @@ Created on Fri Jan 31 12:34:22 2025
 import torch
 import torch.nn.functional as F
 import numpy as np
+import matplotlib.pyplot as plt
 
 class NETT_transform(object):
     """Rescale the image in a sample to a given size.
@@ -21,14 +22,13 @@ class NETT_transform(object):
         self.physics = physics
 
     def __call__(self, sample):
-        image = sample.float()
+        image = sample.float().to(self.physics.device)
         if circular_mask == True:
             image = circular_mask(image)
         if torch.rand(1) > self.percentage:
             img = image
         else:
             img = self.physics.A_dagger(self.physics(image.unsqueeze(1))).squeeze(1)
-
 
         return img, image
     
