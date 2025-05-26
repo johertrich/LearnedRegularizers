@@ -1,7 +1,6 @@
 from priors import WCRR
 import torch
-from operators import get_operator
-from training_methods import unrolling_jfb
+from training_methods import bilevel_training
 from dataset import get_dataset
 from torchvision.transforms import RandomCrop, CenterCrop, Compose
 from torchvision.transforms import (
@@ -13,6 +12,7 @@ from torchvision.transforms import (
     RandomApply,
     RandomRotation,
 )
+from operators import get_operator
 
 if torch.backends.mps.is_available():
     # mps backend is used in Apple Silicon chips
@@ -41,27 +41,25 @@ test_ratio = 0.1
 test_len = int(len(train_dataset) * 0.1)
 train_len = len(train_dataset) - test_len
 train_set = torch.utils.data.Subset(train_dataset, range(train_len))
-val_set = get_dataset("BSD68")
-# val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
-
+val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
 
 # create dataloaders
 train_dataloader = torch.utils.data.DataLoader(
     train_set, batch_size=32, shuffle=True, drop_last=True, num_workers=8
 )
 val_dataloader = torch.utils.data.DataLoader(
-    val_set, batch_size=1, shuffle=False, drop_last=True, num_workers=8
+    val_set, batch_size=4, shuffle=False, drop_last=True, num_workers=8
 )
 
 # define regularizer
 noise_level = 0.1
+lmbd = 1.0
 regularizer = WCRR(
     sigma=noise_level,
-    weak_convexity=0.0,
+    weak_convexity=1.0,
 ).to(device)
 
-lmbd = 1.0
-regularizer, loss_train, loss_val, psnr_train, psnr_val = unrolling_jfb(
+regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
     regularizer,
     physics,
     data_fidelity,
@@ -69,16 +67,17 @@ regularizer, loss_train, loss_val, psnr_train, psnr_val = unrolling_jfb(
     train_dataloader,
     val_dataloader,
     epochs=200,
+    mode="JFB",
     NAG_step_size=1e-1,
     NAG_max_iter=1000,
     NAG_tol_train=1e-4,
     NAG_tol_val=1e-4,
     lr=0.005,
-    lr_decay=0.995,
+    lr_decay=0.99,
     device=device,
     verbose=False,
 )
 
-torch.save(regularizer.state_dict(), f"weights/CRR_jfb.pt")
+torch.save(regularizer.state_dict(), f"weights/WCRR_jfb.pt")
 
 # %%

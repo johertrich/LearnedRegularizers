@@ -28,6 +28,7 @@ def bilevel_training(
     device="cuda" if torch.cuda.is_available() else "cpu",
     verbose=False,
     validation_epochs=20,
+    logger=None,
     upper_loss=lambda x, y: torch.sum(((x - y) ** 2).view(x.shape[0], -1), -1),
 ):
     def hessian_vector_product(x, v, data_fidelity, y, regularizer, lmbd, physics):
@@ -128,6 +129,8 @@ def bilevel_training(
                 x_recon = x_recon - jfb_step_size_factor / L * grad
                 loss = upper_loss(x_recon, x).mean()
                 loss.backward()
+            else:
+                raise NameError("unknwon mode!")
 
             optimizer.step()
 
@@ -137,9 +140,10 @@ def bilevel_training(
         loss_train.append(mean_train_loss)
         psnr_train.append(mean_train_psnr)
 
-        print(
-            f"[Epoch {epoch+1}] Train Loss: {mean_train_loss:.2E}, PSNR: {mean_train_psnr:.2f}"
-        )
+        print_str = f"[Epoch {epoch+1}] Train Loss: {mean_train_loss:.2E}, PSNR: {mean_train_psnr:.2f}"
+        print(print_str)
+        if logger is not None:
+            logger.info(print_str)
 
         # ---- Validation ----
         if (epoch + 1) % validation_epochs == 0:
@@ -175,9 +179,11 @@ def bilevel_training(
                 loss_val.append(mean_val_loss)
                 psnr_val.append(mean_val_psnr)
 
-                print(
-                    f"[Epoch {epoch+1}] Val Loss: {mean_val_loss:.2E}, PSNR: {mean_val_psnr:.2f}"
-                )
+                print_str = f"[Epoch {epoch+1}] Val Loss: {mean_val_loss:.2E}, PSNR: {mean_val_psnr:.2f}"
+                print(print_str)
+
+                if logger is not None:
+                    logger.info(print_str)
 
                 # ---- Save best regularizer based on validation PSNR ----
                 if mean_val_psnr > best_val_psnr:

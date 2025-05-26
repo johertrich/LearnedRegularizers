@@ -10,30 +10,40 @@ import torch.nn as nn
 from deepinv.optim import Prior
 from deepinv.models.GSPnP import GSDRUNet
 
+
 class LSR(Prior):
     def __init__(
         self,
         device="cpu",
         pretrained=None,
+        nc=[64, 128, 256, 512],
+        pretrained_denoiser=True,
     ):
-        super(NETT, self).__init__()
+        super(LSR, self).__init__()
 
         self.model = GSDRUNet(
-        alpha=1.0,
-        in_channels=1,
-        out_channels=1,
-        nb=2,
-        nc=[64, 128, 256, 512],
-        act_mode="E",
-        pretrained='download',
-        device=device,
+            alpha=1.0,
+            in_channels=1,
+            out_channels=1,
+            nb=2,
+            nc=nc,
+            act_mode="E",
+            pretrained="download" if pretrained_denoiser else None,
+            device=device,
         )
+
+        alpha = nn.Parameter(
+            torch.tensor(self.model.alpha, device=device, requires_grad=True)
+        )
+        self.model.alpha = alpha
+        self.model.register_parameter("alpha", alpha)
+        self.sigma = nn.Parameter(torch.tensor(1.0, device=device, requires_grad=True))
 
         if pretrained is not None:
             self.load_state_dict(torch.load(pretrained, map_location=device))
-    
-    def grad(self,x):
-        return self.model.potential_grad(x,5)
-    
+
+    def grad(self, x):
+        return self.model.potential_grad(x, 0.1 * self.sigma)
+
     def g(self, x):
-        return self.model.potential(x,5)
+        return self.model.potential(x, 0.1 * self.sigma)

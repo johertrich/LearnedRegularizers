@@ -127,13 +127,14 @@ optimizer = ParallelPrimalDualOptimizer(
     20000,
     step_size,
     step_size,
-    stopping_criterion=1e-4,
+    stopping_criterion=1e-5,
 )
 
 dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
 psnr = PSNR(max_pixel=None)
 
 psnrs = []
+psnrs_FBP = []
 for i, x in (progress_bar := tqdm(enumerate(dataloader))):
     if device == "mps":
         # mps does not support float64
@@ -142,10 +143,13 @@ for i, x in (progress_bar := tqdm(enumerate(dataloader))):
         x = x.to(device).to(torch.float32)
     y = physics(x)
     x_init = physics.A_dagger(y)
+    psnrs_FBP.append(psnr(x_init, x).squeeze().item())
     recon = optimizer.optimize(x_init)
     psnrs.append(psnr(recon, x).squeeze().item())
     progress_bar.set_description(
-        "Mean so far: {0:.2f}, Last: {1:.2f}".format(np.mean(psnrs), psnrs[-1])
+        "Mean so far: {0:.2f}, Last: {1:.2f}, FBP so far: {2:.2f}, Last {3:.2f}".format(
+            np.mean(psnrs), psnrs[-1], np.mean(psnrs_FBP), psnrs_FBP[-1]
+        )
     )
     if i == 0:
         y_out = y
@@ -154,7 +158,9 @@ for i, x in (progress_bar := tqdm(enumerate(dataloader))):
     if only_first:
         break
 mean_psnr = np.mean(psnrs)
+mean_psnr_FBP = np.mean(psnrs_FBP)
 print("Mean PSNR over the test set: {0:.2f}".format(mean_psnr))
+print("Mean PSNR FBP over the test set: {0:.2f}".format(mean_psnr_FBP))
 
 # plot ground truth, observation and reconstruction for the first image from the test dataset
 plot([x_out, y_out, recon_out])
