@@ -43,6 +43,28 @@ from operators import get_evaluation_setting
 dataset, physics, data_fidelity = get_evaluation_setting(problem, device)
 ```
 
+The regularizers should be evaluated by the prescribed evaluation routine, see below. The function takes the argument `adaptive_range` which determines whether we evaluate the PSNR using a fixed range or a dynamic range (determined by the maximal pixel value in the ground truth image). Please use `adaptive_range=True` for CT and `adaptive_range=False` for denoising:
+```
+from evaluation import evaluate
+
+problem = "Denoising"
+adaptive_range = True if problem == "CT" else False
+
+mean_psnr, x_out, y_out, recon_out = evaluate(
+    physics=physics,
+    data_fidelity=data_fidelity,
+    dataset=dataset,
+    regularizer=regularizer,
+    lmbd=lmbd,
+    NAG_step_size=NAG_step_size,
+    NAG_max_iter=NAG_max_iter,
+    NAG_tol=NAG_tol,
+    device=device,
+    adaptive_range=adaptive_range,
+    verbose=True,
+)
+```
+
 ### Placement in the repo
 
 Work in progress scripts can be kept top-level. Once you are happy with the results please move the training and evaluation script to the directories `scripts_denoising_final` or `scripts_CT_final`.
