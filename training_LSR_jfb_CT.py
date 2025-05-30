@@ -30,12 +30,8 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(
     filename="training_LSR_jfb_CT_" + str(datetime.datetime.now()) + ".log",
     level=logging.INFO,
+    format="%(asctime)s: %(message)s",
 )
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-formatter = logging.Formatter("%(asctime)s: %(message)s")
-ch.setFormatter(formatter)
-logger.addHandler(ch)
 
 physics, data_fidelity = get_operator(problem, device)
 
