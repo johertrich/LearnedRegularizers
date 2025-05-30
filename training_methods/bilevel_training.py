@@ -29,6 +29,7 @@ def bilevel_training(
     verbose=False,
     validation_epochs=20,
     logger=None,
+    dynamic_range_psnr=False,
     upper_loss=lambda x, y: torch.sum(((x - y) ** 2).view(x.shape[0], -1), -1),
 ):
     def hessian_vector_product(x, v, data_fidelity, y, regularizer, lmbd, physics):
@@ -43,15 +44,19 @@ def bilevel_training(
             x, y, physics
         ) + lmbd * regularizer.grad(x)
         for param in regularizer.parameters():
-            dot = torch.dot(grad_lower_level(x).view(-1), v.view(-1))
-            param.grad = -torch.autograd.grad(dot, param, create_graph=False)[
-                0
-            ].detach()
+            if param.requires_grad:
+                dot = torch.dot(grad_lower_level(x).view(-1), v.view(-1))
+                param.grad = -torch.autograd.grad(dot, param, create_graph=False)[
+                    0
+                ].detach()
         return regularizer
 
     optimizer = torch.optim.Adam(regularizer.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=lr_decay)
-    psnr = PSNR()
+    if dynamic_range_psnr:
+        psnr = PSNR(max_pixel=None)
+    else:
+        psnr = PSNR()
 
     loss_train = []
     loss_val = []
