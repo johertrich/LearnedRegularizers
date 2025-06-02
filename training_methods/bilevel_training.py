@@ -30,6 +30,7 @@ def bilevel_training(
     validation_epochs=20,
     logger=None,
     dynamic_range_psnr=False,
+    savestr=None,
     upper_loss=lambda x, y: torch.sum(((x - y) ** 2).view(x.shape[0], -1), -1),
 ):
     def hessian_vector_product(x, v, data_fidelity, y, regularizer, lmbd, physics):
@@ -77,7 +78,7 @@ def bilevel_training(
             y = physics(x)
             x_noisy = physics.A_dagger(y)
 
-            x_recon, L = reconstruct_nmAPG(
+            x_recon, x_stats = reconstruct_nmAPG(
                 y,
                 physics,
                 data_fidelity,
@@ -88,7 +89,7 @@ def bilevel_training(
                 NAG_tol_train,
                 verbose=verbose,
                 x_init=x_noisy,
-                return_L=True,
+                return_stats=True,
             )
 
             optimizer.zero_grad()
@@ -128,6 +129,7 @@ def bilevel_training(
                     if param.grad is not None:
                         param.grad = reg.grad
             elif mode == "JFB":
+                L = x_stats["L"]
                 grad = data_fidelity.grad(
                     x_recon, y, physics
                 ) + lmbd * regularizer.grad(x_recon)
@@ -186,6 +188,12 @@ def bilevel_training(
 
                 print_str = f"[Epoch {epoch+1}] Val Loss: {mean_val_loss:.2E}, PSNR: {mean_val_psnr:.2f}"
                 print(print_str)
+
+                if savestr is not None:
+                    torch.save(
+                        regularizer.state_dict(),
+                        savestr + "_epoch_" + str(epoch) + ".pt",
+                    )
 
                 if logger is not None:
                     logger.info(print_str)

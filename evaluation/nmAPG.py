@@ -26,7 +26,6 @@ def nmAPG(
     delta: float = 0.1,
     eta: float = 0.8,
     verbose: bool = False,
-    return_L: bool = False,
 ):
     """
     Algorithm 4: nonmonotone APG with line search
@@ -63,21 +62,24 @@ def nmAPG(
         x_old.copy_(x)
         energy, grad[idx] = f_and_nabla(x_bar[idx], y[idx])
 
-        # NOT CHECKED YET
+        # Lipschitz Update (Barzilai-Borwein style step)
         if i > 0:
             dx = grad[idx] - grad_old[idx]  # r in the paper
             s = (dx * dx).sum((1, 2, 3), keepdim=True)  # r^Tr
             L[idx] = torch.clip(
                 s
-                / (dx * (x_bar[idx] - x_bar_old[idx])).sum(
-                    (1, 2, 3), keepdim=True
-                ),  # alpha_y = <s,r>/<r,r> in paper, Eq 150
+                / (dx * (x_bar[idx] - x_bar_old[idx]))
+                .sum((1, 2, 3), keepdim=True)
+                .clip(min=1e-6, max=None),  # alpha_y = <s,r>/<r,r> in paper, Eq 150
                 min=1.0,
-                max=None,
-            )  # Why is there a lower bound of 1?
+                max=1e6,
+            )  # clips for stability --> on a long term we can adjust min-clip based on the spectral norm of physics.A
 
-        # Repeat Eq 151 and 152
+        # line search on z (Eq 151 and 152)
         for ii in range(150):
+            assert not torch.any(
+                torch.isnan(res)
+            ), "Numerical errors! Some values became NaN!"
             z[idx] = x_bar[idx] - grad[idx] / L[idx]  # Eq 151, 1/L = alpha_y
             dx = z[idx] - x_bar[idx]
             bound = torch.max(
@@ -97,38 +99,41 @@ def nmAPG(
             .view(-1)
         )
         if idx2.nelement() > 0:
-            gradx = nabla(x[idx[idx2]], y[idx[idx2]])  # nabla f(xk)
+            idx_idx2 = idx[idx2]
+            gradx = nabla(x[idx_idx2], y[idx_idx2])  # nabla f(xk)
 
             if i > 0:
-                dx = gradx - grad_old[idx[idx2]]
+                dx = gradx - grad_old[idx_idx2]
                 s = (dx * dx).sum((1, 2, 3), keepdim=True)
-                L[idx[idx2]] = torch.clip(
+                L[idx_idx2] = torch.clip(
                     s
-                    / (dx * (x[idx[idx2]] - x_bar_old[idx[idx2]])).sum(
-                        (1, 2, 3), keepdim=True
-                    ),
+                    / (dx * (x[idx_idx2] - x_bar_old[idx_idx2]))
+                    .sum((1, 2, 3), keepdim=True)
+                    .clip(min=1e-6, max=None),
                     min=1.0,
-                    max=None,
+                    max=1e6,
                 )
             L_old.copy_(L)
-            for ii in range(1500):
-                v = x[idx[idx2]] - gradx / L[idx[idx2]]
-                dx = v - x[idx[idx2]]
-                bound = c[idx[idx2], None, None, None] - delta * (dx * dx).sum(
+
+            # Line search on v
+            for ii in range(150):
+                v = x[idx_idx2] - gradx / L[idx_idx2]
+                dx = v - x[idx_idx2]
+                bound = c[idx_idx2, None, None, None] - delta * (dx * dx).sum(
                     (1, 2, 3), keepdim=True
                 )
                 if torch.all(
-                    (energy_new2 := f(v, y[idx[idx2]])) <= bound.view(-1) * (1 + 1e-4)
+                    (energy_new2 := f(v, y[idx_idx2])) <= bound.view(-1) * (1 + 1e-4)
                 ):
                     break
-                L[idx[idx2]] = torch.where(
+                L[idx_idx2] = torch.where(
                     energy_new2[:, None, None, None] <= bound,
-                    L[idx[idx2]],
-                    L[idx[idx2]] / rho,
+                    L[idx_idx2],
+                    L[idx_idx2] / rho,
                 )
             x[idx] = z[idx]
             idx3 = (energy_new2 <= energy_new[idx2]).nonzero().view(-1)
-            tmp = idx[idx2][idx3]
+            tmp = idx_idx2[idx3]
             x[tmp] = v[idx3]
         else:
             x[idx] = z[idx]
@@ -137,7 +142,11 @@ def nmAPG(
             res[idx] = torch.norm(x[idx] - x_old[idx], p=2, dim=(1, 2, 3)) / torch.norm(
                 x[idx], p=2, dim=(1, 2, 3)
             )
+        assert not torch.any(
+            torch.isnan(res)
+        ), "Numerical errors! Some values became NaN!"
         condition = res > tol
+        print(condition, res)
         idx = condition.nonzero().view(-1)  # Update which data to still iterate on
 
         if torch.max(res) < tol:
@@ -153,9 +162,7 @@ def nmAPG(
         grad_old.copy_(grad)
     if verbose and (torch.max(res) >= tol):
         print(f"max iter reached, tol {torch.max(res).item():.6f}")
-    if return_L:
-        return x, L
-    return x
+    return x, L, i
 
 
 def reconstruct_nmAPG(
@@ -170,7 +177,7 @@ def reconstruct_nmAPG(
     x_init=None,
     detach_grads=True,
     verbose=False,
-    return_L=False,
+    return_stats=False,
 ):
     """wrapper for nmAPG"""
 
@@ -182,6 +189,7 @@ def reconstruct_nmAPG(
 
     def energy(val, y_in):
         with torch.no_grad():
+            print(val.shape)
             fun = data_fidelity(val, y_in, physics) + lamda * regularizer.g(val)
         if detach_grads:
             fun = fun.detach()
@@ -211,7 +219,7 @@ def reconstruct_nmAPG(
         energy_and_grad = lambda val, y_in: (energy(val, y_in), energy_grad(val, y_in))
 
     # example energies
-    rec = nmAPG(
+    rec, L, steps = nmAPG(
         x0=x,
         y=y,
         max_iter=max_iter,
@@ -221,6 +229,8 @@ def reconstruct_nmAPG(
         L_init=1 / step_size,
         tol=tol,
         verbose=verbose,
-        return_L=return_L,
     )
+    stats = dict(L=L.detach(), steps=steps)
+    if return_stats:
+        return rec, stats
     return rec
