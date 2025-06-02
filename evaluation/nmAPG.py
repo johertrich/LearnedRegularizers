@@ -146,7 +146,6 @@ def nmAPG(
             torch.isnan(res)
         ), "Numerical errors! Some values became NaN!"
         condition = res > tol
-        print(condition, res)
         idx = condition.nonzero().view(-1)  # Update which data to still iterate on
 
         if torch.max(res) < tol:
@@ -189,7 +188,6 @@ def reconstruct_nmAPG(
 
     def energy(val, y_in):
         with torch.no_grad():
-            print(val.shape)
             fun = data_fidelity(val, y_in, physics) + lamda * regularizer.g(val)
         if detach_grads:
             fun = fun.detach()
