@@ -54,6 +54,9 @@ def nmAPG(
 
     # Main loop
     for i in range(max_iter):
+        assert not torch.any(
+            torch.isnan(x)
+        ), "Numerical errors! Some values became NaN!"
         x_bar[idx] = (
             x[idx]
             + t_old / t * (z[idx] - x[idx])
@@ -77,9 +80,6 @@ def nmAPG(
 
         # line search on z (Eq 151 and 152)
         for ii in range(150):
-            assert not torch.any(
-                torch.isnan(res)
-            ), "Numerical errors! Some values became NaN!"
             z[idx] = x_bar[idx] - grad[idx] / L[idx]  # Eq 151, 1/L = alpha_y
             dx = z[idx] - x_bar[idx]
             bound = torch.max(
