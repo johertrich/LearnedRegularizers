@@ -5,7 +5,8 @@ from deepinv.loss.metric import PSNR
 from torchvision.transforms import RandomCrop, Compose
 from torch.utils.data import RandomSampler
 from deepinv.optim.utils import conjugate_gradient
-from evaluation import reconstruct_nmAPG_stable, reconstruct_nmAPG
+from evaluation import reconstruct_nmAPG
+from evaluation import reconstruct_nmAPG as reconstruct_nmAPG_stable
 import matplotlib.pyplot as plt
 import random
 
