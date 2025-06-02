@@ -36,7 +36,7 @@ physics, data_fidelity = get_operator(problem, device)
 
 transform = Compose(
     [
-        RandomCrop(64),
+        RandomCrop(128),
         RandomHorizontalFlip(p=0.5),
         RandomVerticalFlip(p=0.5),
         RandomApply([RandomRotation((90, 90))], p=0.5),
@@ -50,10 +50,11 @@ test_len = int(len(train_dataset) * 0.1)
 train_len = len(train_dataset) - test_len
 train_set = torch.utils.data.Subset(train_dataset, range(train_len))
 val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
+val_set2 = val_set
 
 # create dataloaders
 train_dataloader = torch.utils.data.DataLoader(
-    train_set, batch_size=32, shuffle=True, drop_last=True, num_workers=8
+    train_set, batch_size=8, shuffle=True, drop_last=True, num_workers=8
 )
 val_dataloader = torch.utils.data.DataLoader(
     val_set, batch_size=1, shuffle=False, drop_last=True, num_workers=8
@@ -69,68 +70,73 @@ for p in regularizer.parameters():
 print(params)
 
 # Pretraining
+load_pretrain = False
+if load_pretrain:
+    regularizer.load_state_dict(torch.load("weights/LSR_pretraining_on_BSD.pt"))
+else:
+    from tqdm import tqdm
+    import numpy as np
+    from deepinv.loss.metric import PSNR
 
-from tqdm import tqdm
-import numpy as np
-from deepinv.loss.metric import PSNR
+    transform_pretrain = Compose(
+        [
+            RandomCrop(128),
+            RandomHorizontalFlip(p=0.5),
+            RandomVerticalFlip(p=0.5),
+            RandomApply([RandomRotation((90, 90))], p=0.5),
+        ]
+    )
+    pretrain_dataset = get_dataset(
+        "BSDS500_gray", test=False, transform=transform_pretrain
+    )
+    pretrain_dataloader = torch.utils.data.DataLoader(
+        pretrain_dataset, batch_size=16, shuffle=True, drop_last=True, num_workers=8
+    )
 
-transform_pretrain = Compose(
-    [
-        RandomCrop(128),
-        RandomHorizontalFlip(p=0.5),
-        RandomVerticalFlip(p=0.5),
-        RandomApply([RandomRotation((90, 90))], p=0.5),
-    ]
-)
-pretrain_dataset = get_dataset("BSDS500_gray", test=False, transform=transform_pretrain)
-pretrain_dataloader = torch.utils.data.DataLoader(
-    pretrain_dataset, batch_size=16, shuffle=True, drop_last=True, num_workers=8
-)
-
-psnr = PSNR()
-epochs_pretraining = 10000
-noise_level_range = [5.0 / 255.0, 40.0 / 255.0]
-optimizer = torch.optim.Adam(regularizer.model.parameters(), lr=1e-4)
-for p in regularizer.model.parameters():
-    p.requires_grad_(True)
-for epoch in range(epochs_pretraining):
-    losses = []
-    for x in tqdm(
-        pretrain_dataloader, desc=f"Epoch {epoch+1}/{epochs_pretraining} - Train"
-    ):
-        optimizer.zero_grad()
-        x = x.to(device)
-        noise_levels = (
-            torch.rand((x.shape[0], 1, 1, 1), device=device) + noise_level_range[0]
-        ) * (noise_level_range[1] - noise_level_range[0])
-        noisy = x + noise_levels * torch.randn_like(x)
-        pred = regularizer.model(noisy, noise_levels)
-        loss = torch.sum(torch.abs(pred - x))
-        loss.backward()
-        losses.append(loss.item())
-        optimizer.step()
-    print(np.mean(losses))
-    if (epoch + 1) % 20 == 0:
-        print("Validation")
+    psnr = PSNR()
+    epochs_pretraining = 10000
+    noise_level_range = [5.0 / 255.0, 40.0 / 255.0]
+    optimizer = torch.optim.Adam(regularizer.model.parameters(), lr=1e-4)
+    for p in regularizer.model.parameters():
+        p.requires_grad_(True)
+    for epoch in range(epochs_pretraining):
         losses = []
-        psnrs = []
         for x in tqdm(
-            val_dataloader, desc=f"Epoch {epoch+1}/{epochs_pretraining} - Val"
+            pretrain_dataloader, desc=f"Epoch {epoch+1}/{epochs_pretraining} - Train"
         ):
+            optimizer.zero_grad()
             x = x.to(device)
-            noisy = x + 0.1 * torch.randn_like(x)
-            pred = regularizer.model(noisy, 0.1)
+            noise_levels = (
+                torch.rand((x.shape[0], 1, 1, 1), device=device) + noise_level_range[0]
+            ) * (noise_level_range[1] - noise_level_range[0])
+            noisy = x + noise_levels * torch.randn_like(x)
+            pred = regularizer.model(noisy, noise_levels)
             loss = torch.sum(torch.abs(pred - x))
+            loss.backward()
             losses.append(loss.item())
-            psnrs.append(psnr(pred, x).mean().item())
-        print(np.mean(losses), np.mean(psnrs))
-        logger.info(
-            "Pretrain Validation Epoch {0} of {1}, loss {2:.2f}, PSNR {3:.2f}".format(
-                epoch + 1, epochs_pretraining, np.mean(losses), np.mean(psnrs)
+            optimizer.step()
+        print(np.mean(losses))
+        if (epoch + 1) % 20 == 0:
+            print("Validation")
+            losses = []
+            psnrs = []
+            for x in tqdm(
+                val_dataloader, desc=f"Epoch {epoch+1}/{epochs_pretraining} - Val"
+            ):
+                x = x.to(device)
+                noisy = x + 0.1 * torch.randn_like(x)
+                pred = regularizer.model(noisy, 0.1)
+                loss = torch.sum(torch.abs(pred - x))
+                losses.append(loss.item())
+                psnrs.append(psnr(pred, x).mean().item())
+            print(np.mean(losses), np.mean(psnrs))
+            logger.info(
+                "Pretrain Validation Epoch {0} of {1}, loss {2:.2f}, PSNR {3:.2f}".format(
+                    epoch + 1, epochs_pretraining, np.mean(losses), np.mean(psnrs)
+                )
             )
-        )
 
-torch.save(regularizer.state_dict(), f"weights/LSR_pretraining_on_BSD.pt")
+    torch.save(regularizer.state_dict(), f"weights/LSR_pretraining_on_BSD.pt")
 
 # Parameter fitting
 
