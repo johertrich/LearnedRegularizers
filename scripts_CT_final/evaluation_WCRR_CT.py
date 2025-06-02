@@ -54,6 +54,6 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
     NAG_tol=NAG_tol,
     only_first=False,
     device=device,
-    verbose=False,
+    verbose=True,
     adaptive_range=True,
 )

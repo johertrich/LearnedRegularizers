@@ -15,7 +15,7 @@ def nmAPG_stable(
     max_iter: int = 200,
     L_init: float = 1,
     tol: float = 1e-4,
-    rho: float = 0.25,
+    rho: float = 0.5,
     delta: float = 0.1,
     eta: float = 0.8,
     verbose: bool = False,
@@ -60,7 +60,6 @@ def nmAPG_stable(
             / t
             * (x[idx] - x_old[idx])  # Uses x_old from start of *previous* iter
         )
-        # x_old needs to store the state *before* x is updated in this iteration
 
         # --- Gradient Calculation ---
         try:
@@ -82,13 +81,12 @@ def nmAPG_stable(
             s = (dx_grad * dx_grad).sum((1, 2, 3), keepdim=True)
             denom = (dx_grad * dx_iter).sum((1, 2, 3), keepdim=True)
             # Add safety for denominator
-            safe_denom_mask_4d = torch.abs(denom) > 1e-8
-            safe_denom_mask_1d = safe_denom_mask_4d.squeeze()
+            safe_denom_mask = (torch.abs(denom) > 1e-8).squeeze()
 
-            if safe_denom_mask_1d.any():
-                indices_to_update = idx[safe_denom_mask_1d]
-                s_safe = s[safe_denom_mask_1d]
-                denom_safe = denom[safe_denom_mask_1d]
+            if safe_denom_mask.any():
+                indices_to_update = idx[safe_denom_mask]
+                s_safe = s[safe_denom_mask]
+                denom_safe = denom[safe_denom_mask]
                 L_update = s_safe / denom_safe
                 # Clip L update, add max value for stability
                 L[indices_to_update] = torch.clip(L_update, min=1.0, max=1e6)
@@ -105,8 +103,7 @@ def nmAPG_stable(
             ) - delta * (dx * dx).sum((1, 2, 3), keepdim=True)
 
             try:
-                current_energy_new = f(z[idx], y[idx])  # Evaluate f for current z
-                energy_new = current_energy_new  # Assign if successful
+                energy_new = f(z[idx], y[idx])  # Evaluate f for current z
             except Exception as e:
                 print(f"Error in f(z) inner loop 1 iter {i}: {e}")
                 # Let's break inner loop and proceed with caution (might need better handling)
@@ -161,13 +158,12 @@ def nmAPG_stable(
                     )  # Check if this is the intended difference
                     s2 = (dx_grad_2 * dx_grad_2).sum((1, 2, 3), keepdim=True)
                     denom2 = (dx_grad_2 * dx_iter_2).sum((1, 2, 3), keepdim=True)
-                    safe_denom_mask_4d_2 = torch.abs(denom2) > 1e-8
-                    safe_denom_mask_1d_2 = safe_denom_mask_4d_2.squeeze()
+                    safe_denom_mask_2 = (torch.abs(denom2) > 1e-8).squeeze()
 
-                    if safe_denom_mask_1d_2.any():
-                        indices_to_update_2 = idx_idx2[safe_denom_mask_1d_2]
-                        s2_safe = s2[safe_denom_mask_1d_2]
-                        denom2_safe = denom2[safe_denom_mask_1d_2]
+                    if safe_denom_mask_2.any():
+                        indices_to_update_2 = idx_idx2[safe_denom_mask_2]
+                        s2_safe = s2[safe_denom_mask_2]
+                        denom2_safe = denom2[safe_denom_mask_2]
                         L_update_2 = s2_safe / denom2_safe
                         L[indices_to_update_2] = torch.clip(
                             L_update_2, min=1.0, max=1e6
@@ -189,8 +185,7 @@ def nmAPG_stable(
                     )
 
                     try:
-                        current_energy_new2 = f(v, y[idx_idx2])
-                        energy_new2 = current_energy_new2  # Assign if successful
+                        energy_new2 = f(v, y[idx_idx2])
                     except Exception as e:
                         print(f"Error in f(v) inner loop 2 iter {i}: {e}")
                         break  # Break inner loop
