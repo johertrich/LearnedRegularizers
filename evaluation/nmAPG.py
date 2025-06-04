@@ -145,7 +145,7 @@ def nmAPG(
         assert not torch.any(
             torch.isnan(res)
         ), "Numerical errors! Some values became NaN!"
-        condition = res > tol
+        condition = res >= tol
         idx = condition.nonzero().view(-1)  # Update which data to still iterate on
 
         if torch.max(res) < tol:

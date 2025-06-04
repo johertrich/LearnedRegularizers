@@ -21,7 +21,7 @@ from torchvision.transforms import (
 )
 
 # Fix random seed: optional, but recommended for reproducibility
-torch.manual_seed(13)
+torch.manual_seed(0)
 torch.backends.cudnn.deterministic = True
 np.random.seed(0)
 random.seed(0)
@@ -78,9 +78,10 @@ lmbd = 1.0
 # Define patch parameters
 PATCH_SIZE = 64
 STRIDE = 64  # Use PATCH_SIZE for non-overlapping patches
-SUBSET = 192
+SUBSET = 32
 DETERMINISTIC = True
-
+CHANGE_DATASET = True  # Set to True if you want MAID to run on a different dataset after several epochs
+NUM_REPS = 30  # Number of repetitions for running MAID on a different dataset
 
 # --- Helper Function to Extract Patches Deterministically ---
 def extract_patches(image_tensor, patch_size, stride):
@@ -122,7 +123,7 @@ class PatchesDataset(Dataset):
         """
         self.patch_size = patch_size
         self.stride = stride
-        self.transform = transform
+        self.transform =  transform
         self.all_patches = []
         self.original_image_indices = []  # Optional: track origin
 
@@ -130,6 +131,9 @@ class PatchesDataset(Dataset):
         pre_transform = transforms.Compose(
             [
                 transforms.Grayscale(num_output_channels=1),  # Ensure grayscale
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.RandomVerticalFlip(p=0.5),
+                transforms.RandomApply([transforms.RandomRotation(90)], p=0.5),
                 transforms.ToTensor(),  # Convert PIL Image to [C, H, W] tensor [0,1]
             ]
         )
@@ -209,7 +213,7 @@ if DETERMINISTIC:
 else:
     train_set = get_dataset("BSDS500_gray", test=False, transform=transform)
 
-VALIDATION_SIZE = 5  # Number of validation patches to use
+VALIDATION_SIZE = 16  # Number of validation patches to use
 val_set = torch.utils.data.Subset(val_dataset, range(VALIDATION_SIZE))
 
 # create dataloaders
@@ -227,7 +231,7 @@ else:
     )
 
 val_dataloader = torch.utils.data.DataLoader(
-    val_set, batch_size=1, shuffle=False, drop_last=True, num_workers=8
+    val_set, batch_size=8, shuffle=False, drop_last=True, num_workers=8
 )
 
 # define regularizer
@@ -243,31 +247,81 @@ alpha_list = [1e-2]
 for eps in eps_list:
     for alpha in alpha_list:
         print(f"Training with eps: {eps}, alpha: {alpha}")
-        regularizer_learned, loss_train, loss_val, psnr_train, psnr_val = (
-            simple_bilevel_training_maid(
-                regularizer,
-                physics,
-                data_fidelity,
-                lmbd,
-                train_dataloader,
-                val_dataloader,
-                epochs=1000,
-                NAG_step_size=1e-1,
-                NAG_max_iter=1000,
-                NAG_tol_train=eps,
-                NAG_tol_val=1e-6,
-                CG_tol=eps,
-                lr=alpha,
-                lr_decay=0.5,
-                device=device,
-                precondition=True,  # Use preconditioned upper-level optimization
-                verbose=False,
-                save_dir=str(SUBSET)
-                + "_"
-                + str(eps)
-                + "_"
-                + str(alpha)
-                + "_CRR",  # Directory to save the model and logs
-                val_checkpoint=None,  # You can specify in which epoch to save the model, or None to save the best model based on validation loss
+        if CHANGE_DATASET:
+            eps0 = eps
+            alpha0 = alpha
+            for rep in range(NUM_REPS):
+                print(f"Repetition {rep + 1}/{NUM_REPS} for eps: {eps}, alpha: {alpha}")
+                subset_indices = torch.randint(
+                    0, num_patches_total, (num_subset_patches,)
+                )
+                train_subset = Subset(patch_dataset, subset_indices)
+                train_dataloader = torch.utils.data.DataLoader(
+                    train_subset,
+                    batch_size=num_subset_patches,
+                    shuffle=False,
+                    drop_last=True,
+                    num_workers=8,
+                )
+                if rep == 0:
+                    logs = None  
+                if rep == NUM_REPS - 1:
+                    epochs = 200 # to ensure convergence in the last repetition
+                else:
+                    epochs = 5    
+                if eps < 1e-4:
+                    eps = 1e-4  # Ensure eps is not too small for stability         
+                regularizer, loss_train, loss_val, psnr_train, psnr_val , eps, alpha, logs = (
+                    simple_bilevel_training_maid(
+                        regularizer,
+                        physics,
+                        data_fidelity,
+                        lmbd,
+                        train_dataloader,
+                        val_dataloader,
+                        epochs= epochs,
+                        NAG_step_size=1e-1,
+                        NAG_max_iter=1000,
+                        NAG_tol_train=eps,
+                        NAG_tol_val=1e-4,
+                        CG_tol=eps,
+                        lr=alpha0,
+                        lr_decay=0.25,
+                        device=device,
+                        precondition=True,  # Use preconditioned upper-level optimization
+                        verbose=False,
+                        save_dir=str(SUBSET)
+                        + "_"
+                        + str(eps0)
+                        + "_"
+                        + str(alpha0)
+                        + "_CRR",  # Directory to save the model and logs
+                        val_checkpoint=None,  # You can specify in which epoch to save the model, or None to save the best model based on validation loss
+                        logs=logs,  # Dictionary to store logs
+                    )
+                )
+                physics = Denoising(noise_model=GaussianNoise(sigma=noise_level))
+
+        else:
+            regularizer, loss_train, loss_val, psnr_train, psnr_val, eps, alpha, logs = (
+                simple_bilevel_training_maid(
+                    regularizer,
+                    physics,
+                    data_fidelity,
+                    lmbd,
+                    train_dataloader,
+                    val_dataloader,
+                    epochs=100,
+                    NAG_step_size=1e-1,
+                    NAG_max_iter=1000,
+                    NAG_tol_train=eps,
+                    NAG_tol_val=1e-4,
+                    CG_tol=eps,
+                    lr=alpha,
+                    lr_decay=0.25,
+                    device=device,
+                    precondition=True,  # Use preconditioned upper-level optimization
+                    verbose=False,
+                )
             )
-        )
+        print(f"Training completed with eps: {eps}, alpha: {alpha}")

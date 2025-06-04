@@ -25,6 +25,8 @@ def bilevel_training(
     jfb_step_size_factor=1.0,
     lr=0.005,
     lr_decay=0.99,
+    reg=False,
+    reg_para=1e-5,
     device="cuda" if torch.cuda.is_available() else "cpu",
     verbose=False,
     validation_epochs=20,
@@ -33,11 +35,13 @@ def bilevel_training(
     savestr=None,
     upper_loss=lambda x, y: torch.sum(((x - y) ** 2).view(x.shape[0], -1), -1),
 ):
-    def hessian_vector_product(x, v, data_fidelity, y, regularizer, lmbd, physics):
+    def hessian_vector_product(x, v, data_fidelity, y, regularizer, lmbd, physics, diff=False):
         x = x.requires_grad_(True)
         grad = data_fidelity.grad(x, y, physics) + lmbd * regularizer.grad(x)
         dot = torch.dot(grad.view(-1), v.view(-1))
-        hvp = torch.autograd.grad(dot, x, create_graph=False)[0].detach()
+        hvp = torch.autograd.grad(dot, x, create_graph=diff)[0]
+        if diff:
+            return hvp
         return hvp.detach()
 
     def jac_vector_product(x, v, data_fidelity, y, regularizer, lmbd, physics):
@@ -51,6 +55,41 @@ def bilevel_training(
                     0
                 ].detach()
         return regularizer
+
+    def jac_pow_loss(x, M=50, tol=1e-2):
+        hvp = (
+        torch.randint(low=0, high=1, size=x.shape).to(x) * 2 - 1
+        )
+        hvp_old = hvp.clone()
+        for i in range(M):
+            hvp = hessian_vector_product(
+            x,
+            hvp,
+            data_fidelity,
+            y,
+            regularizer,
+            lmbd,
+            physics,
+            diff=False,
+            ).detach()
+            hvp = torch.nn.functional.normalize(hvp,dim=[-2,-1], out=hvp)
+            if torch.norm(hvp - hvp_old)/x.size(0) < tol:
+                break
+            hvp_old = hvp.clone()
+        hvp = hvp.clone(memory_format=torch.contiguous_format).detach()
+        hvp = hessian_vector_product(
+        x,
+        hvp,
+        data_fidelity,
+        y,
+        regularizer,
+        lmbd,
+        physics,
+        diff=True,
+        )
+        norm_sq = torch.sum(hvp**2)/x.size(0)
+        print(f"Jac_Loss: {norm_sq}")
+        return torch.clip(norm_sq,min=200,max=None)
 
     optimizer = torch.optim.Adam(regularizer.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=lr_decay)
@@ -135,6 +174,8 @@ def bilevel_training(
                 ) + lmbd * regularizer.grad(x_recon)
                 x_recon = x_recon - jfb_step_size_factor / L * grad
                 loss = upper_loss(x_recon, x).mean()
+                if reg & (torch.bernoulli(torch.tensor(0.2))==1):
+                    loss += reg_para * jac_pow_loss(x_recon.detach())
                 loss.backward()
             else:
                 raise NameError("unknwon mode!")
