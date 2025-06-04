@@ -54,12 +54,12 @@ lmbd = estimate_lmbd(train_dataloader,physics,device)
 
 
 regularizer = linearIDCNNPrior(in_channels=1,
-    num_filters=1,
+    num_filters=32,
     kernel_dim=5,
-    num_layers=1,
+    num_layers=5,
 ).to(device)
 
-
+idx=1
 
 simple_ar_training(
     regularizer,
@@ -72,6 +72,7 @@ simple_ar_training(
     epochs=10,
     lr=1e-3,
     mu=10,
+    idx=idx,
 )
 
 torch.save(regularizer.state_dict(), f"weights/simple_{regularizer.__class__.__name__}_ar_{problem}.pt")
