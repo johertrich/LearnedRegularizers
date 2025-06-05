@@ -30,10 +30,10 @@ class BSDS500Dataset(Dataset):
             self.base_path, "BSDS500-master/BSDS500/data/images/train"
         )
         image_path_val = os.path.join(
-            self.base_path, "BSDS500-master/BSDS500/data/images/val"
+            self.base_path, "BSDS500-master/BSDS500/data/images/test"
         )
         image_path_test = os.path.join(
-            self.base_path, "BSDS500-master/BSDS500/data/images/test"
+            self.base_path, "BSDS500-master/BSDS500/data/images/val"
         )
         if test:
             file_list = os.listdir(image_path_test)
