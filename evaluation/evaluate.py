@@ -4,6 +4,9 @@ from .nmAPG import reconstruct_nmAPG
 import torch
 from deepinv.loss.metric import PSNR
 
+import matplotlib.pyplot as plt 
+import os 
+from PIL import Image
 
 def evaluate(
     physics,
@@ -18,6 +21,8 @@ def evaluate(
     adaptive_range=False,
     device="cuda" if torch.cuda.is_available() else "cpu",
     verbose=False,
+    save_path=None,
+    save_png=False,
 ):
 
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
@@ -51,6 +56,38 @@ def evaluate(
             verbose=verbose,
         )
         psnrs.append(psnr(recon, x).squeeze().item())
+
+        if save_path is not None:
+            fig, (ax1, ax2, ax3) = plt.subplots(1,3, figsize=(13,6))
+
+            ax1.imshow(x[0,0].cpu().numpy(), cmap="gray")
+            ax1.axis("off")
+            ax1.set_title("ground truth")
+
+            ax2.imshow(recon[0,0].cpu().numpy(), cmap="gray")
+            ax2.axis("off")
+            ax2.set_title("reconstruction")
+
+            ax3.imshow(y[0,0].cpu().numpy(), cmap="gray")
+            ax3.axis("off")
+            ax3.set_title("measurements")
+
+            fig.suptitle(f"IDX={i} | PSNR {np.round(psnrs[-1],3)}")
+            plt.savefig(os.path.join(save_path, f"imgs_{i}.png"))
+            plt.close()
+
+        if save_png and save_path is not None:
+            
+            # Scale to [0, 255] and convert to uint8
+            image_uint8 = (recon[0,0].cpu().numpy().clip(0,1) * 255).astype(np.uint8)
+
+            # Create a PIL Image object
+            image = Image.fromarray(image_uint8, mode='L')  # 'L' for grayscale
+
+            # Save as a PNG file
+            image.save(os.path.join(save_path, f"reco_{i}.png"))
+
+
         if i == 0:
             y_out = y
             x_out = x
