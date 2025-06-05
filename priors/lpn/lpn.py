@@ -20,7 +20,7 @@ class LPNPrior(Prior):
         beta=100.0,
         alpha=1e-6,
         pretrained=None,
-        model_name="lpn_64",
+        model_name="lpn_64_neg1",
     ):
         """
         Args:
