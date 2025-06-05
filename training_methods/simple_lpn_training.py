@@ -73,7 +73,7 @@ def simple_lpn_training(
     validator = Validator(val_dataloader, writer, sigma_noise)
 
     global_step = 0
-    progress_bar = tqdm(total=num_steps)
+    progress_bar = tqdm(total=num_steps, dynamic_ncols=True)
     progress_bar.set_description(f"Train")
     while True:
         for step, batch in enumerate(train_dataloader):
