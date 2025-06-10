@@ -36,7 +36,7 @@ if problem == "Denoising":
     lmbd = 6e-2  # regularization parameter
     step_size = 0.2  # step sizes in the PDHG
 elif problem == "CT":
-    lmbd = 0.18  # regularization parameter
+    lmbd = 5  # regularization parameter
     step_size = 0.005  # step sizes in the PDHG
 
 
@@ -59,7 +59,7 @@ class ParallelPrimalDualOptimizer:
         sigma,
         tau,
         theta=1.0,
-        stopping_criterion=1e-4,
+        stopping_criterion=1e-5,
     ):
         self.physics_list = physics_list
         self.prox_list = prox_list
@@ -125,8 +125,8 @@ optimizer = ParallelPrimalDualOptimizer(
     prox_list,
     lambda_list,
     20000,
-    step_size,
-    step_size,
+    step_size*1e3,
+    step_size/1e3,
     stopping_criterion=1e-5,
 )
 
