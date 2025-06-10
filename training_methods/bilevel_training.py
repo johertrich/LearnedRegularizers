@@ -35,7 +35,9 @@ def bilevel_training(
     savestr=None,
     upper_loss=lambda x, y: torch.sum(((x - y) ** 2).view(x.shape[0], -1), -1),
 ):
-    def hessian_vector_product(x, v, data_fidelity, y, regularizer, lmbd, physics, diff=False):
+    def hessian_vector_product(
+        x, v, data_fidelity, y, regularizer, lmbd, physics, diff=False
+    ):
         x = x.requires_grad_(True)
         grad = data_fidelity.grad(x, y, physics) + lmbd * regularizer.grad(x)
         dot = torch.dot(grad.view(-1), v.view(-1))
@@ -57,12 +59,25 @@ def bilevel_training(
         return regularizer
 
     def jac_pow_loss(x, M=50, tol=1e-2):
-        hvp = (
-        torch.randint(low=0, high=1, size=x.shape).to(x) * 2 - 1
-        )
+        hvp = torch.randint(low=0, high=1, size=x.shape).to(x) * 2 - 1
         hvp_old = hvp.clone()
         for i in range(M):
             hvp = hessian_vector_product(
+                x,
+                hvp,
+                data_fidelity,
+                y,
+                regularizer,
+                lmbd,
+                physics,
+                diff=False,
+            ).detach()
+            hvp = torch.nn.functional.normalize(hvp, dim=[-2, -1], out=hvp)
+            if torch.norm(hvp - hvp_old) / x.size(0) < tol:
+                break
+            hvp_old = hvp.clone()
+        hvp = hvp.clone(memory_format=torch.contiguous_format).detach()
+        hvp = hessian_vector_product(
             x,
             hvp,
             data_fidelity,
@@ -70,26 +85,11 @@ def bilevel_training(
             regularizer,
             lmbd,
             physics,
-            diff=False,
-            ).detach()
-            hvp = torch.nn.functional.normalize(hvp,dim=[-2,-1], out=hvp)
-            if torch.norm(hvp - hvp_old)/x.size(0) < tol:
-                break
-            hvp_old = hvp.clone()
-        hvp = hvp.clone(memory_format=torch.contiguous_format).detach()
-        hvp = hessian_vector_product(
-        x,
-        hvp,
-        data_fidelity,
-        y,
-        regularizer,
-        lmbd,
-        physics,
-        diff=True,
+            diff=True,
         )
-        norm_sq = torch.sum(hvp**2)/x.size(0)
+        norm_sq = torch.sum(hvp**2) / x.size(0)
         print(f"Jac_Loss: {norm_sq}")
-        return torch.clip(norm_sq,min=200,max=None)
+        return torch.clip(norm_sq, min=200, max=None)
 
     optimizer = torch.optim.Adam(regularizer.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=lr_decay)
@@ -112,7 +112,13 @@ def bilevel_training(
         train_loss_epoch = 0
         train_psnr_epoch = 0
 
-        for x in tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{epochs} - Train"):
+        train_step = 0
+        for x in (
+            progress_bar := tqdm(
+                train_dataloader, desc=f"Epoch {epoch+1}/{epochs} - Train"
+            )
+        ):
+            train_step += 1
             x = x.to(device).to(torch.float32)
             y = physics(x)
             x_noisy = physics.A_dagger(y)
@@ -135,6 +141,18 @@ def bilevel_training(
             loss_fn = lambda x_in: upper_loss(x, x_in).mean()
             train_loss_epoch += loss_fn(x_recon).item()
             train_psnr_epoch += psnr(x_recon, x).mean().item()
+            progress_bar.set_description(
+                "used {0} of {1} steps, Loss: {2:.2E}, PSNR: {3:.2f}".format(
+                    x_stats["steps"] + 1,
+                    NAG_max_iter,
+                    train_loss_epoch / train_step,
+                    train_psnr_epoch / train_step,
+                )
+            )
+            if x_stats["steps"] + 1 == NAG_max_iter:
+                print("maxiter hit...")
+                if logger is not None:
+                    logger.info(f"maxiter hit in iteration {train_step}")
 
             x_recon = x_recon.detach()
             if mode == "IFT":
@@ -174,13 +192,17 @@ def bilevel_training(
                 ) + lmbd * regularizer.grad(x_recon)
                 x_recon = x_recon - jfb_step_size_factor / L * grad
                 loss = upper_loss(x_recon, x).mean()
-                if reg & (torch.bernoulli(torch.tensor(0.2))==1):
+                if reg and (train_step % 5) == 1:
                     loss += reg_para * jac_pow_loss(x_recon.detach())
                 loss.backward()
             else:
                 raise NameError("unknwon mode!")
 
             optimizer.step()
+            if logger is not None and train_step % 10 == 0:
+                logger.info(
+                    f"Step {train_step}, Train PSNR {train_psnr_epoch/train_step}"
+                )
 
         scheduler.step()
         mean_train_loss = train_loss_epoch / len(train_dataloader)
