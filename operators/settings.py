@@ -18,7 +18,7 @@ def get_operator(problem, device):
         physics = Denoising(noise_model=GaussianNoise(sigma=noise_level))
         data_fidelity = L2(sigma=1.0)
     elif problem == "CT":
-        noise_level = 0.1
+        noise_level = 0.7
         physics = Tomography(
             angles=60,
             img_width=362,
