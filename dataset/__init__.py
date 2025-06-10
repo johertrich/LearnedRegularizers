@@ -40,6 +40,19 @@ def get_dataset(key, test=False, transform=None, root=None):
                 [ToImage(), ToDtype(torch.float32, scale=True), transform]
             )
         return LoDoPaB(root=location, download=True, test=test, transform=transforms)
+    if key == "LoDoPaB_val":
+        if root is not None:
+            location = os.path.join(root, "LoDoPaB")
+        else:
+            location = "LoDoPaB"
+        if transform is None:
+            transforms = Compose([ToImage(), ToDtype(torch.float32, scale=True)])
+        else:
+            transforms = Compose(
+                [ToImage(), ToDtype(torch.float32, scale=True), transform]
+            )
+        ds = LoDoPaB(root=location, download=True, test=False, transform=transforms)
+        return torch.utils.data.Subset(ds, range(5))
     # elif key == "BSDS500_color":
     #     if transform is None:
     #         transforms = Compose([ToImage(), ToDtype(torch.float32, scale=True)])

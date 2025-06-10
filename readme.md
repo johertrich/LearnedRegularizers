@@ -69,6 +69,15 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
 
 Work in progress scripts can be kept top-level. Once you are happy with the results please move the training and evaluation script to the directories `scripts_denoising_final` or `scripts_CT_final`.
 
+### For Denoising Training and CT Evalutation
+
+Please tune the parameter on the following dataset consisting out of five validation images (which are the first five training images from the supervised CT setting):
+```
+from dataset import get_dataset
+
+val_dataset = get_dataset("LoDoPaB_val")
+```
+
 ### Example for a training script
 
 The training script should have the same structure as the following example:
