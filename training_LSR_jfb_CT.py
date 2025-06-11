@@ -48,7 +48,7 @@ val_set = get_dataset(
 
 # create dataloaders
 train_dataloader = torch.utils.data.DataLoader(
-    train_set, batch_size=4, shuffle=True, drop_last=True, num_workers=8
+    train_set, batch_size=8, shuffle=True, drop_last=True, num_workers=8
 )
 val_dataloader = torch.utils.data.DataLoader(
     val_set, batch_size=1, shuffle=False, drop_last=True, num_workers=8
@@ -65,7 +65,7 @@ for p in regularizer.parameters():
 print(params)
 
 # Pretraining
-load_pretrain = False
+load_pretrain = True
 if load_pretrain:
     regularizer.load_state_dict(torch.load("weights/LSR_pretraining_on_LoDoPaB.pt"))
 else:
@@ -125,34 +125,50 @@ else:
 
 # Parameter fitting
 
-for p in regularizer.model.parameters():
-    p.requires_grad_(False)
-regularizer.model.alpha.requires_grad_(True)
-regularizer.sigma.requires_grad_(True)
+load_fittet_parameters=False
+if load_fittet_parameters:
+    regularizer.load_state_dict(torch.load("weights/LSR_pretraining_and_parameter_fitting_on_LoDoPaB.pt"))
 
+    regularizer.sigma.data=torch.tensor(0.2).to(regularizer.sigma.data)
+    regularizer.model.alpha.data=torch.tensor(8.).to(regularizer.sigma.data)
+else:
+    for p in regularizer.model.parameters():
+        p.requires_grad_(False)
+    regularizer.model.alpha.requires_grad_(True)
+    regularizer.sigma.requires_grad_(True)
+    regularizer.sigma.data=torch.tensor(0.3).to(regularizer.sigma.data)
+    regularizer.model.alpha.data=torch.tensor(10.).to(regularizer.sigma.data)
 
-regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
-    regularizer,
-    physics,
-    data_fidelity,
-    lmbd,
-    train_dataloader,
-    val_dataloader,
-    epochs=1,
-    mode="JFB",
-    NAG_step_size=1e-1,
-    NAG_max_iter=1000,
-    NAG_tol_train=1e-4,
-    NAG_tol_val=1e-4,
-    lr=0.1,
-    lr_decay=0.95,
-    device=device,
-    verbose=False,
-    dynamic_range_psnr=True,
-    validation_epochs=1,
-    logger=logger,
-)
+    # use smaller dataset for parameter fitting
+    fitting_dataloader = torch.utils.data.DataLoader(
+        train_set, batch_size=8, shuffle=True, drop_last=True, num_workers=8
+    )
 
+    regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
+        regularizer,
+        physics,
+        data_fidelity,
+        lmbd,
+        fitting_dataloader,
+        val_dataloader,
+        epochs=1,
+        mode="JFB",
+        NAG_step_size=1e-1,
+        NAG_max_iter=1000,
+        NAG_tol_train=1e-4,
+        NAG_tol_val=1e-4,
+        lr=0.1,
+        lr_decay=0.95,
+        device=device,
+        verbose=False,
+        dynamic_range_psnr=True,
+        validation_epochs=1,
+        logger=logger,
+    )
+
+    torch.save(regularizer.state_dict(), f"weights/LSR_pretraining_and_parameter_fitting_on_LoDoPaB.pt")
+
+logger.info(f"Sigma {regularizer.sigma.data}, alpha: {regularizer.model.alpha.data}")
 print(regularizer.sigma)
 print(regularizer.model.alpha)
 
@@ -175,11 +191,13 @@ regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
     NAG_max_iter=1000,
     NAG_tol_train=1e-4,
     NAG_tol_val=1e-4,
-    lr=0.00005,
+    lr=1e-5,
     lr_decay=0.9,
     device=device,
     verbose=False,
     dynamic_range_psnr=True,
+    reg=False,
+    savestr="weights/LSR_jfb_CT",
     logger=logger,
 )
 
