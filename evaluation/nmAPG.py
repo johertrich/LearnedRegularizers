@@ -211,7 +211,7 @@ def reconstruct_nmAPG(
             if detach_grads:
                 fun = fun.detach()
                 grad = grad.detach()
-            return fun, grad
+            return fun.reshape(-1), grad
 
     else:
         energy_and_grad = lambda val, y_in: (energy(val, y_in), energy_grad(val, y_in))
