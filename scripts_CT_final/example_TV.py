@@ -11,6 +11,7 @@ import numpy as np
 from torch.utils.data import DataLoader
 from deepinv.loss.metric import PSNR
 from tqdm import tqdm
+from dataset import get_dataset
 
 if torch.backends.mps.is_available():
     # mps backend is used in Apple Silicon chips
@@ -32,12 +33,19 @@ only_first = False  # just evaluate on the first image of the dataset for test p
 ############################################################
 
 # reconstruction hyperparameters, might be problem dependent
-if problem == "Denoising":
-    lmbd = 6e-2  # regularization parameter
-    step_size = 0.2  # step sizes in the PDHG
-elif problem == "CT":
-    lmbd = 5  # regularization parameter
-    step_size = 0.005  # step sizes in the PDHG
+lmbd_choices = [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+]  # choices to test for the regularization parameter
+step_size = 0.005  # step sizes in the PDHG
 
 
 #############################################################
@@ -47,6 +55,9 @@ elif problem == "CT":
 
 # Define forward operator
 dataset, physics, data_fidelity = get_evaluation_setting(problem, device)
+
+# validation set for parameter fitting
+validation_dataset = get_dataset("LoDoPaB_val")
 
 
 class ParallelPrimalDualOptimizer:
@@ -110,57 +121,76 @@ class ParallelPrimalDualOptimizer:
         return x
 
 
-TVPhysics = LinearPhysics(A=TVDenoiser.nabla, A_adjoint=TVDenoiser.nabla_adjoint)
-L1Prior = L1Prior()
+def eval_TV(lmbd, dataset, plot_example=False):
+    TVPhysics = LinearPhysics(A=TVDenoiser.nabla, A_adjoint=TVDenoiser.nabla_adjoint)
+    L1_Prior = L1Prior()
 
-physics_list = [physics, TVPhysics]
-lambda_list = [1.0, lmbd]
-prox_list = [
-    lambda u, gamma: data_fidelity.prox_d(u, y, gamma=gamma),
-    L1Prior.prox,
-]
+    physics_list = [physics, TVPhysics]
+    lambda_list = [1.0, lmbd]
+    prox_list = [
+        lambda u, gamma: data_fidelity.prox_d(u, y, gamma=gamma),
+        L1_Prior.prox,
+    ]
 
-optimizer = ParallelPrimalDualOptimizer(
-    physics_list,
-    prox_list,
-    lambda_list,
-    20000,
-    step_size*1e3,
-    step_size/1e3,
-    stopping_criterion=1e-5,
+    optimizer = ParallelPrimalDualOptimizer(
+        physics_list,
+        prox_list,
+        lambda_list,
+        20000,
+        step_size * 1e3,
+        step_size / 1e3,
+        stopping_criterion=1e-5,
+    )
+
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
+    psnr = PSNR(max_pixel=None)
+
+    psnrs = []
+    psnrs_FBP = []
+    for i, x in (progress_bar := tqdm(enumerate(dataloader))):
+        if device == "mps":
+            # mps does not support float64
+            x = x.to(torch.float32).to(device)
+        else:
+            x = x.to(device).to(torch.float32)
+        y = physics(x)
+        x_init = physics.A_dagger(y)
+        psnrs_FBP.append(psnr(x_init, x).squeeze().item())
+        recon = optimizer.optimize(x_init)
+        psnrs.append(psnr(recon, x).squeeze().item())
+        progress_bar.set_description(
+            "Mean so far: {0:.2f}, Last: {1:.2f}, FBP so far: {2:.2f}, Last {3:.2f}".format(
+                np.mean(psnrs), psnrs[-1], np.mean(psnrs_FBP), psnrs_FBP[-1]
+            )
+        )
+        if i == 0:
+            y_out = y
+            x_out = x
+            recon_out = recon
+        if only_first:
+            break
+    mean_psnr = np.mean(psnrs)
+    mean_psnr_FBP = np.mean(psnrs_FBP)
+    print("Mean PSNR over the test set: {0:.2f}".format(mean_psnr))
+    print("Mean PSNR FBP over the test set: {0:.2f}".format(mean_psnr_FBP))
+
+    # plot ground truth, observation and reconstruction for the first image from the test dataset
+    if plot_example:
+        plot([x_out, y_out, recon_out])
+    return mean_psnr
+
+
+best_lmbd = -1
+best_psnr = -1000
+for lmbd in lmbd_choices:
+    mean_psnr = eval_TV(lmbd, validation_dataset, plot_example=False)
+    if mean_psnr > best_psnr:
+        best_lmbd = lmbd
+        best_psnr = mean_psnr
+print(
+    "Best lambda: {0}, best PSNR on validation set: {1:.2f}".format(
+        best_lmbd, best_psnr
+    )
 )
 
-dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
-psnr = PSNR(max_pixel=None)
-
-psnrs = []
-psnrs_FBP = []
-for i, x in (progress_bar := tqdm(enumerate(dataloader))):
-    if device == "mps":
-        # mps does not support float64
-        x = x.to(torch.float32).to(device)
-    else:
-        x = x.to(device).to(torch.float32)
-    y = physics(x)
-    x_init = physics.A_dagger(y)
-    psnrs_FBP.append(psnr(x_init, x).squeeze().item())
-    recon = optimizer.optimize(x_init)
-    psnrs.append(psnr(recon, x).squeeze().item())
-    progress_bar.set_description(
-        "Mean so far: {0:.2f}, Last: {1:.2f}, FBP so far: {2:.2f}, Last {3:.2f}".format(
-            np.mean(psnrs), psnrs[-1], np.mean(psnrs_FBP), psnrs_FBP[-1]
-        )
-    )
-    if i == 0:
-        y_out = y
-        x_out = x
-        recon_out = recon
-    if only_first:
-        break
-mean_psnr = np.mean(psnrs)
-mean_psnr_FBP = np.mean(psnrs_FBP)
-print("Mean PSNR over the test set: {0:.2f}".format(mean_psnr))
-print("Mean PSNR FBP over the test set: {0:.2f}".format(mean_psnr_FBP))
-
-# plot ground truth, observation and reconstruction for the first image from the test dataset
-plot([x_out, y_out, recon_out])
+eval_TV(best_lmbd, dataset, plot_example=True)
