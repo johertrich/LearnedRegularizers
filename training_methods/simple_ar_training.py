@@ -172,7 +172,9 @@ def simple_lar_training(
     lr=1e-3,
     device="cuda" if torch.cuda.is_available() else "cpu",
     mu = 10.0,
-    batch_size=128
+    batch_size=128,
+    save_str=None,
+    val_epochs = 5
 ):
     adversarial_loss = WGAN_loss
     regularizer.to(device)
@@ -181,14 +183,14 @@ def simple_lar_training(
     
     regularizer.train()
     NAG_step_size = 1e-2  # step size in NAG
-    NAG_max_iter = 100  # maximum number of iterations in NAG
+    NAG_max_iter = 200  # maximum number of iterations in NAG
     NAG_tol = 1e-4  # tolerance for therelative error (stopping criterion)
-    only_first = True
+    only_first = False
     def eval_routine():
-        mean_psnr, mean_psnr_dr, x_out, y_out, recon_out = evaluate(
+        mean_psnr, x_out, y_out, recon_out = evaluate(
                     physics=physics,
                     data_fidelity=data_fidelity,
-                    dataset=val_data,  # Access only the dataset of the dataloader
+                    dataset=val_data, 
                     regularizer=regularizer,
                     lmbd=lmbd,
                     NAG_step_size=NAG_step_size,
@@ -202,8 +204,10 @@ def simple_lar_training(
             p.requires_grad_(True)
         return mean_psnr, x_out, y_out, recon_out
     mean_psnr, x_out, y_out, recon_out = eval_routine()
-
+    
     print("PSNR of initial model: ", mean_psnr)
+    
+    best_psnr = mean_psnr
     for epoch in tqdm(range(epochs)):
         loss_vals = []
         regularizer.train()
@@ -247,3 +251,12 @@ def simple_lar_training(
         scheduler.step()    
         
         print("Learning rate: ", scheduler.get_last_lr()[0])
+        if epoch % val_epochs == 0 and epoch > 0:
+            mean_psnr, x_out, y_out, recon_out = eval_routine()
+
+            print("Mean val PSNR: ", mean_psnr)
+            if mean_psnr > best_psnr:
+                best_psnr = mean_psnr
+                print("New best PSNR: ", best_psnr)
+                if save_str is not None: 
+                    torch.save(regularizer.cnn.state_dict(), save_str)
