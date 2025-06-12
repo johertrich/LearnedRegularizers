@@ -5,7 +5,6 @@ from deepinv.physics import Denoising, GaussianNoise
 from training_methods import bilevel_training
 from deepinv.optim import L2
 from dataset import get_dataset
-from torchvision.transforms import RandomCrop, CenterCrop, Compose
 from torchvision.transforms import (
     RandomCrop,
     RandomVerticalFlip,
@@ -15,7 +14,6 @@ from torchvision.transforms import (
     RandomApply,
     RandomRotation,
 )
-from priors.lpn.LPN_ICNN_prior import LPN_ICNNPrior
 
 
 if torch.backends.mps.is_available():
