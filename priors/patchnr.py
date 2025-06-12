@@ -164,6 +164,7 @@ class PatchNR(Prior):
         pad=True,
         device="cpu",
         pretrained=None,
+        normalise_grad=False,
     ):
         super(PatchNR, self).__init__()
 
@@ -183,6 +184,7 @@ class PatchNR(Prior):
         self.n_patches = n_patches
         self.patch_size = patch_size
         self.pad = pad
+        self.normalise_grad = normalise_grad
 
     def g(self, x, *args, **kwargs):
         r"""
@@ -244,9 +246,9 @@ class PatchNR(Prior):
             x.requires_grad_()
 
             nll, patch_per_pixel = self.g(x, return_patch_per_pixel=True)
-            nll = nll.sum()
+            nll = nll.mean()
             grad = torch.autograd.grad(outputs=nll, inputs=x)[0]
-            # print(torch.sum(grad**2))
+
             grad_norm = (patch_per_pixel + 1) / torch.max(patch_per_pixel)
             if self.pad:
                 grad_norm = grad_norm[
@@ -256,18 +258,12 @@ class PatchNR(Prior):
                 grad_norm = grad_norm[
                     :, :, :, self.patch_size - 1 : -(self.patch_size - 1)
                 ]
-        # import matplotlib.pyplot as plt
-        # fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(1,5)
-        # ax1.imshow(x[0,0].detach().cpu().numpy())
-        # ax2.imshow(grad[0,0].detach().cpu().numpy())
-        # ax3.imshow(patch_per_pixel[0,0].detach().cpu().numpy())
-        # ax4.imshow((grad /grad_norm)[0,0].detach().cpu().numpy())
-        # ax5.imshow(grad_norm[0,0].detach().cpu().numpy())
+        
 
-        # plt.show()
-
-        return grad / grad_norm
-
+        if self.normalise_grad:
+            return grad / grad_norm
+        else:
+            return grad
 
 if __name__ == "__main__":
 
