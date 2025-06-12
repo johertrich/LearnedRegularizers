@@ -50,11 +50,13 @@ class LocalAR(Prior):
         pad=True,
         device="cpu",
         pretrained=None,
-        use_bias=True
+        use_bias=True,
+        normalise_grad=False,
     ):
         super(LocalAR, self).__init__()
 
         self.device = device
+        self.normalise_grad = normalise_grad
 
         self.cnn = cnn(in_channels=in_channels, use_bias=use_bias)
         self.cnn.to(self.device)
@@ -146,7 +148,10 @@ class LocalAR(Prior):
                     :, :, :, self.patch_size - 1 : -(self.patch_size - 1)
                 ]
 
-        return grad / grad_norm
+        if self.normalise_grad:
+            return grad / grad_norm
+        else:
+            return grad
 
 
 if __name__ == "__main__":

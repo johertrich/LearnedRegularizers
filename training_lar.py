@@ -8,7 +8,7 @@ Training of Local (patch-based) adversarial regulariser.
 from priors import LocalAR
 import torch
 from deepinv.physics import Denoising, GaussianNoise
-from training_methods import simple_lar_training
+from training_methods.simple_ar_training import simple_lar_training, estimate_lmbd
 from deepinv.optim import L2
 from dataset import get_dataset
 from deepinv.datasets import PatchDataset
@@ -24,12 +24,12 @@ elif torch.cuda.is_available():
 else:
     device = "cpu"
 
-problem = "CT" # "Denoising" "CT"
+problem = "Denoising" # "Denoising" "CT"
 
 # problem dependent parameters
 if problem == "Denoising":
     physics , data_fidelity = get_operator(problem, device)
-    dataset = get_dataset("BSDS500_gray", test=False, transform=RandomCrop(64))
+    dataset = get_dataset("BSDS500_gray", test=False, transform=RandomCrop(128))
     lmbd = 10.0
     test_ratio = 0.1
 elif problem == "CT":
@@ -50,7 +50,12 @@ shuffle = True
 
 patch_size = 15
 
-regularizer = LocalAR(in_channels=1, pad=False, use_bias=True, n_patches=-1).to(device)
+regularizer = LocalAR(in_channels=1, pad=True, use_bias=True, n_patches=-1).to(device)
+
+lmbd = estimate_lmbd(dataset, physics, device="cuda").item()
+
+print("estimated : ", lmbd)
+dataset_name = "BSD500" if problem == "Denoising" else "LoDoPab"
 
 mu = 5.0
 simple_lar_training(
@@ -63,12 +68,12 @@ simple_lar_training(
     patch_size=patch_size,
     device=device,
     epochs=400,
-    lr=1e-4,
+    lr=1e-3,
     mu=mu,
-    batch_size=batch_size
+    batch_size=batch_size, 
+    save_str=f"{regularizer.__class__.__name__}_adversarial_p={patch_size}x{patch_size}_{dataset_name}.pt"
 )
 
-dataset_name = "BSD500" if problem == "Denoising" else "LoDoPab"
 torch.save(
     regularizer.cnn.state_dict(),
     f"weights/{regularizer.__class__.__name__}_adversarial_p={patch_size}x{patch_size}_{dataset_name}.pt",
