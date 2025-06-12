@@ -1,12 +1,10 @@
 """Evaluate LPN for denoising."""
 
 from operators import get_evaluation_setting
-from deepinv.optim import L2, Tikhonov
 from deepinv.utils.plotting import plot
 from evaluation import evaluate
 from dataset import get_dataset
 from torchvision.transforms import CenterCrop
-from priors import ICNNPrior, wcrr
 import torch
 from priors.lpn.lpn import LPNPrior
 from torch.utils.data import DataLoader
