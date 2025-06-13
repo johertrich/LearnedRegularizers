@@ -37,6 +37,8 @@ def evaluate(
 
     ## Evaluate on the test set
     psnrs = []
+    iters = []
+    Lip = []
     for i, x in enumerate(dataloader):
         if device == "mps":
             # mps does not support float64
@@ -55,6 +57,8 @@ def evaluate(
             NAG_tol,
             verbose=verbose,
         )
+        iters.append(stats["steps"])
+        Lip.append(stats["L"].cpu())
         psnrs.append(psnr(recon, x).squeeze().item())
 
         if save_path is not None:
@@ -96,4 +100,8 @@ def evaluate(
             break
     mean_psnr = np.mean(psnrs)
     print("Mean PSNR over the test set: {0:.2f}".format(mean_psnr))
+    mean_iters = np.mean(iters)
+    print("Mean iterations over the test set: {0:.2f}".format(mean_iters))
+    mean_Lip = np.mean(Lip)
+    print("Mean L over the test set: {0:.2f}".format(mean_Lip))
     return mean_psnr, x_out, y_out, recon_out
