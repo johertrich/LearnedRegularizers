@@ -46,7 +46,7 @@ def evaluate(
         else:
             x = x.to(device).to(torch.float32)
         y = physics(x)
-        recon = reconstruct_nmAPG(
+        recon, stats = reconstruct_nmAPG(
             y,
             physics,
             data_fidelity,
@@ -55,6 +55,7 @@ def evaluate(
             NAG_step_size,
             NAG_max_iter,
             NAG_tol,
+            return_stats=True,
             verbose=verbose,
         )
         iters.append(stats["steps"])
