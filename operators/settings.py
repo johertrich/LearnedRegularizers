@@ -1,6 +1,7 @@
 from deepinv.physics import Denoising, GaussianNoise, Tomography
 from deepinv.optim import L2
 from dataset import get_dataset
+import torch
 
 
 def get_evaluation_setting(problem, device):
@@ -26,5 +27,13 @@ def get_operator(problem, device):
             device=device,
             noise_model=GaussianNoise(sigma=noise_level),
         )
+
+        def fbp(y):
+            out = physics.iradon(y)
+            out = out[:, :, 2:-2, 2:-2]
+            out = torch.nn.functional.pad(out, (2, 2, 2, 2), mode="replicate")
+            return out
+
+        physics.A_dagger = fbp
         data_fidelity = L2(sigma=1.0)
     return physics, data_fidelity
