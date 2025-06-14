@@ -79,18 +79,28 @@ def nmAPG(
             )  # clips for stability --> on a long term we can adjust min-clip based on the spectral norm of physics.A
 
         # line search on z (Eq 151 and 152)
+        idx_search = idx
+        idx_sub = torch.arange(0, idx.shape[0], device=x.device)
+        energy_new = energy.clone()
+        dx = z[idx] - x_bar[idx]
         for ii in range(150):
-            z[idx] = x_bar[idx] - grad[idx] / L[idx]  # Eq 151, 1/L = alpha_y
-            dx = z[idx] - x_bar[idx]
+            z[idx_search] = (
+                x_bar[idx_search] - grad[idx_search] / L[idx_search]
+            )  # Eq 151, 1/L = alpha_y
+            dx[idx_sub] = z[idx_search] - x_bar[idx_search]
             bound = torch.max(
-                energy[:, None, None, None], c[idx, None, None, None]
-            ) - delta * (dx * dx).sum((1, 2, 3), keepdim=True)
+                energy[idx_sub, None, None, None], c[idx_search, None, None, None]
+            ) - delta * (dx[idx_sub] * dx[idx_sub]).sum((1, 2, 3), keepdim=True)
 
-            if torch.all((energy_new := f(z[idx], y[idx])) <= bound.view(-1)):
+            if torch.all(
+                (energy_new_ := f(z[idx_search], y[idx_search])) <= bound.view(-1)
+            ):
+                energy_new[idx_sub] = energy_new_
                 break
-            L[idx] = torch.where(
-                energy_new[:, None, None, None] <= bound, L[idx], L[idx] / rho
-            )  # the reduction with rho is a bit different in the paper as it reduces it also when bound is successful. Not sure this is meant though
+            energy_new[idx_sub] = energy_new_
+            idx_sub = idx_sub[energy_new_ > bound.squeeze()]
+            idx_search = idx[idx_sub]
+            L[idx_search] = L[idx_search] / rho
 
         # If for Eq 153-158
         idx2 = (
@@ -116,21 +126,20 @@ def nmAPG(
             L_old.copy_(L)
 
             # Line search on v
+            idx_idx2_search = idx_idx2
             for ii in range(150):
-                v = x[idx_idx2] - gradx / L[idx_idx2]
-                dx = v - x[idx_idx2]
-                bound = c[idx_idx2, None, None, None] - delta * (dx * dx).sum(
+                v = x[idx_idx2_search] - gradx / L[idx_idx2_search]
+                dx = v - x[idx_idx2_search]
+                bound = c[idx_idx2_search, None, None, None] - delta * (dx * dx).sum(
                     (1, 2, 3), keepdim=True
                 )
                 if torch.all(
-                    (energy_new2 := f(v, y[idx_idx2])) <= bound.view(-1) * (1 + 1e-4)
+                    (energy_new2 := f(v, y[idx_idx2_search]))
+                    <= bound.view(-1) * (1 + 1e-4)
                 ):
                     break
-                L[idx_idx2] = torch.where(
-                    energy_new2[:, None, None, None] <= bound,
-                    L[idx_idx2],
-                    L[idx_idx2] / rho,
-                )
+                idx_idx2_search = idx_idx2_search[energy_new2 > bound.squeeze()]
+                L[idx_idx2_search] = L[idx_idx2_search] / rho
             x[idx] = z[idx]
             idx3 = (energy_new2 <= energy_new[idx2]).nonzero().view(-1)
             tmp = idx_idx2[idx3]
