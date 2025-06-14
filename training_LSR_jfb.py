@@ -1,6 +1,6 @@
 from priors import LSR
 import torch
-from training_methods.bilevel_training2 import bilevel_training
+from training_methods.bilevel_training import bilevel_training
 from dataset import get_dataset
 from torchvision.transforms import RandomCrop, CenterCrop, Compose
 from torchvision.transforms import (
