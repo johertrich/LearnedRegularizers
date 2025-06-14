@@ -27,6 +27,7 @@ def bilevel_training(
     lr_decay=0.99,
     reg=False,
     reg_para=1e-5,
+    reg_reduced=False,
     device="cuda" if torch.cuda.is_available() else "cpu",
     verbose=False,
     validation_epochs=20,
@@ -36,10 +37,13 @@ def bilevel_training(
     upper_loss=lambda x, y: torch.sum(((x - y) ** 2).view(x.shape[0], -1), -1),
 ):
     def hessian_vector_product(
-        x, v, data_fidelity, y, regularizer, lmbd, physics, diff=False
+        x, v, data_fidelity, y, regularizer, lmbd, physics, diff=False, only_reg=False,
     ):
         x = x.requires_grad_(True)
-        grad = data_fidelity.grad(x, y, physics) + lmbd * regularizer.grad(x)
+        if only_reg:
+            grad = lmbd * regularizer.grad(x)
+        else:
+            grad = data_fidelity.grad(x, y, physics) + lmbd * regularizer.grad(x)
         dot = torch.dot(grad.view(-1), v.view(-1))
         hvp = torch.autograd.grad(dot, x, create_graph=diff)[0]
         if diff:
@@ -71,6 +75,7 @@ def bilevel_training(
                 lmbd,
                 physics,
                 diff=False,
+                only_reg=True,
             ).detach()
             hvp = torch.nn.functional.normalize(hvp, dim=[-2, -1], out=hvp)
             if torch.norm(hvp - hvp_old) / x.size(0) < tol:
@@ -86,6 +91,7 @@ def bilevel_training(
             lmbd,
             physics,
             diff=True,
+            only_reg=True,
         )
         norm_sq = torch.sum(hvp**2) / x.size(0)
         print(f"Jac_Loss: {norm_sq}")

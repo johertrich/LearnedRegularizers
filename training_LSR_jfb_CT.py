@@ -67,7 +67,7 @@ print(params)
 # Pretraining
 load_pretrain = True
 if load_pretrain:
-    regularizer.load_state_dict(torch.load("weights/LSR_pretraining_on_LoDoPaB.pt"))
+    regularizer.load_state_dict(torch.load("weights/LSR_pretraining_on_LoDoPaB.pt"),strict=False)
 else:
     from tqdm import tqdm
     import numpy as np
@@ -128,16 +128,13 @@ else:
 load_fittet_parameters=False
 if load_fittet_parameters:
     regularizer.load_state_dict(torch.load("weights/LSR_pretraining_and_parameter_fitting_on_LoDoPaB.pt"))
-
-    regularizer.sigma.data=torch.tensor(0.2).to(regularizer.sigma.data)
-    regularizer.model.alpha.data=torch.tensor(8.).to(regularizer.sigma.data)
 else:
     for p in regularizer.model.parameters():
         p.requires_grad_(False)
-    regularizer.model.alpha.requires_grad_(True)
-    regularizer.sigma.requires_grad_(True)
-    regularizer.sigma.data=torch.tensor(0.3).to(regularizer.sigma.data)
-    regularizer.model.alpha.data=torch.tensor(10.).to(regularizer.sigma.data)
+    regularizer.alpha.requires_grad_(True)
+    regularizer.sigma.requires_grad_(False)
+    regularizer.sigma.data=torch.tensor(-1.8).to(regularizer.sigma.data)
+    regularizer.alpha.data=torch.tensor(5.8).to(regularizer.sigma.data)
 
     # use smaller dataset for parameter fitting
     fitting_dataloader = torch.utils.data.DataLoader(
@@ -157,7 +154,7 @@ else:
         NAG_max_iter=1000,
         NAG_tol_train=1e-4,
         NAG_tol_val=1e-4,
-        lr=0.1,
+        lr=0.05,
         lr_decay=0.95,
         device=device,
         verbose=False,
@@ -168,9 +165,9 @@ else:
 
     torch.save(regularizer.state_dict(), f"weights/LSR_pretraining_and_parameter_fitting_on_LoDoPaB.pt")
 
-logger.info(f"Sigma {regularizer.sigma.data}, alpha: {regularizer.model.alpha.data}")
+logger.info(f"Sigma {regularizer.sigma.data}, alpha: {regularizer.alpha.data}")
 print(regularizer.sigma)
-print(regularizer.model.alpha)
+print(regularizer.alpha)
 
 # bilevel training
 
@@ -197,6 +194,8 @@ regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
     verbose=False,
     dynamic_range_psnr=True,
     reg=False,
+    reg_para=1e-5,
+    reg_reduced=True,
     savestr="weights/LSR_jfb_CT",
     logger=logger,
 )

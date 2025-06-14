@@ -72,9 +72,9 @@ for p in regularizer.parameters():
 print(params)
 
 # Pretraining
-load_pretrain = False
+load_pretrain = True
 if load_pretrain:
-    regularizer.load_state_dict(torch.load("weights/LSR_pretraining_on_BSD.pt"))
+    regularizer.load_state_dict(torch.load("weights/LSR_pretraining_on_BSD.pt"), strict=False)
 else:
     from tqdm import tqdm
     import numpy as np
@@ -152,35 +152,36 @@ if load_params:
 else:
     for p in regularizer.model.parameters():
         p.requires_grad_(False)
-        regularizer.model.alpha.requires_grad_(True)
-        regularizer.sigma.requires_grad_(True)
+    regularizer.alpha.requires_grad_(True)
+    regularizer.sigma.data=torch.tensor(-1.5).to(regularizer.sigma.data)
+    regularizer.sigma.requires_grad_(False)
 
-        regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
-            regularizer,
-            physics,
-            data_fidelity,
-            lmbd,
-            train_dataloader,
-            val_dataloader,
-            epochs=20,
-            mode="JFB",
-            NAG_step_size=1e-1,
-            NAG_max_iter=1000,
-            NAG_tol_train=1e-4,
-            NAG_tol_val=1e-4,
-            lr=0.1,
-            lr_decay=0.95,
-            device=device,
-            verbose=False,
-            logger=logger,
-        )
-        torch.save(
-            regularizer.state_dict(),
-            f"weights/LSR_pretraining_on_BSD_with_parameters.pt",
-        )
+    regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
+        regularizer,
+        physics,
+        data_fidelity,
+        lmbd,
+        train_dataloader,
+        val_dataloader,
+        epochs=20,
+        mode="JFB",
+        NAG_step_size=1e-1,
+        NAG_max_iter=1000,
+        NAG_tol_train=1e-4,
+        NAG_tol_val=1e-4,
+        lr=0.05,
+        lr_decay=0.95,
+        device=device,
+        verbose=False,
+        logger=logger,
+    )
+    torch.save(
+        regularizer.state_dict(),
+        f"weights/LSR_pretraining_on_BSD_with_parameters.pt",
+    )
 print(regularizer.sigma)
-print(regularizer.model.alpha)
-logger.info(f"Sigma: {regularizer.sigma.data}, alpha: {regularizer.model.alpha.data}")
+print(regularizer.alpha)
+logger.info(f"Sigma: {regularizer.sigma.data}, alpha: {regularizer.alpha.data}")
 
 # bilevel training
 
