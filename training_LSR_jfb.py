@@ -101,8 +101,10 @@ else:
     noise_level_range = [5.0 / 255.0, 40.0 / 255.0]
     optimizer = torch.optim.Adam(regularizer.model.parameters(), lr=1e-4)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.995)
-    for p in regularizer.model.parameters():
+    for p in regularizer.parameters():
         p.requires_grad_(True)
+    regularizer.alpha.requires_grad_(False)
+    regularizer.sigma.requires_grad_(False)
     for epoch in range(epochs_pretraining):
         losses = []
         for x in tqdm(
@@ -150,10 +152,10 @@ if load_params:
         torch.load(f"weights/LSR_pretraining_on_BSD_with_parameters.pt")
     )
 else:
-    for p in regularizer.model.parameters():
+    for p in regularizer.parameters():
         p.requires_grad_(False)
     regularizer.alpha.requires_grad_(True)
-    regularizer.sigma.data=torch.tensor(-1.5).to(regularizer.sigma.data)
+    regularizer.sigma.data=torch.tensor(-1.8).to(regularizer.sigma.data)
     regularizer.sigma.requires_grad_(False)
 
     regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
@@ -185,7 +187,7 @@ logger.info(f"Sigma: {regularizer.sigma.data}, alpha: {regularizer.alpha.data}")
 
 # bilevel training
 
-for p in regularizer.model.parameters():
+for p in regularizer.parameters():
     p.requires_grad_(True)
 
 regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(

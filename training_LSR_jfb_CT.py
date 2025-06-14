@@ -82,8 +82,10 @@ else:
     epochs_pretraining = 50
     noise_level_range = [2.5 / 255.0, 20.0 / 255.0]
     optimizer = torch.optim.Adam(regularizer.model.parameters(), lr=1e-4)
-    for p in regularizer.model.parameters():
+    for p in regularizer.parameters():
         p.requires_grad_(True)
+    regularizer.alpha.requires_grad_(False)
+    regularizer.sigma.requires_grad_(False)
     for epoch in range(epochs_pretraining):
         losses = []
         for x in tqdm(
@@ -129,7 +131,7 @@ load_fittet_parameters=False
 if load_fittet_parameters:
     regularizer.load_state_dict(torch.load("weights/LSR_pretraining_and_parameter_fitting_on_LoDoPaB.pt"))
 else:
-    for p in regularizer.model.parameters():
+    for p in regularizer.parameters():
         p.requires_grad_(False)
     regularizer.alpha.requires_grad_(True)
     regularizer.sigma.requires_grad_(False)
@@ -154,7 +156,7 @@ else:
         NAG_max_iter=1000,
         NAG_tol_train=1e-4,
         NAG_tol_val=1e-4,
-        lr=0.05,
+        lr=0.01,
         lr_decay=0.95,
         device=device,
         verbose=False,
@@ -171,7 +173,7 @@ print(regularizer.alpha)
 
 # bilevel training
 
-for p in regularizer.model.parameters():
+for p in regularizer.parameters():
     p.requires_grad_(True)
 
 regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
