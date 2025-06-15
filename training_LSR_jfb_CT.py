@@ -65,21 +65,32 @@ for p in regularizer.parameters():
 print(params)
 
 # Pretraining
-load_pretrain = True
+load_pretrain = False
 if load_pretrain:
-    regularizer.load_state_dict(torch.load("weights/LSR_pretraining_on_LoDoPaB.pt"),strict=False)
+    regularizer.load_state_dict(
+        torch.load("weights/LSR_pretraining_on_LoDoPaB.pt"), strict=False
+    )
 else:
     from tqdm import tqdm
     import numpy as np
     from deepinv.loss.metric import PSNR
 
-    pretrain_dataset = get_dataset("LoDoPaB", test=False)
-    pretrain_dataloader = torch.utils.data.DataLoader(
-        pretrain_dataset, batch_size=8, shuffle=True, drop_last=True, num_workers=8
+    transform_pretrain = Compose(
+        [
+            RandomCrop(128),
+            RandomHorizontalFlip(p=0.5),
+            RandomVerticalFlip(p=0.5),
+            RandomApply([RandomRotation((90, 90))], p=0.5),
+        ]
     )
 
-    psnr = PSNR()
-    epochs_pretraining = 50
+    pretrain_dataset = get_dataset("LoDoPaB", test=False, transform=transform_pretrain)
+    pretrain_dataloader = torch.utils.data.DataLoader(
+        pretrain_dataset, batch_size=16, shuffle=True, drop_last=True, num_workers=8
+    )
+
+    psnr = PSNR(max_pixel=None)
+    epochs_pretraining = 500
     noise_level_range = [2.5 / 255.0, 20.0 / 255.0]
     optimizer = torch.optim.Adam(regularizer.model.parameters(), lr=1e-4)
     for p in regularizer.parameters():
@@ -127,20 +138,24 @@ else:
 
 # Parameter fitting
 
-load_fittet_parameters=False
+load_fittet_parameters = False
 if load_fittet_parameters:
-    regularizer.load_state_dict(torch.load("weights/LSR_pretraining_and_parameter_fitting_on_LoDoPaB.pt"))
+    regularizer.load_state_dict(
+        torch.load("weights/LSR_pretraining_and_parameter_fitting_on_LoDoPaB.pt")
+    )
+    regularizer.sigma.data = torch.tensor(-1).to(regularizer.sigma.data)
 else:
     for p in regularizer.parameters():
         p.requires_grad_(False)
     regularizer.alpha.requires_grad_(True)
-    regularizer.sigma.requires_grad_(False)
-    regularizer.sigma.data=torch.tensor(-1.8).to(regularizer.sigma.data)
-    regularizer.alpha.data=torch.tensor(5.8).to(regularizer.sigma.data)
+    regularizer.sigma.requires_grad_(True)
+    regularizer.sigma.data = torch.tensor(-1.5).to(regularizer.sigma.data)
+    regularizer.alpha.data = torch.tensor(5.8).to(regularizer.sigma.data)
 
+    fitting_set = get_dataset("LoDoPaB_val")
     # use smaller dataset for parameter fitting
     fitting_dataloader = torch.utils.data.DataLoader(
-        train_set, batch_size=8, shuffle=True, drop_last=True, num_workers=8
+        fitting_set, batch_size=5, shuffle=True, drop_last=True, num_workers=8
     )
 
     regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
@@ -150,22 +165,26 @@ else:
         lmbd,
         fitting_dataloader,
         val_dataloader,
-        epochs=1,
+        epochs=100,
         mode="JFB",
         NAG_step_size=1e-1,
         NAG_max_iter=1000,
         NAG_tol_train=1e-4,
         NAG_tol_val=1e-4,
-        lr=0.01,
+        lr=0.05,
         lr_decay=0.95,
         device=device,
         verbose=False,
         dynamic_range_psnr=True,
-        validation_epochs=1,
+        validation_epochs=100,
         logger=logger,
+        # upper_loss=lambda x, y: torch.sum((torch.abs(x - y)).view(x.shape[0], -1), -1)
     )
 
-    torch.save(regularizer.state_dict(), f"weights/LSR_pretraining_and_parameter_fitting_on_LoDoPaB.pt")
+    torch.save(
+        regularizer.state_dict(),
+        f"weights/LSR_pretraining_and_parameter_fitting_on_LoDoPaB.pt",
+    )
 
 logger.info(f"Sigma {regularizer.sigma.data}, alpha: {regularizer.alpha.data}")
 print(regularizer.sigma)
