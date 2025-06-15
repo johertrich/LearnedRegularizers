@@ -65,7 +65,7 @@ for p in regularizer.parameters():
 print(params)
 
 # Pretraining
-load_pretrain = False
+load_pretrain = True
 if load_pretrain:
     regularizer.load_state_dict(
         torch.load("weights/LSR_pretraining_on_LoDoPaB.pt"), strict=False
@@ -138,17 +138,17 @@ else:
 
 # Parameter fitting
 
-load_fittet_parameters = False
+load_fittet_parameters = True
 if load_fittet_parameters:
     regularizer.load_state_dict(
         torch.load("weights/LSR_pretraining_and_parameter_fitting_on_LoDoPaB.pt")
     )
-    regularizer.sigma.data = torch.tensor(-1).to(regularizer.sigma.data)
 else:
     for p in regularizer.parameters():
         p.requires_grad_(False)
     regularizer.alpha.requires_grad_(True)
     regularizer.sigma.requires_grad_(True)
+    # initiialize parameter tuning with some guess
     regularizer.sigma.data = torch.tensor(-1.5).to(regularizer.sigma.data)
     regularizer.alpha.data = torch.tensor(5.8).to(regularizer.sigma.data)
 
@@ -209,13 +209,13 @@ regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
     NAG_max_iter=1000,
     NAG_tol_train=1e-4,
     NAG_tol_val=1e-4,
-    lr=1e-5,
+    lr=5e-6,
     lr_decay=0.9,
     device=device,
     verbose=False,
     dynamic_range_psnr=True,
     reg=False,
-    reg_para=1e-5,
+    reg_para=1e-6,
     reg_reduced=True,
     savestr="weights/LSR_jfb_CT",
     logger=logger,
