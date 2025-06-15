@@ -13,6 +13,7 @@ from torchvision.transforms import (
     RandomApply,
     RandomRotation,
 )
+from operators import get_operator
 
 if torch.backends.mps.is_available():
     # mps backend is used in Apple Silicon chips
