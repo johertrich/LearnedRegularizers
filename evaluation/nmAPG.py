@@ -126,20 +126,21 @@ def nmAPG(
             L_old.copy_(L)
 
             # Line search on v
-            idx_idx2_search = idx_idx2
             for ii in range(150):
-                v = x[idx_idx2_search] - gradx / L[idx_idx2_search]
-                dx = v - x[idx_idx2_search]
-                bound = c[idx_idx2_search, None, None, None] - delta * (dx * dx).sum(
+                v = x[idx_idx2] - gradx / L[idx_idx2]
+                dx = v - x[idx_idx2]
+                bound = c[idx_idx2, None, None, None] - delta * (dx * dx).sum(
                     (1, 2, 3), keepdim=True
                 )
                 if torch.all(
-                    (energy_new2 := f(v, y[idx_idx2_search]))
-                    <= bound.view(-1) * (1 + 1e-4)
+                    (energy_new2 := f(v, y[idx_idx2])) <= bound.view(-1) * (1 + 1e-4)
                 ):
                     break
-                idx_idx2_search = idx_idx2_search[energy_new2 > bound.squeeze()]
-                L[idx_idx2_search] = L[idx_idx2_search] / rho
+                L[idx_idx2] = torch.where(
+                    energy_new2[:, None, None, None] <= bound,
+                    L[idx_idx2],
+                    L[idx_idx2] / rho,
+                )
             x[idx] = z[idx]
             idx3 = (energy_new2 <= energy_new[idx2]).nonzero().view(-1)
             tmp = idx_idx2[idx3]
@@ -170,7 +171,8 @@ def nmAPG(
         grad_old.copy_(grad)
     if verbose and (torch.max(res) >= tol):
         print(f"max iter reached, tol {torch.max(res).item():.6f}")
-    return x, L, i
+    converged = res < tol
+    return x, L, i, converged
 
 
 def reconstruct_nmAPG(
@@ -226,7 +228,7 @@ def reconstruct_nmAPG(
         energy_and_grad = lambda val, y_in: (energy(val, y_in), energy_grad(val, y_in))
 
     # example energies
-    rec, L, steps = nmAPG(
+    rec, L, steps, converged = nmAPG(
         x0=x,
         y=y,
         max_iter=max_iter,
@@ -237,7 +239,7 @@ def reconstruct_nmAPG(
         tol=tol,
         verbose=verbose,
     )
-    stats = dict(L=L.detach(), steps=steps)
+    stats = dict(L=L.detach(), steps=steps, converged=converged)
     if return_stats:
         return rec, stats
     return rec
