@@ -14,17 +14,22 @@ else:
 
 problem = "CT"
 
-reg_name = "LSR"
+reg_name = "ICNN_bilevel"
 
-if reg_name=="WCRR":
+if reg_name=="WCRR_bilevel":
     from priors import WCRR
     pretrained = "weights/WCRR_bilevel.pt"
     regularizer = WCRR(sigma=0.1, weak_convexity=1.0, pretrained=pretrained).to(device)
-elif reg_name=="CRR":
+elif reg_name=="ICNN_bilevel":
+    from priors import simple_ICNNPrior
+    regularizer = simple_ICNNPrior(in_channels=1,channels=32,device=device)
+    ckp = torch.load('weights/ICNN_bilevel.pt')
+    regularizer.load_state_dict(ckp)
+elif reg_name=="CRR_bilevel":
     from priors import WCRR
     pretrained = "weights/CRR_bilevel.pt"
     regularizer = WCRR(sigma=0.1, weak_convexity=0.0, pretrained=pretrained).to(device)
-elif reg_name == "LSR":
+elif reg_name == "LSR_jfb":
     from priors import LSR
     pretrained = "weights/LSR_jfb.pt"
     regularizer = LSR(nc=[32, 64, 128, 256], pretrained_denoiser=False).to(device)
