@@ -12,3 +12,4 @@ from .local_ar import LocalAR
 from .simple_ICNN import simple_ICNNPrior
 from .LSR import LSR
 from .DRUNETT_prior import DRUNet
+from .parameter_learning_wrapper import ParameterLearningWrapper
