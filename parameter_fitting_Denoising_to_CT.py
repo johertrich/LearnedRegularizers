@@ -74,7 +74,6 @@ wrapped_regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_traini
     verbose=False,
     validation_epochs=100,
     dynamic_range_psnr=True,
-    num_jfb_steps=1
 )
 
 only_first = False
