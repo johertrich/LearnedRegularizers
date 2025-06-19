@@ -167,6 +167,11 @@ def bilevel_training(
                     logger.info(f"maxiter hit in iteration {train_step}")
 
             x_recon = x_recon.detach()
+            
+            if reg and (train_step % 5) == 1:
+                jac_loss = reg_para * jac_pow_loss(x_recon)
+                jac_loss.backward()
+                
             if mode == "IFT":
                 x_recon = x_recon.requires_grad_(True)
                 grad_loss = torch.autograd.grad(
@@ -199,9 +204,6 @@ def bilevel_training(
                 x_recon = x_recon - jfb_step_size_factor / L * grad
                 loss = upper_loss(x_recon, x).mean()
                 loss.backward()
-                if reg and (train_step % 5) == 1:
-                    jac_loss = reg_para * jac_pow_loss(x_recon.detach())
-                    jac_loss.backward()
             else:
                 raise NameError("unknwon mode!")
 
