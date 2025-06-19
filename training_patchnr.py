@@ -28,7 +28,7 @@ if problem == "Denoising":
     dataset = get_dataset("BSDS500_gray", test=False, transform=RandomCrop(128))
     train_on = "BSD500"
 elif problem == "CT":
-    dataset = get_dataset("LoDoPaB", test=False, transform=None)
+    dataset = get_dataset("LoDoPaB", test=False, transform=RandomCrop(128))
     physics , data_fidelity = get_operator(problem, device)
     train_on = "LoDoPab"
 else:
@@ -49,9 +49,9 @@ verbose = True
 train_dataset = PatchDataset(train_imgs, patch_size=patch_size, transforms=None)
 
 patchnr_subnetsize = 512
-patchnr_epochs = 20
+patchnr_epochs = 10
 patchnr_batch_size = 1024
-patchnr_learning_rate = 1e-3
+patchnr_learning_rate = 5e-4
 
 patchnr_dataloader = DataLoader(
     train_dataset,
@@ -81,13 +81,14 @@ for epoch in range(patchnr_epochs):
             optimizer.zero_grad()
 
             x = batch[0].to(device)
-
+            x = x + 1/256. * torch.rand_like(x) # add small dequantisation noise
             latent_x, logdet = patch_nr.normalizing_flow(
                 x
             )  # x -> z (we never need the other direction)
 
             # Compute the Kullback Leibler loss
             logpz = 0.5 * torch.sum(latent_x ** 2, -1)
+            
             nll = logpz - logdet
 
             loss_total = nll.mean()

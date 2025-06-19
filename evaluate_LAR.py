@@ -20,8 +20,9 @@ import yaml
 from priors import LocalAR
 
 
-problem = "Denoising"
-pretrained_weights = "weights/LocalAR_bilevel_JFB_p=15x15_BSD500.pt" #"LocalAR_adversarial_p=15x15_BSD500.pt"
+problem = "CT" # "CT"
+#pretrained_weights = "weights/LocalAR_bilevel_JFB_p=15x15_LoDoPab.pt"
+pretrained_weights = "weights/LocalAR_bilevel_IFT_p=15x15_BSD500.pt" #"weights/LocalAR_adversarial_p=15x15_BSD500.pt" # "weights/LocalAR_bilevel_IFT_p=15x15_BSD500.pt" #"LocalAR_adversarial_p=15x15_BSD500.pt"
 # "LocalAR_{trainingmethod}_p={patchszie}_{training_data}.pt"
 
 if torch.backends.mps.is_available():
@@ -64,16 +65,16 @@ only_first = False  # just evaluate on the first image of the dataset for test p
 if bilevel_training:
     if "ift" in bilevel_training_method.lower():
         if problem == "Denoising":
-            lmbd = 30.0 # TODO
+            lmbd = 28.0  
             NAG_step_size = 1e-1  # step size in NAG
             NAG_max_iter = 300  # maximum number of iterations in NAG
             NAG_tol = 1e-6  # tolerance for the relative error (stopping criterion)
         elif problem == "CT":
             if train_on == "BSD500":
-                lmbd = 1.0 # TODO
-                NAG_step_size = 1e-2  # step size in NAG
-                NAG_max_iter = 300 #300  # maximum number of iterations in NAG
-                NAG_tol = 1e-6  # tolerance for the relative error (stopping criterion)
+                lmbd = 8500. 
+                NAG_step_size = 1e-1  # step size in NAG
+                NAG_max_iter = 300  # maximum number of iterations in NAG
+                NAG_tol = 1e-4  # tolerance for the relative error (stopping criterion)
             elif train_on == "LoDoPab":
                 lmbd = 1.0 # TODO
                 NAG_step_size = 1e-2  # step size in NAG
@@ -92,7 +93,7 @@ if bilevel_training:
                 NAG_max_iter = 300 #300  # maximum number of iterations in NAG
                 NAG_tol = 1e-6  # tolerance for the relative error (stopping criterion)
             elif train_on == "LoDoPab":
-                lmbd = 1.0 # TODO
+                lmbd = 1.2
                 NAG_step_size = 1e-2  # step size in NAG
                 NAG_max_iter = 300 #300  # maximum number of iterations in NAG
                 NAG_tol = 1e-6  # tolerance for the relative error (stopping criterion)
@@ -105,15 +106,15 @@ else: # "adversarial training"
 
     elif problem == "CT":
         if train_on == "BSD500":
-            lmbd = 6500.0 
+            lmbd = 62000.
             NAG_step_size = 1e-2  # step size in NAG
             NAG_max_iter = 300 #300  # maximum number of iterations in NAG
             NAG_tol = 1e-6  # tolerance for the relative error (stopping criterion)
         elif train_on == "LoDoPab":
-            lmbd = 600.0 
+            lmbd = 60000.
             NAG_step_size = 1e-2  # step size in NAG
             NAG_max_iter = 300 #300  # maximum number of iterations in NAG
-            NAG_tol = 1e-6  # tolerance for the relative error (stopping criterion)
+            NAG_tol = 1e-4  # tolerance for the relative error (stopping criterion)
 #############################################################
 ############# Problem setup and evaluation ##################
 ############# This should not be changed   ##################

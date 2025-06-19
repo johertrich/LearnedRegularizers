@@ -204,6 +204,7 @@ def bilevel_training(
                 logger.info(
                     f"Step {train_step}, Train PSNR {train_psnr_epoch/train_step}"
                 )
+             
 
         scheduler.step()
         mean_train_loss = train_loss_epoch / len(train_dataloader)

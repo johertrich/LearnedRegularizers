@@ -35,9 +35,9 @@ if problem == "Denoising":
     test_ratio = 0.1
 elif problem == "CT":
     dataset = get_dataset("LoDoPaB", test=False, transform=None)
-    physics , data_fidelity = get_operator(problem, device)
+    physics, data_fidelity = get_operator(problem, device)
     lmbd = 1.0
-    test_ratio = 0.01
+    test_ratio = 0.003
 else:
     raise NotImplementedError
 
@@ -46,7 +46,7 @@ test_len = int(len(dataset) * test_ratio)
 train_len = len(dataset) - test_len
 train_set, val_set = torch.utils.data.random_split(dataset, [train_len, test_len])
 
-batch_size = 16
+batch_size = 8
 shuffle = True
 mode = "IFT" # "IFT" "JFB"
 
@@ -56,7 +56,9 @@ regularizer = LocalAR(in_channels=1, pad=True, use_bias=False, n_patches=-1, nor
 
 train_dataloader = torch.utils.data.DataLoader(train_set, batch_size=batch_size)
 
-val_dataloader = torch.utils.data.DataLoader(val_set, batch_size=batch_size)
+val_dataloader = torch.utils.data.DataLoader(val_set, batch_size=1)
+
+dataset_name = "BSD500" if problem == "Denoising" else "LoDoPab"
 
 regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
     regularizer,
@@ -65,10 +67,10 @@ regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
     lmbd,
     train_dataloader,
     val_dataloader,
-    epochs=20,
+    epochs=100,
     mode=mode,
     NAG_step_size=1e-1,
-    NAG_max_iter=1000,
+    NAG_max_iter=500,
     NAG_tol_train=1e-4,
     NAG_tol_val=1e-4,
     minres_max_iter=1000,
@@ -80,14 +82,13 @@ regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
     reg_para=1e-5,
     device="cuda" if torch.cuda.is_available() else "cpu",
     verbose=False,
-    validation_epochs=40,
+    validation_epochs=1,
     logger=None,
-    dynamic_range_psnr=False,
-    savestr=None,
+    dynamic_range_psnr=True if problem == "CT" else False,
+    savestr=f"LocalAR_bilevel_{dataset_name}_{mode}",
     upper_loss=lambda x, y: torch.sum(((x - y) ** 2).view(x.shape[0], -1), -1),
 )
 
-dataset_name = "BSD500" if problem == "Denoising" else "LoDoPab"
 torch.save(
     regularizer.cnn.state_dict(),
     f"weights/{regularizer.__class__.__name__}_bilevel_{mode}_p={patch_size}x{patch_size}_{dataset_name}.pt",
