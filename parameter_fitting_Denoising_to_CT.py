@@ -34,6 +34,16 @@ elif reg_name == "LSR_jfb":
     pretrained = "weights/LSR_jfb.pt"
     regularizer = LSR(nc=[32, 64, 128, 256], pretrained_denoiser=False).to(device)
     regularizer.load_state_dict(torch.load(pretrained))
+elif reg_name == "LAR_jfb":
+    from priors import LocalAR
+    pretrained = "weights/LocalAR_bilevel_JFB_p=15x15_BSD500.pt"
+    regularizer = LocalAR(patch_size=15,
+                          n_patches=-1,
+                          in_channels=1,
+                          pretrained=pretrained,
+                          pad=True,
+                          use_bias=False)
+    # lmbd initial guess should be 2500
 else:
     raise NameError("Unknown regularizer!")
 
@@ -76,6 +86,9 @@ wrapped_regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_traini
     dynamic_range_psnr=True,
 )
 
+print("Final alpha: ", wrapped_regularizer.alpha)
+print("Final scale: ", wrapped_regularizer.scale)
+
 only_first = False
 wrapped_regularizer.alpha.requires_grad_(False)
 wrapped_regularizer.scale.requires_grad_(False)
@@ -95,3 +108,5 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
     verbose=True,
     adaptive_range=True,
 )
+
+print("Mean PSNR: ", mean_psnr)

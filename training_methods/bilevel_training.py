@@ -36,6 +36,12 @@ def bilevel_training(
     savestr=None,
     upper_loss=lambda x, y: torch.sum(((x - y) ** 2).view(x.shape[0], -1), -1),
 ):
+    assert validation_epochs <= epochs, (
+    "validation_epochs cannot be greater than epochs. "
+    "If validation_epochs > epochs, no validation will occur, "
+    "best_regularizer_state will remain unchanged, and the returned model will be identical to the initial state."
+    )
+
     def hessian_vector_product(
         x, v, data_fidelity, y, regularizer, lmbd, physics, diff=False, only_reg=False,
     ):
@@ -121,7 +127,7 @@ def bilevel_training(
         train_step = 0
         for x in (
             progress_bar := tqdm(
-                train_dataloader, desc=f"Epoch {epoch+1}/{epochs} - Train"
+                train_dataloader, desc=f"Epoch {epoch+1}/{epochs} - Train", total=len(train_dataloader)
             )
         ):
             train_step += 1
