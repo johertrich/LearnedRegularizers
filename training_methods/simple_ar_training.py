@@ -48,14 +48,14 @@ def estimate_lmbd(dataset,physics,device):
     if dataset is None: lmbd=1.0
     else: 
         residual = 0.0
-        for x in tqdm(dataset):
+        for x in tqdm(dataset, total=len(dataset)):
             if isinstance(x, list):
                 x = x[0]
 
             if device == "mps":
                 x = x.to(torch.float32).to(device)
             else:
-                x = x.to(device).to(torch.float)
+                x = x.to(device).to(torch.float).unsqueeze(0)
             y = physics(x) ##Ax+e
             noise = y - physics.A(x)
             residual += torch.norm(physics.A_adjoint(noise),dim=(-2,-1)).mean()
@@ -174,7 +174,8 @@ def simple_lar_training(
     mu = 10.0,
     batch_size=128,
     save_str=None,
-    val_epochs = 5
+    val_epochs = 5,
+    dataset_name="BSD500"
 ):
     adversarial_loss = WGAN_loss
     regularizer.to(device)
@@ -199,6 +200,7 @@ def simple_lar_training(
                     only_first=only_first,
                     device=device,
                     verbose=False,
+                    adaptive_range=True if dataset_name == "LoDoPab" else False 
                 )
         for p in regularizer.parameters():
             p.requires_grad_(True)

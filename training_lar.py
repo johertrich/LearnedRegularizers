@@ -24,7 +24,7 @@ elif torch.cuda.is_available():
 else:
     device = "cpu"
 
-problem = "Denoising" # "Denoising" "CT"
+problem = "CT" # "Denoising" "CT"
 
 # problem dependent parameters
 if problem == "Denoising":
@@ -36,7 +36,7 @@ elif problem == "CT":
     dataset = get_dataset("LoDoPaB", test=False, transform=None)
     physics , data_fidelity = get_operator(problem, device)
     lmbd = 1.0
-    test_ratio = 0.01
+    test_ratio = 0.003
 else:
     raise NotImplementedError
 
@@ -45,6 +45,9 @@ test_len = int(len(dataset) * test_ratio)
 train_len = len(dataset) - test_len
 train_set, val_set = torch.utils.data.random_split(dataset, [train_len, test_len])
 
+print("train set: ", len(train_set))
+print("val set: ", len(val_set))
+
 batch_size = 256
 shuffle = True
 
@@ -52,7 +55,7 @@ patch_size = 15
 
 regularizer = LocalAR(in_channels=1, pad=True, use_bias=True, n_patches=-1).to(device)
 
-lmbd = estimate_lmbd(dataset, physics, device="cuda").item()
+lmbd = estimate_lmbd(train_set, physics, device="cuda").item()
 
 print("estimated : ", lmbd)
 dataset_name = "BSD500" if problem == "Denoising" else "LoDoPab"
@@ -67,11 +70,12 @@ simple_lar_training(
     val_set,
     patch_size=patch_size,
     device=device,
-    epochs=400,
+    epochs=10,
     lr=1e-3,
     mu=mu,
     batch_size=batch_size, 
-    save_str=f"{regularizer.__class__.__name__}_adversarial_p={patch_size}x{patch_size}_{dataset_name}.pt"
+    save_str=f"{regularizer.__class__.__name__}_adversarial_p={patch_size}x{patch_size}_{dataset_name}",
+    dataset_name=dataset_name
 )
 
 torch.save(

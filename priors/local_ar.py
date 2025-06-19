@@ -62,7 +62,11 @@ class LocalAR(Prior):
         self.cnn.to(self.device)
 
         if pretrained is not None:
-            self.cnn.load_state_dict(torch.load(pretrained, map_location=self.device))
+            try:
+                self.cnn.load_state_dict(torch.load(pretrained, map_location=self.device))
+            except RuntimeError:
+                # sometimes I save the wrong state_dict, i.e., cnn.convnet.0.weight instead of convnet.0.weight
+                self.load_state_dict(torch.load(pretrained, map_location=self.device))
 
         self.n_patches = n_patches
         self.patch_size = patch_size

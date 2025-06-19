@@ -13,7 +13,7 @@ from deepinv.optim import Prior
 from deepinv.utils import patch_extractor
 
 import torch
-
+import torch.nn.functional as F
 
 class AffineCouplingBlock(torch.nn.Module):
     """The inputs are split in two halves. Two affine
@@ -133,7 +133,7 @@ class INN(torch.nn.Module):
         self.network = torch.nn.ModuleList()
         for i in range(self.num_layers):
             self.network.append(
-                AffineCouplingBlock(dims_in=self.dims_in, subnet_constructor=subnet_fc)
+                AffineCouplingBlock(dims_in=self.dims_in, subnet_constructor=subnet_fc, clamp=1.6)
             )
 
     def forward(self, x, rev=False):
@@ -195,6 +195,9 @@ class PatchNR(Prior):
         return_patch_per_pixel = kwargs.get("return_patch_per_pixel", False)
 
         if self.pad:
+            pad = self.patch_size - 1
+            x = F.pad(x, (pad, pad, pad, pad), mode='replicate')
+            """
             x = torch.cat(
                 (
                     torch.flip(x[:, :, -self.patch_size : -1, :].detach(), (2,)),
@@ -211,6 +214,7 @@ class PatchNR(Prior):
                 ),
                 3,
             )
+            """
 
         patches, linear_inds = patch_extractor(x, self.n_patches, self.patch_size)
 
