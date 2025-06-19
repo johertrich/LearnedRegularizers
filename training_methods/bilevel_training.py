@@ -185,12 +185,6 @@ def bilevel_training(
                 regularizer = jac_vector_product(
                     x_recon, q, data_fidelity, y, regularizer, lmbd, physics
                 )
-
-                for param, reg in zip(
-                    optimizer.param_groups[0]["params"], regularizer.parameters()
-                ):
-                    if param.grad is not None:
-                        param.grad = reg.grad
             elif mode == "JFB":
                 L = x_stats["L"]
                 grad = data_fidelity.grad(
@@ -198,9 +192,10 @@ def bilevel_training(
                 ) + lmbd * regularizer.grad(x_recon)
                 x_recon = x_recon - jfb_step_size_factor / L * grad
                 loss = upper_loss(x_recon, x).mean()
-                if reg and (train_step % 5) == 1:
-                    loss += reg_para * jac_pow_loss(x_recon.detach())
                 loss.backward()
+                if reg and (train_step % 5) == 1:
+                    jac_loss = reg_para * jac_pow_loss(x_recon.detach())
+                    jac_loss.backward()
             else:
                 raise NameError("unknwon mode!")
 
