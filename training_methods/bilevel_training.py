@@ -5,7 +5,7 @@ from deepinv.loss.metric import PSNR
 from deepinv.optim.utils import minres
 from evaluation import reconstruct_nmAPG
 import copy
-
+from utils.adabelief import AdaBelief
 
 def bilevel_training(
     regularizer,
@@ -28,6 +28,7 @@ def bilevel_training(
     reg=False,
     reg_para=1e-5,
     reg_reduced=False,
+    adabelief=False,
     device="cuda" if torch.cuda.is_available() else "cpu",
     verbose=False,
     validation_epochs=20,
@@ -103,7 +104,16 @@ def bilevel_training(
         print(f"Jac_Loss: {norm_sq}")
         return torch.clip(norm_sq, min=200, max=None)
 
-    optimizer = torch.optim.Adam(regularizer.parameters(), lr=lr)
+    if adabelief:
+        optimizer = AdaBelief(
+            [
+                {"params": regularizer.parameters(), "lr": lr},
+             ],
+            lr=lr,
+            betas=(0.5, 0.9),
+        )
+    else:
+        optimizer = torch.optim.Adam(regularizer.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=lr_decay)
     if dynamic_range_psnr:
         psnr = PSNR(max_pixel=None)
