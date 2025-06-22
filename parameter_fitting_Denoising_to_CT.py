@@ -95,7 +95,7 @@ wrapped_regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_traini
 print("Final alpha: ", wrapped_regularizer.alpha)
 print("Final scale: ", wrapped_regularizer.scale)
 
-only_first = True
+only_first = False
 wrapped_regularizer.alpha.requires_grad_(False)
 wrapped_regularizer.scale.requires_grad_(False)
 torch.random.manual_seed(0)  # make results deterministic
