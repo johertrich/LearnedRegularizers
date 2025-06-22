@@ -24,14 +24,11 @@ class EPLL(Prior):
 
     .. math::
 
-        \underset{x}{\arg\min} \; \|y-Ax\|^2 - \sum_i \log p(P_ix)
+        \underset{x}{\arg\min} \; \|y-Ax\|^2 - \frac 1N \sum_i^N \log p(P_ix)
 
     where the first term is a standard :math:`\ell_2` data-fidelity, and the second term represents a patch prior via
     Gaussian mixture models, where :math:`P_i` is a patch operator that extracts the ith (overlapping) patch from the image.
 
-    #TODO change this
-    The reconstruction function is based on the approximated half-quadratic splitting method as in Zoran, D., and Weiss,
-    Y.  "From learning models of natural image patches to whole image restoration." (ICCV 2011).
 
     :param None, deepinv.optim.utils.GaussianMixtureModel GMM: Gaussian mixture defining the distribution on the patch space.
         ``None`` creates a GMM with n_components components of dimension accordingly to the arguments patch_size and channels.
@@ -42,6 +39,9 @@ class EPLL(Prior):
     :param int patch_size: patch size.
     :param int channels: number of color channels (e.g. 1 for gray-valued images and 3 for RGB images)
     :param str device: defines device (``cpu`` or ``cuda``)
+    :param bool pad: if ``True``, pads the input image with ``patch_size - 1`` pixels on each side with replicate padding. This is needed for gradient based solvers to avoid artifacts at the image borders.
+    :param int batch_size: batch size for the patch extraction. If ``None``, uses a default value of 50000.
+    :param bool randomize_patches: if ``True``, randomizes the patches before computing the negative log likelihood. This is useful for large images to avoid memory issues and affects the computation of grad and nll
     """
 
     def __init__(
@@ -52,18 +52,21 @@ class EPLL(Prior):
         channels=1,
         device="cpu",
         pretrained=None,
+        pad=False,
+        batch_size=None,
+        randomize_patches=False,
     ):
         super(EPLL, self).__init__()
         if GMM is None:
             self.GMM = GaussianMixtureModel(
-                n_gmm_components, patch_size**2 * channels, device=device
+                n_gmm_components, patch_size ** 2 * channels, device=device
             )
+            self.patch_size = patch_size
+            self.n_components = n_gmm_components
         else:
             self.GMM = GMM
-
-        self.patch_size = patch_size
-        self.n_components = n_gmm_components
-        self.n_channels = channels
+            self.n_components = self.GMM.n_components
+            self.patch_size = int(np.sqrt(self.GMM.dimension))
 
         if pretrained is not None:
             if pretrained[-3:] == ".pt":
@@ -75,10 +78,109 @@ class EPLL(Prior):
             self.GMM.load_state_dict(ckpt)
             self.n_components = self.GMM.n_components
             self.patch_size = int(np.sqrt(self.GMM.dimension))
+        else:
+            self.n_components = n_gmm_components
+            self.patch_size = patch_size
+
+        self.n_channels = channels
+
+        self.pad = pad
+        if self.pad:
+            self.padding = (
+                patch_size - 1,
+                patch_size - 1,
+                patch_size - 1,
+                patch_size - 1,
+            )
+        else:
+            self.padding = (0, 0, 0, 0)
+
+        self.randomize_patches = randomize_patches
+
+        self.batch_size = batch_size or 50000
 
         self.device = device
 
-    def forward(self, y, physics, sigma=None, x_init=None, betas=None, batch_size=-1):
+    def g(self, x, *args, **kwargs):
+        r"""
+        Evaluates the negative log likelihood function of the EPLL
+
+        :param torch.Tensor x: image tensor
+        """
+        num_patches = (x.shape[2] + 2 * self.padding[0] - self.patch_size + 1) * (
+            x.shape[3] + 2 * self.padding[0] - self.patch_size + 1
+        )
+
+        if self.randomize_patches:
+            patch_inds = torch.randperm(num_patches, device=x.device)[: self.batch_size]
+            nll = self.patch_g(x, patch_inds)
+            normalisation_factor = self.batch_size
+        else:
+            ind = 0
+            normalisation_factor = num_patches
+            while ind < num_patches:
+                n_patches = min(self.batch_size, num_patches - ind)
+                patch_inds = torch.LongTensor(range(ind, ind + n_patches)).to(x.device)
+                if ind == 0:
+                    nll = self.patch_g(x, patch_inds)
+                else:
+                    nll += self.patch_g(x, patch_inds)
+
+                ind = ind + n_patches
+
+        return nll / normalisation_factor
+
+    def patch_g(self, x, patch_inds, *args, **kwargs):
+        r"""
+        Evaluates the negative log likelihood function of the EPLL for a subset of patches
+
+        :param torch.Tensor x: image tensor
+        :param torch.Tensor patch_inds: indices of the patches to evaluate the negative log likelihood function
+        """
+        x = nn.functional.pad(x, self.padding, mode="replicate") if self.pad else x
+        patches, _ = patch_extractor(
+            x, len(patch_inds), self.patch_size, position_inds_linear=patch_inds
+        )
+        nll = self.GMM.forward(patches.view(patches.shape[0] * patches.shape[1], -1))
+        return nll.sum()
+
+    def grad(self, x, *args, **kwargs):
+        r"""
+        Evaluates the gradient of the negative log likelihood function of the EPLL by batching the patches for the gradient computation in order to lower the memory consumption
+
+        :param torch.Tensor x: image tensor
+        """
+        num_patches = (x.shape[2] + 2 * self.padding[0] - self.patch_size + 1) * (
+            x.shape[3] + 2 * self.padding[0] - self.patch_size + 1
+        )
+
+        with torch.enable_grad():
+            x_ = x.clone()
+            x_.requires_grad_(True)
+            if self.randomize_patches:
+                patch_inds = torch.randperm(num_patches, device=x.device)[
+                    : self.batch_size
+                ]
+                grad = torch.autograd.grad(
+                    outputs=self.patch_gpad(x_, patch_inds), inputs=x_
+                )[0]
+                normalisation_factor = self.batch_size
+            else:
+                grad = torch.zeros_like(x)
+                ind = 0
+                normalisation_factor = num_patches
+                while ind < num_patches:
+                    n_patches = min(self.batch_size, num_patches - ind)
+                    patch_inds = torch.LongTensor(range(ind, ind + n_patches)).to(
+                        x.device
+                    )
+                    grad += torch.autograd.grad(
+                        outputs=self.patch_gpad(x_, patch_inds), inputs=x_
+                    )[0]
+                    ind += n_patches
+        return grad / normalisation_factor
+
+    def reconstruction_hqs(self, y, physics, sigma=None, x_init=None, betas=None, batch_size=-1):
         r"""
         Approximated half-quadratic splitting method for image reconstruction as proposed by Zoran and Weiss.
 
@@ -102,10 +204,10 @@ class EPLL(Prior):
                 )
 
         if betas is None:
-            # default choice as suggested in Parameswaran et al. "Accelerating GMM-Based Patch Priors for Image Restoration: Three Ingredients for a 100× Speed-Up"
-            betas = [beta / sigma**2 for beta in [1.0, 4.0, 8.0, 16.0, 32.0]]
+            # default choice for denoising as suggested in Parameswaran et al. "Accelerating GMM-Based Patch Priors for Image Restoration: Three Ingredients for a 100× Speed-Up"
+            betas = [beta / sigma ** 2 for beta in [1.0, 4.0, 8.0, 16.0, 32.0]]
         if y.shape[0] > 1:
-            # vectorization over a batch of images not implemented....
+            # vectorization over a batch of images not implemented
             return torch.cat(
                 [
                     self.reconstruction(
@@ -122,19 +224,9 @@ class EPLL(Prior):
         Aty = physics.A_adjoint(y)
         for beta in betas:
             x = self._hqs_reconstruction_step(
-                Aty, x, sigma**2, beta, physics, batch_size
+                Aty, x, sigma ** 2, beta, physics, batch_size
             )
         return x
-
-    def negative_log_likelihood(self, x):
-        r"""
-        Takes patches and returns the negative log likelihood of the GMM for each patch.
-
-        :param torch.Tensor x: tensor of patches of shape batch_size x number of patches per batch x patch_dimensions
-        """
-        B, n_patches = x.shape[0:2]
-        logpz = self.GMM(x.view(B * n_patches, -1))
-        return logpz.view(B, n_patches)
 
     def _hqs_reconstruction_step(self, Aty, x, sigma_sq, beta, physics, batch_size):
         # precomputations for GMM with covariance regularization
@@ -193,76 +285,3 @@ class EPLL(Prior):
         op = lambda im: physics.A_adjoint(physics.A(im)) + beta * sigma_sq * im
         hat_x = conjugate_gradient(op, rhs, max_iter=1e2, tol=1e-5)
         return hat_x
-
-    def g(self, x, *args, **kwargs):
-        r"""
-        Evaluates the negative log likelihood function of the EPLL
-
-        :param torch.Tensor x: image tensor
-        """
-
-        num_patches = (x.shape[2] - self.patch_size + 1) * (
-            x.shape[3] - self.patch_size + 1
-        )
-
-        patches, linear_inds = patch_extractor(x, num_patches, self.patch_size)
-        if patches.shape[1] != num_patches:
-            raise ValueError(
-                "Number of patches extracted is not equal to the expected number of patches"
-            )
-
-        nll = self.GMM.forward(patches.view(patches.shape[0] * num_patches, -1))
-
-        return nll.mean(-1)
-
-    def full_grad(self, x, *args, **kwargs):
-        r"""
-        Evaluates the gradient of the negative log likelihood function of the EPLL (without batching)
-
-        :param torch.Tensor x: image tensor
-        """
-        with torch.enable_grad():
-            x_ = x.clone()
-            x_.requires_grad_(True)
-            nll = self.g(x_)
-            grad = torch.autograd.grad(outputs=nll, inputs=x_)[0]
-        return grad
-
-    def patch_g(self, x, patch_inds, *args, **kwargs):
-        r"""
-        Evaluates the negative log likelihood function of the EPLL for a subset of patches
-
-        :param torch.Tensor x: image tensor
-        :param torch.Tensor patch_inds: indices of the patches to evaluate the negative log likelihood function
-        """
-        patches, _ = patch_extractor(
-            x, len(patch_inds), self.patch_size, position_inds_linear=patch_inds
-        )
-        nll = self.GMM.forward(patches.view(patches.shape[0] * patches.shape[1], -1))
-        return nll.sum()
-
-    def grad(self, x, *args, **kwargs):
-        r"""
-        Evaluates the gradient of the negative log likelihood function of the EPLL by batching the patches for the gradient computation in order to lower the memory consumption
-
-        :param torch.Tensor x: image tensor
-        """
-        num_patches = (x.shape[2] - self.patch_size + 1) * (
-            x.shape[3] - self.patch_size + 1
-        )
-        with torch.enable_grad():
-            x_ = x.clone()
-            x_.requires_grad_(True)
-            grad = torch.zeros_like(x)
-            ind = 0
-            while ind < num_patches:
-                n_patches = min(5000, num_patches - ind)
-                patch_inds = torch.LongTensor(range(ind, ind + n_patches)).to(x.device)
-                grad += torch.autograd.grad(
-                    outputs=self.patch_g(x_, patch_inds), inputs=x_
-                )[0]
-                ind = ind + n_patches
-        return grad / num_patches
-
-    def analytic_grad(self, x, *args, **kwargs):
-        pass

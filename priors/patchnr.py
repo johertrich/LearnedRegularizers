@@ -124,16 +124,18 @@ class INN(torch.nn.Module):
         def subnet_fc(c_in, c_out):
             return torch.nn.Sequential(
                 torch.nn.Linear(c_in, self.sub_net_size),
-                torch.nn.SiLU(), #torch.nn.ReLU(),
+                torch.nn.SiLU(),  # torch.nn.ReLU(),
                 torch.nn.Linear(self.sub_net_size, self.sub_net_size),
-                torch.nn.SiLU(), #torch.nn.ReLU(),
+                torch.nn.SiLU(),  # torch.nn.ReLU(),
                 torch.nn.Linear(self.sub_net_size, c_out),
             )
 
         self.network = torch.nn.ModuleList()
         for i in range(self.num_layers):
             self.network.append(
-                AffineCouplingBlock(dims_in=self.dims_in, subnet_constructor=subnet_fc, clamp=1.6)
+                AffineCouplingBlock(
+                    dims_in=self.dims_in, subnet_constructor=subnet_fc, clamp=1.6
+                )
             )
 
     def forward(self, x, rev=False):
@@ -164,13 +166,12 @@ class PatchNR(Prior):
         pad=True,
         device="cpu",
         pretrained=None,
-        normalise_grad=False,
     ):
         super(PatchNR, self).__init__()
 
         self.device = device
 
-        dims_in = patch_size**2 * channels
+        dims_in = patch_size ** 2 * channels
         self.normalizing_flow = INN(
             dims_in=dims_in, num_layers=num_layers, sub_net_size=sub_net_size
         )
@@ -184,7 +185,15 @@ class PatchNR(Prior):
         self.n_patches = n_patches
         self.patch_size = patch_size
         self.pad = pad
-        self.normalise_grad = normalise_grad
+        if self.pad:
+            self.padding = (
+                patch_size - 1,
+                patch_size - 1,
+                patch_size - 1,
+                patch_size - 1,
+            )
+        else:
+            self.padding = (0, 0, 0, 0)
 
     def g(self, x, *args, **kwargs):
         r"""
@@ -192,29 +201,7 @@ class PatchNR(Prior):
 
         :param torch.Tensor x: image tensor
         """
-        return_patch_per_pixel = kwargs.get("return_patch_per_pixel", False)
-
-        if self.pad:
-            pad = self.patch_size - 1
-            x = F.pad(x, (pad, pad, pad, pad), mode='replicate')
-            """
-            x = torch.cat(
-                (
-                    torch.flip(x[:, :, -self.patch_size : -1, :].detach(), (2,)),
-                    x,
-                    torch.flip(x[:, :, 1 : self.patch_size, :].detach(), (2,)),
-                ),
-                2,
-            )
-            x = torch.cat(
-                (
-                    torch.flip(x[:, :, :, -self.patch_size : -1].detach(), (3,)),
-                    x,
-                    torch.flip(x[:, :, :, 1 : self.patch_size].detach(), (3,)),
-                ),
-                3,
-            )
-            """
+        x = F.pad(x, self.padding, mode="replicate") if self.pad else x
 
         patches, linear_inds = patch_extractor(x, self.n_patches, self.patch_size)
 
@@ -229,16 +216,7 @@ class PatchNR(Prior):
 
         nll = torch.mean(nll, -1)
 
-        if return_patch_per_pixel:
-            patch_per_pixel = torch.zeros_like(x).reshape(-1)
-            patch_per_pixel.index_put_(
-                (linear_inds,), torch.ones_like(patches).view(-1), accumulate=True
-            )
-            patch_per_pixel = patch_per_pixel.reshape(x.shape)
-
-            return nll, patch_per_pixel
-        else:
-            return nll
+        return nll
 
     def grad(self, x, *args, **kwargs):
         r"""
@@ -249,25 +227,12 @@ class PatchNR(Prior):
         with torch.enable_grad():
             x.requires_grad_()
 
-            nll, patch_per_pixel = self.g(x, return_patch_per_pixel=True)
+            nll = self.g(x, return_patch_per_pixel=True)
             nll = nll.mean()
             grad = torch.autograd.grad(outputs=nll, inputs=x)[0]
 
-            grad_norm = (patch_per_pixel + 1) / torch.max(patch_per_pixel)
-            if self.pad:
-                grad_norm = grad_norm[
-                    :, :, self.patch_size - 1 : -(self.patch_size - 1), :
-                ]
-                # Remove the columns added for horizontal padding
-                grad_norm = grad_norm[
-                    :, :, :, self.patch_size - 1 : -(self.patch_size - 1)
-                ]
-        
+        return grad
 
-        if self.normalise_grad:
-            return grad / grad_norm
-        else:
-            return grad
 
 if __name__ == "__main__":
 
@@ -276,9 +241,9 @@ if __name__ == "__main__":
     def subnet_fc(c_in, c_out):
         return torch.nn.Sequential(
             torch.nn.Linear(c_in, 128),
-            torch.nn.SiLU(), #torch.nn.ReLU(),
+            torch.nn.SiLU(),  # torch.nn.ReLU(),
             torch.nn.Linear(128, 128),
-            torch.nn.SiLU(), #torch.nn.ReLU(),
+            torch.nn.SiLU(),  # torch.nn.ReLU(),
             torch.nn.Linear(128, c_out),
         )
 
