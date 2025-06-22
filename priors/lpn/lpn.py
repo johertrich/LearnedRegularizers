@@ -67,5 +67,61 @@ class LPNPrior(Prior):
         y = torch.tensor(y, device=x.device)
         return y - x
 
-    def forward(self, x):
+    def _prox(self, x):
         return self.lpn(x)
+
+    def _prox_by_patches(self, x):
+        """
+        Compute prox by patches.
+        x: (B, C, H, W)
+        """
+        patch_size = self.lpn.img_size
+        stride_size = self.lpn.img_size // 2
+        return apply_func_to_patches(x, self.lpn, patch_size, stride_size)
+
+    def prox(self, x, *args, **kwargs):
+        if x.shape[-1] == x.shape[-2] == self.lpn.img_size:
+            return self._prox(x)
+        else:
+            # print("Prox by patches")
+            return self._prox_by_patches(x)
+
+    def forward(self, x):
+        return self.prox(x)
+
+
+def apply_func_to_patches(
+    x: torch.Tensor, func, patch_size, stride_size
+) -> torch.Tensor:
+    """Apply a func to an image by patches
+    Inputs:
+        x: image to be processed, shape: (B, C, H, W)
+        func: callable
+        patch_size: size of patch
+        stride_size: stride for patch
+    Outputs:
+        xhat: processed image, shape: (B, C, H, W)
+    """
+
+    # Compute coordinates of patches
+    def get_coors_1d(size, p, s):
+        out = list(range(0, size - p + 1, s))
+        if out[-1] != size - p:
+            out.append(size - p)
+        return out
+
+    i_list = get_coors_1d(x.shape[2], patch_size, stride_size)
+    j_list = get_coors_1d(x.shape[3], patch_size, stride_size)
+    # print(i_list, j_list)
+
+    xhat = torch.zeros_like(x)
+    count = torch.zeros_like(x)
+    for i in i_list:
+        for j in j_list:
+            with torch.no_grad():
+                xhat[:, :, i : i + patch_size, j : j + patch_size] += func(
+                    x[:, :, i : i + patch_size, j : j + patch_size]
+                )
+                count[:, :, i : i + patch_size, j : j + patch_size] += 1
+    xhat = xhat / count
+    return xhat
