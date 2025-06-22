@@ -55,7 +55,7 @@ def estimate_lmbd(dataset,physics,device):
             if device == "mps":
                 x = x.to(torch.float32).to(device)
             else:
-                x = x.to(device).to(torch.float).unsqueeze(0)
+                x = x.to(device).to(torch.float)
             y = physics(x) ##Ax+e
             noise = y - physics.A(x)
             residual += torch.norm(physics.A_adjoint(noise),dim=(-2,-1)).mean()
@@ -76,6 +76,7 @@ def simple_ar_training(
     lr_decay=0.95,
     device="cuda" if torch.cuda.is_available() else "cpu",
     mu = 10.0,
+    save_str=None,
 ):
     adversarial_loss = WGAN_loss
     regularizer.to(device)
@@ -88,10 +89,16 @@ def simple_ar_training(
     else:
         val_data = get_dataset("BSD68", transform=CenterCrop(256))
     regularizer.train()
-    NAG_step_size = 1e-1  # step size in NAG
-    NAG_max_iter = 500  # maximum number of iterations in NAG
-    NAG_tol = 1e-4  # tolerance for therelative error (stopping criterion)
-    only_first = False
+    if physics.__class__.__name__ == "Tomography":
+        NAG_step_size = 1e-2  # step size in NAG
+        NAG_max_iter = 500  # maximum number of iterations in NAG
+        NAG_tol = 1e-4  # tolerance for therelative error (stopping criterion)
+        only_first = False
+    else:
+        NAG_step_size = 1e-1  # step size in NAG
+        NAG_max_iter = 500  # maximum number of iterations in NAG
+        NAG_tol = 1e-4  # tolerance for therelative error (stopping criterion)
+        only_first = False
     def eval_routine():
         mean_psnr, x_out, y_out, recon_out = evaluate(
                     physics=physics,
@@ -103,6 +110,7 @@ def simple_ar_training(
                     NAG_max_iter=NAG_max_iter,
                     NAG_tol=NAG_tol,
                     only_first=only_first,
+                    adaptive_range=True,
                     device=device,
                     verbose=False,
                 )
@@ -111,6 +119,8 @@ def simple_ar_training(
         return mean_psnr, x_out, y_out, recon_out
     mean_psnr, x_out, y_out, recon_out = eval_routine()
     print("Initial reconstruction: ", mean_psnr)
+
+    best_psnr = mean_psnr
     for epoch in range(epochs):
         loss_vals = []
         regularizer.train()
@@ -155,6 +165,11 @@ def simple_ar_training(
         # )
 
         print("Learning rate: ", scheduler.get_last_lr()[0])
+        if mean_psnr > best_psnr:
+            best_psnr = mean_psnr
+            print("New best PSNR: ", best_psnr)
+            if save_str is not None: 
+                torch.save(regularizer.state_dict(), save_str)
 
 
 

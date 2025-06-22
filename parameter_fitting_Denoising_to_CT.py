@@ -14,7 +14,7 @@ else:
 
 problem = "CT"
 
-reg_name = "ICNN_bilevel"
+reg_name = "IDCNN"
 
 if reg_name=="WCRR_bilevel":
     from priors import WCRR
@@ -44,15 +44,21 @@ elif reg_name == "LAR_jfb":
                           pad=True,
                           use_bias=False)
     # lmbd initial guess should be 2500
+elif reg_name == 'IDCNN':
+    from priors import simple_IDCNNPrior
+    from priors import simple_IDCNNPrior
+    pretrained = "../../LearnedRegularizers/weights/0/simple_ar_simple_IDCNNPrior_ar_Denoising_46.pt"
+    regularizer = simple_IDCNNPrior(in_channels=1, channels=32, device=device, kernel_size=5,
+                                    pretrained=pretrained).to(device)
 else:
     raise NameError("Unknown regularizer!")
 
 
 lmbd_initial_guess = 60
 
-dataset, physics, data_fidelity = get_evaluation_setting(problem, device)
+dataset, physics, data_fidelity = get_evaluation_setting(problem, device, root='/home/yasmin/projects/backup/LearnedRegularizers/')
 
-validation_dataset = get_dataset("LoDoPaB_val")
+validation_dataset = get_dataset("LoDoPaB_val", root='/home/yasmin/projects/backup/LearnedRegularizers/')
 validation_dataloader = torch.utils.data.DataLoader(
     validation_dataset, batch_size=5, shuffle=False, drop_last=False, num_workers=8
 )
@@ -89,7 +95,7 @@ wrapped_regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_traini
 print("Final alpha: ", wrapped_regularizer.alpha)
 print("Final scale: ", wrapped_regularizer.scale)
 
-only_first = False
+only_first = True
 wrapped_regularizer.alpha.requires_grad_(False)
 wrapped_regularizer.scale.requires_grad_(False)
 torch.random.manual_seed(0)  # make results deterministic

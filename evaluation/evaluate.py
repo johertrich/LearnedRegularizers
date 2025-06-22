@@ -40,7 +40,11 @@ def evaluate(
     psnrs = []
     iters = []
     Lip = []
+    x_out = None
+    y_out = None
+    recon_out = None
     for i, x in enumerate(dataloader):
+        
         if device == "mps":
             # mps does not support float64
             x = x.to(torch.float32).to(device)

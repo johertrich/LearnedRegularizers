@@ -4,12 +4,12 @@ from dataset import get_dataset
 import torch
 
 
-def get_evaluation_setting(problem, device):
+def get_evaluation_setting(problem, device, root):
     physics, data_fidelity = get_operator(problem, device)
     if problem == "Denoising":
         dataset = get_dataset("BSD68")
     elif problem == "CT":
-        dataset = get_dataset("LoDoPaB", test=True)
+        dataset = get_dataset("LoDoPaB", test=True, root=root)
     return dataset, physics, data_fidelity
 
 
