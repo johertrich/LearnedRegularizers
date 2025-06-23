@@ -20,20 +20,24 @@ if reg_name=="WCRR_bilevel":
     from priors import WCRR
     pretrained = "weights/WCRR_bilevel.pt"
     regularizer = WCRR(sigma=0.1, weak_convexity=1.0, pretrained=pretrained).to(device)
+    lmbd_initial_guess = 60
 elif reg_name=="ICNN_bilevel":
     from priors import simple_ICNNPrior
     regularizer = simple_ICNNPrior(in_channels=1,channels=32,device=device)
     ckp = torch.load('weights/ICNN_bilevel.pt')
     regularizer.load_state_dict(ckp)
+    lmbd_initial_guess = 60
 elif reg_name=="CRR_bilevel":
     from priors import WCRR
     pretrained = "weights/CRR_bilevel.pt"
     regularizer = WCRR(sigma=0.1, weak_convexity=0.0, pretrained=pretrained).to(device)
+    lmbd_initial_guess = 60
 elif reg_name == "LSR_jfb":
     from priors import LSR
     pretrained = "weights/LSR_jfb.pt"
     regularizer = LSR(nc=[32, 64, 128, 256], pretrained_denoiser=False).to(device)
     regularizer.load_state_dict(torch.load(pretrained))
+    lmbd_initial_guess = 60
 elif reg_name == "LAR_jfb":
     from priors import LocalAR
     pretrained = "weights/LocalAR_bilevel_JFB_p=15x15_BSD500.pt"
@@ -43,18 +47,16 @@ elif reg_name == "LAR_jfb":
                           pretrained=pretrained,
                           pad=True,
                           use_bias=False)
-    # lmbd initial guess should be 2500
+    lmbd_initial_guess = 2500
 elif reg_name == 'IDCNN':
     from priors import simple_IDCNNPrior
     from priors import simple_IDCNNPrior
     pretrained = "./weights/simple_simple_IDCNNPrior_ar_Denoising.pt"
     regularizer = simple_IDCNNPrior(in_channels=1, channels=32, device=device, kernel_size=5,
                                     pretrained=pretrained).to(device)
+    lmbd_initial_guess = 60
 else:
     raise NameError("Unknown regularizer!")
-
-
-lmbd_initial_guess = 60
 
 dataset, physics, data_fidelity = get_evaluation_setting(problem, device)
 
