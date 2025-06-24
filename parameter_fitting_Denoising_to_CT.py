@@ -55,6 +55,13 @@ elif reg_name == 'IDCNN':
     regularizer = simple_IDCNNPrior(in_channels=1, channels=32, device=device, kernel_size=5,
                                     pretrained=pretrained).to(device)
     lmbd_initial_guess = 60
+elif reg_name == 'ICNN_AR':
+    from priors import simple_ICNNPrior
+    pretrained = "./weights/simple_simple_ICNNPrior_ar_Denoising.pt"
+    regularizer = simple_ICNNPrior(in_channels=1,channels=32,device=device)
+    ckp = torch.load(pretrained)
+    regularizer.load_state_dict(ckp)
+    lmbd_initial_guess = 60
 else:
     raise NameError("Unknown regularizer!")
 

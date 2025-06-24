@@ -87,7 +87,8 @@ def simple_ar_training(
     if physics.__class__.__name__ == "Tomography":
         val_data = val_dataloader.dataset
     else:
-        val_data = get_dataset("BSD68", transform=CenterCrop(256))
+        val_data = val_dataloader.dataset
+        new_val_data = get_dataset("BSD68")
     regularizer.train()
     if physics.__class__.__name__ == "Tomography":
         NAG_step_size = 1e-2  # step size in NAG
@@ -99,26 +100,49 @@ def simple_ar_training(
         NAG_max_iter = 500  # maximum number of iterations in NAG
         NAG_tol = 1e-4  # tolerance for therelative error (stopping criterion)
         only_first = False
-    def eval_routine():
-        mean_psnr, x_out, y_out, recon_out = evaluate(
-                    physics=physics,
-                    data_fidelity=data_fidelity,
-                    dataset=val_data,  # Access only the dataset of the dataloader
-                    regularizer=regularizer,
-                    lmbd=lmbd,
-                    NAG_step_size=NAG_step_size,
-                    NAG_max_iter=NAG_max_iter,
-                    NAG_tol=NAG_tol,
-                    only_first=only_first,
-                    adaptive_range=True,
-                    device=device,
-                    verbose=False,
-                )
+    def eval_routine(val,lmbd_to_use=None):
+        if lmbd_to_use is None:                
+            mean_psnr, x_out, y_out, recon_out = evaluate(
+                        physics=physics,
+                        data_fidelity=data_fidelity,
+                        dataset=val,  # Access only the dataset of the dataloader
+                        regularizer=regularizer,
+                        lmbd=lmbd,
+                        NAG_step_size=NAG_step_size,
+                        NAG_max_iter=NAG_max_iter,
+                        NAG_tol=NAG_tol,
+                        only_first=only_first,
+                        adaptive_range=True if physics.__class__.__name__ == "Tomography" else False,
+                        device=device,
+                        verbose=False,
+            )
+        else: 
+            mean_psnr, x_out, y_out, recon_out = evaluate(
+                        physics=physics,
+                        data_fidelity=data_fidelity,
+                        dataset=val,  # Access only the dataset of the dataloader
+                        regularizer=regularizer,
+                        lmbd=lmbd_to_use,
+                        NAG_step_size=NAG_step_size,
+                        NAG_max_iter=NAG_max_iter,
+                        NAG_tol=NAG_tol,
+                        only_first=only_first,
+                        adaptive_range=True if physics.__class__.__name__ == "Tomography" else False,
+                        device=device,
+                        verbose=False,
+            )
         for p in regularizer.parameters():
             p.requires_grad_(True)
         return mean_psnr, x_out, y_out, recon_out
-    mean_psnr, x_out, y_out, recon_out = eval_routine()
-    print("Initial reconstruction: ", mean_psnr)
+    if physics.__class__.__name__ == "Tomography":
+        mean_psnr, x_out, y_out, recon_out = eval_routine(val_data)
+        print("Initial reconstruction: ", mean_psnr)
+    else: 
+        mean_psnr, x_out, y_out, recon_out = eval_routine(val_data)
+        print("Initial reconstruction on BSD500: ", mean_psnr)
+        mean_psnr, x_out, y_out, recon_out = eval_routine(new_val_data)
+        lmbd_bsd68 = estimate_lmbd(new_val_data,physics,device)
+        print("Initial reconstruction on BSD68: ", mean_psnr)
 
     best_psnr = mean_psnr
     for epoch in range(epochs):
@@ -152,7 +176,7 @@ def simple_ar_training(
         loss_vals = []
         # for x in tqdm(val_dataloader):
         
-        mean_psnr, x_out, y_out, recon_out = eval_routine()
+        mean_psnr, x_out, y_out, recon_out = eval_routine(val_data)
         # print(mean_psnr)
         loss_vals.append(mean_psnr.item())
             
@@ -170,6 +194,11 @@ def simple_ar_training(
             print("New best PSNR: ", best_psnr)
             if save_str is not None: 
                 torch.save(regularizer.state_dict(), save_str)
+        if physics.__class__.__name__.lower() == "denoising":
+            print("---------------------")
+            mean_psnr, x_out, y_out, recon_out = eval_routine(new_val_data)
+            print("Initial reconstruction on BSD68: ", mean_psnr)
+            print("---------------------")
 
 
 
