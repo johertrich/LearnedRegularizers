@@ -37,9 +37,9 @@ else:
 problem = "Denoising"  # Denoising or CT
 hypergradient_computation = "JFB"  # IFT or JFB
 regularizer_name = "LSR"  # CRR, WCRR, ICNN, IDCNN, TDV or LSR
-load_pretrain = True  # load pretrained weights given that they exist
+load_pretrain = False  # load pretrained weights given that they exist
 load_parameter_fitting = (
-    False  # load pretrained weights and learned regularization and scaling parameter
+    True  # load pretrained weights and learned regularization and scaling parameter
 )
 score_sigma = 3e-2
 
@@ -113,9 +113,9 @@ elif regularizer_name == "LSR":
     pretrain_epochs = 7500
     pretrain_lr = 2e-4
     epochs = 200
-    adabelief = True
+    adabelief = False
     fitting_lr = 0.05
-    lr = 1e-5
+    lr = 1e-4
     jacobian_regularization = True
     jacobian_regularization_parameter = 1e-4
     reg = LSR(
