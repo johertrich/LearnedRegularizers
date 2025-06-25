@@ -2,7 +2,7 @@ import torch
 from tqdm import tqdm
 from deepinv.loss.metric import PSNR
 import copy
-
+from .utils.adabelief import AdaBelief
 
 def score_training(
     regularizer,
@@ -17,8 +17,19 @@ def score_training(
     logger=None,
     dynamic_range_psnr=False,
     savestr=None,
+    loss_fn=lambda x,y: torch.sum((x-y)**2),
+    adabelief=False,
 ):
-    optimizer = torch.optim.Adam(regularizer.parameters(), lr=lr)
+    if adabelief:
+        optimizer = AdaBelief(
+            [
+                {"params": regularizer.parameters(), "lr": lr},
+             ],
+            lr=lr,
+            betas=(0.5, 0.9),
+        )
+    else:
+        optimizer = torch.optim.Adam(regularizer.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=lr_decay)
     if dynamic_range_psnr:
         psnr = PSNR(max_pixel=None)
@@ -42,8 +53,8 @@ def score_training(
             x = x.to(device).to(torch.float32)
             noise = torch.randn_like(x)
             y = x + sigma * noise
-            xhat = y - sigma**2 * regularizer.grad(y)
-            loss = ((xhat - x) ** 2).sum()
+            xhat = y - regularizer.grad(y)
+            loss = loss_fn(xhat, x)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -72,8 +83,8 @@ def score_training(
                     x_val = x_val.to(device).to(torch.float32)
                     noise = torch.randn_like(x_val)
                     y = x_val + sigma * noise
-                    xhat = y - sigma**2 * regularizer.grad(y)
-                    loss = ((xhat - x_val) ** 2).sum()
+                    xhat = y - regularizer.grad(y)
+                    loss = loss_fn(xhat,x_val)
 
                     val_loss_epoch += loss.item()
                     val_psnr_epoch += psnr(xhat, x_val).mean().item()
