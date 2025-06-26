@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from deepinv.optim import Prior
+import math
 
 from .conv import *
 
@@ -22,9 +23,9 @@ class TDV(Prior):
         multiplier=1,
         num_mb=3,
         potential="quadratic",
+        activation="softplus",
         zero_mean=True,
         num_scales=3,
-        step_size_parameter=False,
     ):
         super().__init__()
 
@@ -37,9 +38,6 @@ class TDV(Prior):
         self.pot, self.act = get_potential(potential)
         self.zero_mean = zero_mean
         self.num_scales = num_scales
-        self.step_size_scaling = 1.0
-        if step_size_parameter:
-            self.step_size_scaling = nn.Parameter(torch.tensor(1.0, requires_grad=True))
 
         # construct the regularizer
         self.K1 = Conv2d(
@@ -59,6 +57,7 @@ class TDV(Prior):
                     bound_norm=False,
                     invariant=False,
                     multiplier=self.multiplier,
+                    activation=activation,
                 )
                 for _ in range(self.num_mb)
             ]
@@ -67,21 +66,20 @@ class TDV(Prior):
             self.num_features, 1, 1, invariant=False, bound_norm=False, bias=False
         )
 
-    def g(self, x):
-        return self.energy(x).reshape(x.shape[0], -1).sum(-1)
-
-    def energy(self, x):
+    def energy(self, x, sigma=1):
         x = self._transformation(x)
-        return self.step_size_scaling * self._potential(x)
+        return sigma**2 * self._potential(x)
 
-    def grad(self, x, get_energy=False):
+    def g(self, x, sigma=1):
+        return self.energy(x, sigma).sum(dim=(1, 2, 3))
+
+    def grad(self, x, sigma=1, get_energy=False):
         x = self._transformation(x)
         if get_energy:
-            energy = self.step_size_scaling * self._potential(x)
-            energy = energy.reshape(x.shape[0], -1).sum(-1)
+            energy = self._potential(x).sum(dim=(1, 2, 3)) * sigma**2
         # and its gradient
         x = self._activation(x)
-        grad = self.step_size_scaling * self._transformation_T(x)
+        grad = self._transformation_T(x) * sigma**2
         if get_energy:
             return energy, grad
         else:
@@ -123,10 +121,12 @@ class TDV(Prior):
 def get_potential(name):
     if name == "linear":
         return lambda x: x, lambda x: torch.ones_like(x)
+    elif name == "studentT":
+        return lambda x: torch.log(1 + x**2) / 2, lambda x: x / (1 + x**2)
     elif name == "quadratic":
-        return lambda x: x ** 2 / 2, lambda x: x
+        return lambda x: x**2 / 2, lambda x: x
     elif name == "lncosh":
-        return lambda x: torch.log(torch.cosh(x)), torch.tanh
+        return lambda x: -torch.log(1 - torch.tanh(x) ** 2) / 2, torch.tanh
     elif name == "softplus":
         return F.softplus, F.sigmoid
     else:
@@ -135,30 +135,111 @@ def get_potential(name):
 
 class StudentT_fun2(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, x, alpha):
+    def forward(ctx, x):
         ctx.save_for_backward(x)
-        ctx.alpha = alpha
-        d = 1 + alpha * x ** 2
-        return torch.log(d) / (2 * alpha), x / d
+        d = 1 + x**2
+        return torch.log(d) / 2, x / d
 
     @staticmethod
     def backward(ctx, grad_in1, grad_in2):
         x = ctx.saved_tensors[0]
-        d = 1 + ctx.alpha * x ** 2
-        return (x / d) * grad_in1 + (1 - ctx.alpha * x ** 2) / d ** 2 * grad_in2, None
+        d = 1 + x**2
+        return (x / d) * grad_in1 + (1 - x**2) / d**2 * grad_in2, None
 
 
 class StudentT2(nn.Module):
-    def __init__(self, alpha):
+    def __init__(self):
         super(StudentT2, self).__init__()
-        self.alpha = alpha
 
     def forward(self, x):
-        return StudentT_fun2().apply(x, self.alpha)
+        return StudentT_fun2.apply(x)
+
+
+class StudentTgrad_fun2(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x):
+        ctx.save_for_backward(x)
+        d = 1 + (x**2) / 2
+        return x / d, (2 - d) / d**2
+
+    @staticmethod
+    def backward(ctx, grad_in1, grad_in2):
+        x = ctx.saved_tensors[0]
+        d = 1 + (x**2) / 2
+        return ((2 - d) / d**2) * grad_in1 + (x * (d - 4) / d**3) * grad_in2, None
+
+
+class StudentT2Grad(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        return StudentTgrad_fun2.apply(x)
+
+
+class Tanh_fun2(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x):
+        tanhx = torch.tanh(x)
+        ctx.save_for_backward(tanhx)
+        return x - tanhx, tanhx**2
+
+    @staticmethod
+    def backward(ctx, grad_in1, grad_in2):
+        tanhx = ctx.saved_tensors[0]
+        return tanhx**2 * grad_in1 + 2 * (-(tanhx**3) + tanhx) * grad_in2
+
+
+class Softplus2(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        return Softplus_fun2.apply(x)
+
+
+@torch.jit.script
+def softplusg2(x):
+    return torch.exp(x - 2 * F.softplus(x))
+
+
+class Softplus_fun2(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x):
+        ctx.save_for_backward(x)
+        return F.softplus(x) - math.log(2), F.sigmoid(x)
+
+    @staticmethod
+    def backward(ctx, grad_in1, grad_in2):
+        x = ctx.saved_tensors[0]
+        return F.sigmoid(x) * grad_in1 + softplusg2(x) * grad_in2
+
+
+class Tanh2(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        return Tanh_fun2.apply(x)
+
+
+def get_activation(name):
+    if name == "studentT":
+        return StudentT2()
+    if name == "studentTgrad":
+        return StudentT2Grad()
+    elif name == "tanh":
+        return Tanh2()
+    elif name == "softplus":
+        return Softplus2()
+    else:
+        raise RuntimeError(f'activation "{name}" not implemented!')
 
 
 class MicroBlock(nn.Module):
-    def __init__(self, num_features, bound_norm=False, invariant=False):
+    def __init__(
+        self, num_features, bound_norm=False, invariant=False, activation="softplus"
+    ):
         super(MicroBlock, self).__init__()
 
         self.conv1 = Conv2d(
@@ -169,7 +250,7 @@ class MicroBlock(nn.Module):
             bound_norm=bound_norm,
             bias=False,
         )
-        self.act = StudentT2(alpha=1)
+        self.act = get_activation(activation)
         self.conv2 = Conv2d(
             num_features,
             num_features,
@@ -206,6 +287,7 @@ class MacroBlock(nn.Module):
         multiplier=1,
         bound_norm=False,
         invariant=False,
+        activation="softplus",
     ):
         super().__init__()
 
@@ -217,14 +299,16 @@ class MacroBlock(nn.Module):
             b = nn.ModuleList(
                 [
                     MicroBlock(
-                        num_features * multiplier ** i,
+                        num_features * multiplier**i,
                         bound_norm=bound_norm,
                         invariant=invariant,
+                        activation=activation,
                     ),
                     MicroBlock(
-                        num_features * multiplier ** i,
+                        num_features * multiplier**i,
                         bound_norm=bound_norm,
                         invariant=invariant,
+                        activation=activation,
                     ),
                 ]
             )
@@ -237,6 +321,7 @@ class MacroBlock(nn.Module):
                         num_features * multiplier ** (num_scales - 1),
                         bound_norm=bound_norm,
                         invariant=invariant,
+                        activation=activation,
                     )
                 ]
             )
@@ -250,7 +335,7 @@ class MacroBlock(nn.Module):
             self.conv_down.append(
                 ConvScale2d(
                     num_features * multiplier ** (i - 1),
-                    num_features * multiplier ** i,
+                    num_features * multiplier**i,
                     kernel_size=3,
                     bias=False,
                     invariant=invariant,
@@ -260,7 +345,7 @@ class MacroBlock(nn.Module):
             self.conv_up.append(
                 ConvScaleTranspose2d(
                     num_features * multiplier ** (i - 1),
-                    num_features * multiplier ** i,
+                    num_features * multiplier**i,
                     kernel_size=3,
                     bias=False,
                     invariant=invariant,
@@ -330,6 +415,7 @@ class MacroBlock(nn.Module):
 
 # to run execute: python -m unittest [-v] ddr.tdv
 class GradientTest(unittest.TestCase):
+
     def test_tdv_gradient(self):
         # setup the data
         x = torch.rand((2, 1, 64, 64), dtype=torch.float64)
@@ -337,11 +423,13 @@ class GradientTest(unittest.TestCase):
         # define the TDV regularizer
         config = {
             "in_channels": 1,
-            "out_channels": 1,
+            # 'out_channels': 1,
             "num_features": 4,
             "num_scales": 3,
             "num_mb": 2,
             "multiplier": 2,
+            "potential": "quadratic",
+            "activation": "studentTgrad",
         }
         R = TDV(**config).double()
 
