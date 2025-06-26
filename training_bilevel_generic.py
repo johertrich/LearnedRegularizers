@@ -35,9 +35,9 @@ else:
     device = "cpu"
 
 problem = "Denoising"  # Denoising or CT
-hypergradient_computation = "JFB"  # IFT or JFB
+hypergradient_computation = "IFT"  # IFT or JFB
 regularizer_name = "LSR"  # CRR, WCRR, ICNN, IDCNN, TDV or LSR
-load_pretrain = False  # load pretrained weights given that they exist
+load_pretrain = True  # load pretrained weights given that they exist
 load_parameter_fitting = (
     True  # load pretrained weights and learned regularization and scaling parameter
 )
@@ -104,16 +104,16 @@ elif regularizer_name == "TDV":
         multiplier=1,
         num_mb=3,
         num_scales=3,
-        potential="lncosh",
+        potential="quadratic",
+        activation="softplus",
         zero_mean=True,
-        step_size_parameter=True,
     )
     reg = TDV(**config).to(device)
 elif regularizer_name == "LSR":
     pretrain_epochs = 7500
     pretrain_lr = 2e-4
     epochs = 200
-    adabelief = False
+    adabelief = True
     fitting_lr = 0.05
     lr = 1e-4
     jacobian_regularization = True
@@ -144,6 +144,18 @@ for p in regularizer.parameters():
 print(params)
 logger.info(f"Train {regularizer_name} with {hypergradient_computation} on {problem}")
 logger.info(f"The model has {params} parameters")
+logger.info(f"Parameters:")
+logger.info(
+    f"load_pretrain: {load_pretrain}, load_parameter_fitting: {load_parameter_fitting}, score_sigma: {score_sigma}"
+)
+logger.info(
+    f"pretrain_epochs: {pretrain_epochs}, pretrain_lr: {pretrain_lr}, epochs: {epochs}"
+)
+logger.info(f"adabelief: {adabelief}, fitting_lr: {fitting_lr}, lr: {lr}")
+logger.info(
+    f"jacobian_regularization: {jacobian_regularization}, jacobian_regularization_parameter: {jacobian_regularization_parameter}, lmbd: {lmbd}"
+)
+
 
 physics, data_fidelity = get_operator(problem, device)
 
@@ -216,7 +228,9 @@ elif not load_parameter_fitting:
 
 if load_parameter_fitting:
     regularizer.load_state_dict(
-        torch.load(f"weights/{regularizer_name}_fitted_parameters_with_{hypergradient_computation}_for_{problem}.pt")
+        torch.load(
+            f"weights/{regularizer_name}_fitted_parameters_with_{hypergradient_computation}_for_{problem}.pt"
+        )
     )
 else:
     for p in regularizer.parameters():
