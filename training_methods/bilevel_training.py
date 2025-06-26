@@ -7,6 +7,7 @@ from evaluation import reconstruct_nmAPG
 import copy
 from .utils.adabelief import AdaBelief
 
+
 def bilevel_training(
     regularizer,
     physics,
@@ -38,13 +39,21 @@ def bilevel_training(
     upper_loss=lambda x, y: torch.sum(((x - y) ** 2).view(x.shape[0], -1), -1),
 ):
     assert validation_epochs <= epochs, (
-    "validation_epochs cannot be greater than epochs. "
-    "If validation_epochs > epochs, no validation will occur, "
-    "best_regularizer_state will remain unchanged, and the returned model will be identical to the initial state."
+        "validation_epochs cannot be greater than epochs. "
+        "If validation_epochs > epochs, no validation will occur, "
+        "best_regularizer_state will remain unchanged, and the returned model will be identical to the initial state."
     )
 
     def hessian_vector_product(
-        x, v, data_fidelity, y, regularizer, lmbd, physics, diff=False, only_reg=False,
+        x,
+        v,
+        data_fidelity,
+        y,
+        regularizer,
+        lmbd,
+        physics,
+        diff=False,
+        only_reg=False,
     ):
         x = x.requires_grad_(True)
         if only_reg:
@@ -64,9 +73,14 @@ def bilevel_training(
         for param in regularizer.parameters():
             if param.requires_grad:
                 dot = torch.dot(grad_lower_level(x).view(-1), v.view(-1))
-                param.grad = -torch.autograd.grad(dot, param, create_graph=False)[
-                    0
-                ].detach()
+                if param.grad is None:
+                    param.grad = -torch.autograd.grad(dot, param, create_graph=False)[
+                        0
+                    ].detach()
+                else:
+                    param.grad -= torch.autograd.grad(dot, param, create_graph=False)[
+                        0
+                    ].detach()
         return regularizer
 
     def jac_pow_loss(x, M=50, tol=1e-2):
@@ -108,7 +122,7 @@ def bilevel_training(
         optimizer = AdaBelief(
             [
                 {"params": regularizer.parameters(), "lr": lr},
-             ],
+            ],
             lr=lr,
             betas=(0.5, 0.9),
         )
@@ -137,7 +151,9 @@ def bilevel_training(
         train_step = 0
         for x in (
             progress_bar := tqdm(
-                train_dataloader, desc=f"Epoch {epoch+1}/{epochs} - Train", total=len(train_dataloader)
+                train_dataloader,
+                desc=f"Epoch {epoch+1}/{epochs} - Train",
+                total=len(train_dataloader),
             )
         ):
             train_step += 1
@@ -177,11 +193,11 @@ def bilevel_training(
                     logger.info(f"maxiter hit in iteration {train_step}")
 
             x_recon = x_recon.detach()
-            
+
             if reg and (train_step % 5) == 1:
                 jac_loss = reg_para * jac_pow_loss(x_recon)
                 jac_loss.backward()
-                
+
             if mode == "IFT":
                 x_recon = x_recon.requires_grad_(True)
                 grad_loss = torch.autograd.grad(
@@ -216,13 +232,11 @@ def bilevel_training(
                 loss.backward()
             else:
                 raise NameError("unknwon mode!")
-
             optimizer.step()
             if logger is not None and train_step % 10 == 0:
                 logger.info(
                     f"Step {train_step}, Train PSNR {train_psnr_epoch/train_step}"
                 )
-             
 
         scheduler.step()
         mean_train_loss = train_loss_epoch / len(train_dataloader)
