@@ -36,7 +36,7 @@ else:
 
 problem = "Denoising"  # Denoising or CT
 hypergradient_computation = "IFT"  # IFT or JFB
-regularizer_name = "WCRR"  # CRR, WCRR, ICNN, IDCNN, TDV or LSR
+regularizer_name = "IDCNN"  # CRR, WCRR, ICNN, IDCNN, TDV or LSR
 load_pretrain = False  # load pretrained weights given that they exist
 load_parameter_fitting = (
     False  # load pretrained weights and learned regularization and scaling parameter
@@ -73,10 +73,11 @@ elif regularizer_name == "ICNN":
     pretrain_epochs = 300
     pretrain_lr = 1e-3
     fitting_lr = 0.1
-    adabelief = False
+    adabelief = True
     epochs = 200
     lr = 1e-3
-    jacobian_regularization = False
+    jacobian_regularization = True
+    jacobian_regularization_parameter = 1e-6
     reg = simple_ICNNPrior(in_channels=1, channels=32, device=device, kernel_size=5).to(
         device
     )
@@ -87,7 +88,8 @@ elif regularizer_name == "IDCNN":
     adabelief = False
     epochs = 200
     lr = 1e-3
-    jacobian_regularization = False
+    jacobian_regularization = True
+    jacobian_regularization_parameter = 1e-5
     reg = simple_IDCNNPrior(
         in_channels=1, channels=32, device=device, kernel_size=5
     ).to(device)
@@ -302,4 +304,7 @@ regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
     adabelief=adabelief,
 )
 
-torch.save(regularizer.state_dict(), f"weights/IDCNN_jfb_8.pt")
+torch.save(
+    regularizer.state_dict(),
+    f"weights/{regularizer_name}_bilevel_{hypergradient_computation}_for_{problem}.pt",
+)
