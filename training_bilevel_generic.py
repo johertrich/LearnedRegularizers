@@ -36,10 +36,10 @@ else:
 
 problem = "Denoising"  # Denoising or CT
 hypergradient_computation = "IFT"  # IFT or JFB
-regularizer_name = "LSR"  # CRR, WCRR, ICNN, IDCNN, TDV or LSR
-load_pretrain = True  # load pretrained weights given that they exist
+regularizer_name = "WCRR"  # CRR, WCRR, ICNN, IDCNN, TDV or LSR
+load_pretrain = False  # load pretrained weights given that they exist
 load_parameter_fitting = (
-    True  # load pretrained weights and learned regularization and scaling parameter
+    False  # load pretrained weights and learned regularization and scaling parameter
 )
 score_sigma = 3e-2
 
@@ -48,21 +48,23 @@ if regularizer_name == "CRR":
     pretrain_lr = 1e-2
     fitting_lr = 0.1
     epochs = 100
-    lr = 1e-2
-    adabelief = False
-    jacobian_regularization = False
+    lr = 1e-3
+    adabelief = True
+    jacobian_regularization = True
+    jacobian_regularization_parameter = 1e-6
     reg = WCRR(
         sigma=0.1,
         weak_convexity=0.0,
     ).to(device)
 elif regularizer_name == "WCRR":
     pretrain_epochs = 300
-    pretrain_lr = 1e-1
+    pretrain_lr = 1e-2
     fitting_lr = 0.1
-    adabelief = False
+    adabelief = True
     epochs = 100
-    lr = 5e-3
-    jacobian_regularization = False
+    lr = 1e-3
+    jacobian_regularization = True
+    jacobian_regularization_parameter = 1e-6
     reg = WCRR(
         sigma=0.1,
         weak_convexity=1.0,
@@ -201,6 +203,8 @@ if load_pretrain and not load_parameter_fitting:
 elif not load_parameter_fitting:
     for p in regularizer.parameters():
         p.requires_grad_(True)
+    if regularizer_name == "WCRR":
+        regularizer.alpha.requires_grad_(False)
     (
         regularizer,
         loss_train,
@@ -237,6 +241,9 @@ else:
         p.requires_grad_(False)
     regularizer.alpha.requires_grad_(True)
     regularizer.scale.requires_grad_(True)
+    if regularizer_name == "WCRR":
+        regularizer.alpha.requires_grad_(True)
+        regularizer.regularizer.beta.requires_grad_(True)
     regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
         regularizer,
         physics,
@@ -266,6 +273,8 @@ else:
 
 for p in regularizer.parameters():
     p.requires_grad_(True)
+if regularizer_name == "WCRR":
+    regularizer.alpha.requires_grad_(False)
 
 if not jacobian_regularization:
     jacobian_regularization_parameter = 0.0
