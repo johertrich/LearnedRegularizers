@@ -36,8 +36,8 @@ else:
     device = "cpu"
 
 problem = "Denoising"  # Denoising or CT
-hypergradient_computation = "IFT"  # IFT or JFB
-regularizer_name = "IDCNN"  # CRR, WCRR, ICNN, IDCNN, TDV or LSR
+hypergradient_computation = "JFB"  # IFT or JFB
+regularizer_name = "CRR"  # CRR, WCRR, ICNN, IDCNN, TDV or LSR
 load_pretrain = True  # load pretrained weights given that they exist
 load_parameter_fitting = (
     False  # load pretrained weights and learned regularization and scaling parameter
@@ -103,13 +103,15 @@ elif regularizer_name == "LAR":
     lr = 1e-3
     jacobian_regularization = True
     jacobian_regularization_parameter = 1e-5
-    regularizer = LocalAR(
+    reg = LocalAR(
         in_channels=1,
         pad=True,
         use_bias=False,
         n_patches=-1,
         normalise_grad=False,
-        pretrained="weights/LocalAR_bilevel_IFT_p=15x15_BSD500.pt",
+        reduction="sum",
+        output_factor=1 / 142**2,
+        pretrained=None,
     ).to(device)
 elif regularizer_name == "TDV":
     pretrain_epochs = 5000

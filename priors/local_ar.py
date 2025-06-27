@@ -1,5 +1,5 @@
 """
-Local (patch-based) Adversarial regulariser 
+Local (patch-based) Adversarial regulariser
 """
 
 from deepinv.optim import Prior
@@ -31,7 +31,6 @@ class cnn(nn.Module):
             nn.Conv2d(32, 1, kernel_size=3, stride=1, padding=0, bias=use_bias),
         )
 
-
     def forward(self, image):
         output = self.convnet(image)  # .squeeze().unsqueeze(-1)
         return output
@@ -51,19 +50,24 @@ class LocalAR(Prior):
         device="cpu",
         pretrained=None,
         use_bias=True,
+        reduction="mean",
+        output_factor=1.0,
         normalise_grad=False,
     ):
         super(LocalAR, self).__init__()
 
         self.device = device
         self.normalise_grad = normalise_grad
-
+        self.reduction = reduction
+        self.output_factor = output_factor
         self.cnn = cnn(in_channels=in_channels, use_bias=use_bias)
         self.cnn.to(self.device)
 
         if pretrained is not None:
             try:
-                self.cnn.load_state_dict(torch.load(pretrained, map_location=self.device))
+                self.cnn.load_state_dict(
+                    torch.load(pretrained, map_location=self.device)
+                )
             except RuntimeError:
                 # sometimes I save the wrong state_dict, i.e., cnn.convnet.0.weight instead of convnet.0.weight
                 self.load_state_dict(torch.load(pretrained, map_location=self.device))
@@ -100,11 +104,14 @@ class LocalAR(Prior):
             )
 
         if self.n_patches == -1:
-            #print("x.shape ", x.shape)
-            out = self.cnn(x).mean([1, 2, 3])
+            # print("x.shape ", x.shape)
+            if self.reduction == "mean":
+                out = self.cnn(x).mean([1, 2, 3])
+            else:
+                out = self.cnn(x).sum([1, 2, 3])
             # .mean([1,2,3]).unsqueeze(-1)
             patches, linear_inds = patch_extractor(x, self.n_patches, self.patch_size)
-            #print(patches.shape, linear_inds.shape, out.shape)
+            # print(patches.shape, linear_inds.shape, out.shape)
         else:
             patches, linear_inds = patch_extractor(x, self.n_patches, self.patch_size)
             B, n_patches = patches.shape[0:2]
@@ -115,8 +122,12 @@ class LocalAR(Prior):
                 )
             )
             out = out.view(B, n_patches, 1)
-            out = out.mean(1)
+            if self.reduction == "mean":
+                out = out.mean(1)
+            else:
+                out = out.sum(1)
 
+        out = out * self.output_factor
         if return_patch_per_pixel:
             patch_per_pixel = torch.zeros(*x.shape[1:], device=x.device).reshape(-1)
             patch_per_pixel.index_put_(
@@ -126,7 +137,7 @@ class LocalAR(Prior):
 
             return out, patch_per_pixel.unsqueeze(0)
         else:
-            return out#.squeeze()
+            return out  # .squeeze()
 
     def grad(self, x, *args, **kwargs):
         r"""
