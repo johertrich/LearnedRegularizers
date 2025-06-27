@@ -11,6 +11,7 @@ from priors import (
     simple_IDCNNPrior,
     LSR,
     TDV,
+    LocalAR,
 )
 from torchvision.transforms import (
     RandomCrop,
@@ -37,7 +38,7 @@ else:
 problem = "Denoising"  # Denoising or CT
 hypergradient_computation = "IFT"  # IFT or JFB
 regularizer_name = "IDCNN"  # CRR, WCRR, ICNN, IDCNN, TDV or LSR
-load_pretrain = False  # load pretrained weights given that they exist
+load_pretrain = True  # load pretrained weights given that they exist
 load_parameter_fitting = (
     False  # load pretrained weights and learned regularization and scaling parameter
 )
@@ -84,14 +85,31 @@ elif regularizer_name == "ICNN":
 elif regularizer_name == "IDCNN":
     pretrain_epochs = 300
     pretrain_lr = 1e-3
-    fitting_lr = 0.1
-    adabelief = False
+    fitting_lr = 0.05
+    adabelief = True
     epochs = 200
     lr = 1e-3
     jacobian_regularization = True
     jacobian_regularization_parameter = 1e-5
     reg = simple_IDCNNPrior(
         in_channels=1, channels=32, device=device, kernel_size=5
+    ).to(device)
+elif regularizer_name == "LAR":
+    pretrain_epochs = 300
+    pretrain_lr = 1e-3
+    fitting_lr = 0.05
+    adabelief = True
+    epochs = 200
+    lr = 1e-3
+    jacobian_regularization = True
+    jacobian_regularization_parameter = 1e-5
+    regularizer = LocalAR(
+        in_channels=1,
+        pad=True,
+        use_bias=False,
+        n_patches=-1,
+        normalise_grad=False,
+        pretrained="weights/LocalAR_bilevel_IFT_p=15x15_BSD500.pt",
     ).to(device)
 elif regularizer_name == "TDV":
     pretrain_epochs = 5000
