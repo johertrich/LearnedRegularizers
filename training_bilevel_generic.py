@@ -85,12 +85,12 @@ elif regularizer_name == "ICNN":
 elif regularizer_name == "IDCNN":
     pretrain_epochs = 300
     pretrain_lr = 1e-3
-    fitting_lr = 0.05
+    fitting_lr = 0.01
     adabelief = True
     epochs = 200
     lr = 1e-3
-    jacobian_regularization = True
-    jacobian_regularization_parameter = 1e-5
+    jacobian_regularization = False
+    jacobian_regularization_parameter = 1e-6
     reg = simple_IDCNNPrior(
         in_channels=1, channels=32, device=device, kernel_size=5
     ).to(device)
@@ -110,17 +110,17 @@ elif regularizer_name == "LAR":
         n_patches=-1,
         normalise_grad=False,
         reduction="sum",
-        output_factor=1 / 142**2,
+        output_factor=1 / 142 ** 2,
         pretrained=None,
     ).to(device)
 elif regularizer_name == "TDV":
-    pretrain_epochs = 5000
-    pretrain_lr = 1e-3
-    fitting_lr = 0.1
+    pretrain_epochs = 7500
+    pretrain_lr = 4e-4
+    fitting_lr = 0.005
     epochs = 200
     adabelief = True
-    lr = 1e-3
-    jacobian_regularization_parameter = 5e-4
+    lr = 1e-4
+    jacobian_regularization_parameter = 1e-4
     jacobian_regularization = True
     config = dict(
         in_channels=1,
@@ -227,6 +227,9 @@ elif not load_parameter_fitting:
         p.requires_grad_(True)
     if regularizer_name == "WCRR":
         regularizer.alpha.requires_grad_(False)
+    if regularizer_name == "IDCNN":
+        regularizer.alpha.requires_grad_(False)
+        regularizer.scale.requires_grad_(False)
     (
         regularizer,
         loss_train,
@@ -244,7 +247,7 @@ elif not load_parameter_fitting:
         device=device,
         validation_epochs=20,
         logger=logger,
-        adabelief=True,
+        adabelief=adabelief,
         # loss_fn=lambda x,y:torch.abs(x-y).sum()
     )
     torch.save(
