@@ -114,13 +114,13 @@ elif regularizer_name == "LAR":
         pretrained=None,
     ).to(device)
 elif regularizer_name == "TDV":
-    pretrain_epochs = 5000
-    pretrain_lr = 1e-3
-    fitting_lr = 0.1
+    pretrain_epochs = 7500
+    pretrain_lr = 4e-4
+    fitting_lr = 0.005
     epochs = 200
     adabelief = True
-    lr = 1e-3
-    jacobian_regularization_parameter = 5e-4
+    lr = 1e-4
+    jacobian_regularization_parameter = 1e-4
     jacobian_regularization = True
     config = dict(
         in_channels=1,
