@@ -110,7 +110,7 @@ elif regularizer_name == "LAR":
         n_patches=-1,
         normalise_grad=False,
         reduction="sum",
-        output_factor=1 / 142**2,
+        output_factor=1 / 142 ** 2,
         pretrained=None,
     ).to(device)
 elif regularizer_name == "TDV":
