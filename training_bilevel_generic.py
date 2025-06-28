@@ -37,7 +37,7 @@ else:
 
 problem = "Denoising"  # Denoising or CT
 hypergradient_computation = "JFB"  # IFT or JFB
-regularizer_name = "CRR"  # CRR, WCRR, ICNN, IDCNN, TDV or LSR
+regularizer_name = "LSR"  # CRR, WCRR, ICNN, IDCNN, TDV or LSR
 load_pretrain = True  # load pretrained weights given that they exist
 load_parameter_fitting = (
     False  # load pretrained weights and learned regularization and scaling parameter
