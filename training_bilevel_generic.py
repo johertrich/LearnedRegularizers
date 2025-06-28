@@ -37,8 +37,8 @@ else:
 
 problem = "Denoising"  # Denoising or CT
 hypergradient_computation = "JFB"  # IFT or JFB
-regularizer_name = "CRR"  # CRR, WCRR, ICNN, IDCNN, TDV or LSR
-load_pretrain = True  # load pretrained weights given that they exist
+regularizer_name = "IDCNN"  # CRR, WCRR, ICNN, IDCNN, TDV or LSR
+load_pretrain = False  # load pretrained weights given that they exist
 load_parameter_fitting = (
     False  # load pretrained weights and learned regularization and scaling parameter
 )
@@ -85,12 +85,12 @@ elif regularizer_name == "ICNN":
 elif regularizer_name == "IDCNN":
     pretrain_epochs = 300
     pretrain_lr = 1e-3
-    fitting_lr = 0.05
+    fitting_lr = 0.01
     adabelief = True
     epochs = 200
     lr = 1e-3
-    jacobian_regularization = True
-    jacobian_regularization_parameter = 1e-5
+    jacobian_regularization = False
+    jacobian_regularization_parameter = 1e-6
     reg = simple_IDCNNPrior(
         in_channels=1, channels=32, device=device, kernel_size=5
     ).to(device)
@@ -227,6 +227,9 @@ elif not load_parameter_fitting:
         p.requires_grad_(True)
     if regularizer_name == "WCRR":
         regularizer.alpha.requires_grad_(False)
+    if regularizer_name == "IDCNN":
+        regularizer.alpha.requires_grad_(False)
+        regularizer.scale.requires_grad_(False)
     (
         regularizer,
         loss_train,
@@ -244,7 +247,7 @@ elif not load_parameter_fitting:
         device=device,
         validation_epochs=20,
         logger=logger,
-        adabelief=True,
+        adabelief=adabelief,
         # loss_fn=lambda x,y:torch.abs(x-y).sum()
     )
     torch.save(
