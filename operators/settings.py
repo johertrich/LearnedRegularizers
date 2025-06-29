@@ -4,7 +4,7 @@ from dataset import get_dataset
 import torch
 
 
-def get_evaluation_setting(problem, device, root):
+def get_evaluation_setting(problem, device, root=None):
     physics, data_fidelity = get_operator(problem, device)
     if problem == "Denoising":
         dataset = get_dataset("BSD68")
@@ -25,7 +25,7 @@ def get_operator(problem, device):
             img_width=362,
             circle=False,
             device=device,
-            noise_model=GaussianNoise(sigma=noise_level)
+            noise_model=GaussianNoise(sigma=noise_level),
         )
 
         def fbp(y):
