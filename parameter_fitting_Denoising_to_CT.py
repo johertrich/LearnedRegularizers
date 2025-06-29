@@ -1,4 +1,12 @@
-from priors import ParameterLearningWrapper
+from priors import (
+    ParameterLearningWrapper,
+    WCRR,
+    simple_ICNNPrior,
+    simple_IDCNNPrior,
+    LSR,
+    TDV,
+    LocalAR,
+)
 from training_methods import bilevel_training
 import torch
 from operators import get_evaluation_setting
@@ -81,17 +89,17 @@ if (
     regularizer = ParameterLearningWrapper(reg, device=device)
     if evaluation_mode == "Score":
         weights = torch.load(
-            f"weights/score_parameter_fitting_for_{problem}/{regularizer_name}_fitted_parameters_with_IFT_for_{problem}.pt",
+            f"weights/score_parameter_fitting_for_Denoising/{regularizer_name}_fitted_parameters_with_IFT_for_Denoising.pt",
             map_location=device,
         )
     elif evaluation_mode == "bilevel-IFT":
         weights = torch.load(
-            f"weights/bilevel_{problem}/{regularizer_name}_bilevel_IFT_for_{problem}.pt",
+            f"weights/bilevel_Denoising/{regularizer_name}_bilevel_IFT_for_Denoising.pt",
             map_location=device,
         )
     elif evaluation_mode == "bilevel-JFB":
         weights = torch.load(
-            f"weights/bilevel_{problem}/{regularizer_name}_bilevel_JFB_for_{problem}.pt",
+            f"weights/bilevel_Denoising/{regularizer_name}_bilevel_JFB_for_Denoising.pt",
             map_location=device,
         )
     regularizer.load_state_dict(weights)
@@ -111,7 +119,7 @@ else:
 
 if not os.path.isdir("weights"):
     os.mkdir("weights")
-if not os.path.isdir(f"weights/score_for_{problem}"):
+if not os.path.isdir(f"weights/Denoising_to_CT"):
     os.mkdir(f"weights/Denoising_to_CT")
 
 dataset, physics, data_fidelity = get_evaluation_setting(problem, device)
@@ -121,7 +129,7 @@ validation_dataloader = torch.utils.data.DataLoader(
     validation_dataset, batch_size=5, shuffle=False, drop_last=False, num_workers=8
 )
 
-if isinstance(wrapped_regularizer, ParameterLearningWrapper):
+if isinstance(regularizer, ParameterLearningWrapper):
     wrapped_regularizer = regularizer
 else:
     wrapped_regularizer = ParameterLearningWrapper(regularizer, device=device)
