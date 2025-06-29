@@ -1,4 +1,4 @@
-# An attempt for a bilevel script which works for all architectures
+# Training script for the columns BL+IFT, BL+JFB and ML for CRR, WCRR, ICNN, IDCNN, LAR, TDV and LSR
 
 import torch
 from training_methods import bilevel_training, score_training
@@ -27,6 +27,7 @@ import logging
 import datetime
 from tqdm import tqdm
 import numpy as np
+import os
 
 if torch.cuda.is_available():
     device = "cuda"
@@ -35,9 +36,10 @@ elif torch.backends.mps.is_available():
 else:
     device = "cpu"
 
+
 problem = "Denoising"  # Denoising or CT
 hypergradient_computation = "JFB"  # IFT or JFB
-regularizer_name = "LSR"  # CRR, WCRR, ICNN, IDCNN, TDV or LSR
+regularizer_name = "LSR"  # CRR, WCRR, ICNN, IDCNN, LAR, TDV or LSR
 load_pretrain = True  # load pretrained weights given that they exist
 load_parameter_fitting = (
     False  # load pretrained weights and learned regularization and scaling parameter
@@ -110,7 +112,7 @@ elif regularizer_name == "LAR":
         n_patches=-1,
         normalise_grad=False,
         reduction="sum",
-        output_factor=1 / 142 ** 2,
+        output_factor=1 / 142**2,
         pretrained=None,
     ).to(device)
 elif regularizer_name == "TDV":
@@ -161,6 +163,14 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s: %(message)s",
 )
+if not os.path.isdir("weights"):
+    os.mkdir("weights")
+if not os.path.isdir(f"weights/score_for_{problem}"):
+    os.mkdir(f"weights/score_for_{problem}")
+if not os.path.isdir(f"weights/score_parameter_fitting_for_{problem}"):
+    os.mkdir(f"weights/score_parameter_fitting_for_{problem}")
+if not os.path.isdir(f"weights/bilevel_{problem}"):
+    os.mkdir(f"weights/bilevel_{problem}")
 
 params = 0
 for p in regularizer.parameters():
@@ -220,7 +230,9 @@ pretrain_dataloader = torch.utils.data.DataLoader(
 
 if load_pretrain and not load_parameter_fitting:
     regularizer.load_state_dict(
-        torch.load(f"weights/{regularizer_name}_score_training_for_{problem}.pt")
+        torch.load(
+            f"weights/score_for_{problem}/{regularizer_name}_score_training_for_{problem}.pt"
+        )
     )
 elif not load_parameter_fitting:
     for p in regularizer.parameters():
@@ -252,13 +264,13 @@ elif not load_parameter_fitting:
     )
     torch.save(
         regularizer.state_dict(),
-        f"weights/{regularizer_name}_score_training_for_{problem}.pt",
+        f"weights/score_for_{problem}/{regularizer_name}_score_training_for_{problem}.pt",
     )
 
 if load_parameter_fitting:
     regularizer.load_state_dict(
         torch.load(
-            f"weights/{regularizer_name}_fitted_parameters_with_{hypergradient_computation}_for_{problem}.pt"
+            f"weights/score_parameter_fitting_for_{problem}/{regularizer_name}_fitted_parameters_with_{hypergradient_computation}_for_{problem}.pt"
         )
     )
 else:
@@ -291,7 +303,7 @@ else:
     )
     torch.save(
         regularizer.state_dict(),
-        f"weights/{regularizer_name}_fitted_parameters_with_{hypergradient_computation}_for_{problem}.pt",
+        f"weights/score_parameter_fitting_for_{problem}/{regularizer_name}_fitted_parameters_with_{hypergradient_computation}_for_{problem}.pt",
     )
 
 # bilevel training
@@ -329,5 +341,5 @@ regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
 
 torch.save(
     regularizer.state_dict(),
-    f"weights/{regularizer_name}_bilevel_{hypergradient_computation}_for_{problem}.pt",
+    f"weights/bilevel_{problem}/{regularizer_name}_bilevel_{hypergradient_computation}_for_{problem}.pt",
 )
