@@ -32,6 +32,7 @@ problem = "CT"
 regularizer_name = inp.regularizer_name
 evaluation_mode = inp.evaluation_mode
 load_fitted_parameters = inp.load_fitted_parameters
+mode = "IFT"
 
 lmbd_initial_guess = 60
 
@@ -86,6 +87,8 @@ if (
     or evaluation_mode == "bilevel-JFB"
     or evaluation_mode == "Score"
 ):
+    if regularizer_name == "IDCNN":
+        mode = "JFB"
     regularizer = ParameterLearningWrapper(reg, device=device)
     if evaluation_mode == "Score":
         weights = torch.load(
@@ -156,7 +159,7 @@ else:
         validation_dataloader,
         validation_dataloader,
         epochs=100,
-        mode="IFT",
+        mode=mode,
         NAG_step_size=1e-1,
         NAG_max_iter=1000,
         NAG_tol_train=1e-4,
