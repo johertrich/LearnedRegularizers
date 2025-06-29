@@ -14,6 +14,7 @@ from deepinv.utils.plotting import plot
 from evaluation import evaluate
 from dataset import get_dataset
 from operators import get_evaluation_setting
+import argparse
 
 if torch.cuda.is_available():
     device = "cuda"
@@ -21,11 +22,19 @@ elif torch.backends.mps.is_available():
     device = "mps"
 else:
     device = "cpu"
+torch.random.manual_seed(0)  # make results deterministic
 
-problem = "Denoising"  # Denoising or CT
-evaluation_mode = "IFT"  # IFT, JFB or Score
-regularizer_name = "CRR"  # CRR, WCRR, ICNN, IDCNN, LAR, TDV or LSR
-only_first = False
+parser = argparse.ArgumentParser(description="Choosing evaluation setting")
+parser.add_argument("--problem", type=str, default="Denoising")
+parser.add_argument("--evaluation_mode", type=str, default="IFT")
+parser.add_argument("--regularizer_name", type=str, default="CRR")
+parser.add_argument("--only_first", type=bool, default=False)
+inp=parser.parse_args()
+
+problem = inp.problem  # Denoising or CT
+evaluation_mode = inp.evaluation_mode  # IFT, JFB or Score
+regularizer_name = inp.regularizer_name # CRR, WCRR, ICNN, IDCNN, LAR, TDV or LSR
+only_first = inp.only_first
 
 
 if regularizer_name == "CRR":
@@ -71,7 +80,7 @@ elif regularizer_name == "TDV":
     reg = TDV(**config).to(device)
 elif regularizer_name == "LSR":
     reg = LSR(
-        nc=[32, 64, 128, 256], pretrained_denoiser=False, alpha=1.0, sigma=score_sigma
+        nc=[32, 64, 128, 256], pretrained_denoiser=False, alpha=1.0, sigma=3e-2
     ).to(device)
 
 regularizer = ParameterLearningWrapper(reg, device=device)
@@ -83,7 +92,7 @@ NAG_tol = 1e-4  # tolerance for the relative error (stopping criterion)
 
 if evaluation_mode == "Score":
     weights = torch.load(
-        "weights/score_parameter_fitting_for_{problem}/{regularizer_name}_fitted_parameters_with_IFT_for_{problem}.pt",
+        f"weights/score_parameter_fitting_for_{problem}/{regularizer_name}_fitted_parameters_with_IFT_for_{problem}.pt",
         map_location=device,
     )
 else:
@@ -106,7 +115,7 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
     NAG_tol=NAG_tol,
     only_first=only_first,
     device=device,
-    verbose=False,
+    verbose=True,
 )
 
 # plot ground truth, observation and reconstruction for the first image from the test dataset
