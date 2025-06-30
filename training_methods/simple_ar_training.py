@@ -1,17 +1,10 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Feb 26th 2025
-
-@author: Zakobian
-"""
-
 import torch
 import copy
 import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
 import numpy as np
-from evaluation import evaluate
+from evaluation import reconstruct_nmAPG
 from dataset import get_dataset
 from torchvision.transforms import CenterCrop, RandomCrop
 from deepinv.utils import patch_extractor
@@ -67,7 +60,7 @@ def simple_ar_training(
     device="cuda" if torch.cuda.is_available() else "cpu",
     mu = 10.0,
     dynamic_range_psnr=False,
-    save_str=None,
+    savestr=None,
     logger=None,
 ):
     assert validation_epochs <= epochs, (
@@ -75,6 +68,11 @@ def simple_ar_training(
         "If validation_epochs > epochs, no validation will occur, "
         "best_regularizer_state will remain unchanged, and the returned model will be identical to the initial state."
     )
+    
+    NAG_step_size=1e-1
+    NAG_max_iter=1000
+    NAG_tol_train=1e-4
+    NAG_tol_val=1e-4
 
     if dynamic_range_psnr:
         psnr = PSNR(max_pixel=None)
@@ -106,7 +104,7 @@ def simple_ar_training(
         print(print_str)
         if logger is not None:
             logger.info(print_str)
-
+        best_val_psnr=-999
         if (epoch + 1) % validation_epochs == 0:
             regularizer.eval()
             with torch.no_grad():
@@ -128,15 +126,14 @@ def simple_ar_training(
                         NAG_step_size,
                         NAG_max_iter,
                         NAG_tol_val,
-                        verbose=verbose,
+                        verbose=False,
                         x_init=x_val_noisy,
                     )
 
                     val_psnr_epoch += psnr(x_recon_val, x_val).mean().item()
 
                 mean_val_psnr = val_psnr_epoch / len(val_dataloader)
-                psnr_val.append(mean_val_psnr)
-                print_str = f"[Epoch {epoch+1}] Val Loss: {mean_val_loss:.2E}, PSNR: {mean_val_psnr:.2f}"
+                print_str = f"[Epoch {epoch+1}] PSNR: {mean_val_psnr:.2f}"
                 print(print_str)
 
                 if savestr is not None:
@@ -155,8 +152,7 @@ def simple_ar_training(
     # Load best regularizer
     regularizer.load_state_dict(best_regularizer_state)
 
-    return regularizer, loss_train, loss_val, psnr_train, psnr_val
-
+    return regularizer
 
 # Training function for the LocalAR
 def simple_lar_training(
