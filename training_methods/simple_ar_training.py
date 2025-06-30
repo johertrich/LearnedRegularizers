@@ -59,7 +59,6 @@ def estimate_lmbd(dataset,physics,device):
             y = physics(x) ##Ax+e
             noise = y - physics.A(x)
             residual += torch.norm(physics.A_adjoint(noise),dim=(-2,-1)).mean()
-            # residual += torch.sqrt(torch.sum((x_noisy-x)**2))
         lmbd = residual/(len(dataset))
     print('Estimated lambda: ' + str(lmbd))
     return lmbd
@@ -80,57 +79,34 @@ def simple_ar_training(
 ):
     adversarial_loss = WGAN_loss
     regularizer.to(device)
+    regularizer.train()
     # optimizer = torch.optim.Adam(regularizer.parameters(), lr=lr)
     optimizer = torch.optim.RMSprop(regularizer.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=lr_decay, patience=2)
-    
-    if physics.__class__.__name__ == "Tomography":
-        val_data = val_dataloader.dataset
-    else:
-        val_data = val_dataloader.dataset
+
+    val_data = val_dataloader.dataset
+    if physics.__class__.__name__ == "denoising":
         new_val_data = get_dataset("BSD68")
-    regularizer.train()
-    if physics.__class__.__name__ == "Tomography":
-        NAG_step_size = 1e-2  # step size in NAG
-        NAG_max_iter = 500  # maximum number of iterations in NAG
-        NAG_tol = 1e-4  # tolerance for therelative error (stopping criterion)
-        only_first = False
-    else:
-        NAG_step_size = 1e-1  # step size in NAG
-        NAG_max_iter = 500  # maximum number of iterations in NAG
-        NAG_tol = 1e-4  # tolerance for therelative error (stopping criterion)
-        only_first = False
-    def eval_routine(val,lmbd_to_use=None):
-        if lmbd_to_use is None:                
-            mean_psnr, x_out, y_out, recon_out = evaluate(
-                        physics=physics,
-                        data_fidelity=data_fidelity,
-                        dataset=val,  # Access only the dataset of the dataloader
-                        regularizer=regularizer,
-                        lmbd=lmbd,
-                        NAG_step_size=NAG_step_size,
-                        NAG_max_iter=NAG_max_iter,
-                        NAG_tol=NAG_tol,
-                        only_first=only_first,
-                        adaptive_range=True if physics.__class__.__name__ == "Tomography" else False,
-                        device=device,
-                        verbose=False,
-            )
-        else: 
-            mean_psnr, x_out, y_out, recon_out = evaluate(
-                        physics=physics,
-                        data_fidelity=data_fidelity,
-                        dataset=val,  # Access only the dataset of the dataloader
-                        regularizer=regularizer,
-                        lmbd=lmbd_to_use,
-                        NAG_step_size=NAG_step_size,
-                        NAG_max_iter=NAG_max_iter,
-                        NAG_tol=NAG_tol,
-                        only_first=only_first,
-                        adaptive_range=True if physics.__class__.__name__ == "Tomography" else False,
-                        device=device,
-                        verbose=False,
-            )
+    
+    NAG_step_size = 1e-1  # step size in NAG
+    NAG_max_iter = 500  # maximum number of iterations in NAG
+    NAG_tol = 1e-4  # tolerance for therelative error (stopping criterion)
+    only_first = False
+    def eval_routine(val,lmbd_eval=lmbd):
+        mean_psnr, x_out, y_out, recon_out = evaluate(
+                    physics=physics,
+                    data_fidelity=data_fidelity,
+                    dataset=val,  # Access only the dataset of the dataloader
+                    regularizer=regularizer,
+                    lmbd=lmbd_eval,
+                    NAG_step_size=NAG_step_size,
+                    NAG_max_iter=NAG_max_iter,
+                    NAG_tol=NAG_tol,
+                    only_first=only_first,
+                    adaptive_range=True if physics.__class__.__name__ == "Tomography" else False,
+                    device=device,
+                    verbose=False,
+        )
         for p in regularizer.parameters():
             p.requires_grad_(True)
         return mean_psnr, x_out, y_out, recon_out
