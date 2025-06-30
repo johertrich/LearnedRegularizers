@@ -27,10 +27,7 @@ def WGAN_loss(regularizer, images, images_gt,mu=10):
     # with torch.enable_grad():
     alpha = torch.rand(real_samples.size(0), 1, 1, 1).type_as(real_samples)
     interpolates = (alpha * real_samples + ((1 - alpha) * fake_samples)).requires_grad_(True)
-    net_interpolates = regularizer.g(interpolates)
-    if (len(net_interpolates.shape) == 1):
-        net_interpolates = net_interpolates.view(-1, 1)
-    gradients = regularizer.grad(net_interpolates)
+    gradients = regularizer.grad(interpolates)
     gradients = gradients.view(gradients.size(0), -1)
     data_loss = regularizer.g(real_samples).mean() - regularizer.g(fake_samples).mean()
     grad_loss = mu*(torch.clip(gradients.norm(2, dim=1) - 1, min=0.) ** 2).mean()
