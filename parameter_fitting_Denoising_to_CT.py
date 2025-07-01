@@ -32,8 +32,10 @@ problem = "CT"
 regularizer_name = inp.regularizer_name
 evaluation_mode = inp.evaluation_mode
 load_fitted_parameters = inp.load_fitted_parameters
+mode = "IFT"
 
 lmbd_initial_guess = 60
+lr=0.1
 
 if regularizer_name == "CRR":
     reg = WCRR(
@@ -86,6 +88,10 @@ if (
     or evaluation_mode == "bilevel-JFB"
     or evaluation_mode == "Score"
 ):
+    if regularizer_name == "IDCNN" or "LAR":
+        mode = "JFB"
+    if regularizer_name == "LSR":
+        lr=0.01
     regularizer = ParameterLearningWrapper(reg, device=device)
     if evaluation_mode == "Score":
         weights = torch.load(
@@ -156,12 +162,12 @@ else:
         validation_dataloader,
         validation_dataloader,
         epochs=100,
-        mode="IFT",
+        mode=mode,
         NAG_step_size=1e-1,
         NAG_max_iter=1000,
         NAG_tol_train=1e-4,
         NAG_tol_val=1e-4,
-        lr=0.1,
+        lr=lr,
         lr_decay=0.999,
         device=device,
         verbose=False,
@@ -180,6 +186,7 @@ only_first = False
 wrapped_regularizer.alpha.requires_grad_(False)
 wrapped_regularizer.scale.requires_grad_(False)
 torch.random.manual_seed(0)  # make results deterministic
+print(lmbd_initial_guess)
 
 mean_psnr, x_out, y_out, recon_out = evaluate(
     physics=physics,
