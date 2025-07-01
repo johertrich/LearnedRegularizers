@@ -116,7 +116,7 @@ elif evaluation_mode == "AR":
     elif regularizer_name == "ICNN":
         pretrained = "./weights/simple_simple_ICNNPrior_ar_Denoising.pt"
         cpk = torch.load(pretrained, map_location=device)
-        regularizer.load_state_dict(ckp)
+        regularizer.load_state_dict(cpk)
     else:
         raise ValueError(f"no configuration for AR with regularizer {regularizer_name}")
 else:

@@ -215,8 +215,10 @@ def bilevel_training(
                         physics,
                     ),
                     grad_loss,
+                    init=grad_loss,
                     max_iter=minres_max_iter,
                     tol=minres_tol,
+                    verbose=True
                 )
 
                 regularizer = jac_vector_product(
@@ -233,6 +235,7 @@ def bilevel_training(
             else:
                 raise NameError("unknwon mode!")
             optimizer.step()
+            print("alpha: ", regularizer.alpha.item(), " scale: ", regularizer.scale.item())
             if logger is not None and train_step % 10 == 0:
                 logger.info(
                     f"Step {train_step}, Train PSNR {train_psnr_epoch/train_step}"

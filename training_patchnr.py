@@ -49,7 +49,7 @@ verbose = True
 train_dataset = PatchDataset(train_imgs, patch_size=patch_size, transforms=None)
 
 patchnr_subnetsize = 512
-patchnr_epochs = 10
+patchnr_epochs = 20
 patchnr_batch_size = 1024
 patchnr_learning_rate = 5e-4
 
@@ -82,9 +82,7 @@ for epoch in range(patchnr_epochs):
 
             x = batch[0].to(device)
             x = x + 1/256. * torch.rand_like(x) # add small dequantisation noise
-            latent_x, logdet = patch_nr.normalizing_flow(
-                x
-            )  # x -> z (we never need the other direction)
+            latent_x, logdet = patch_nr.normalizing_flow(x)  # x -> z (we never need the other direction)
 
             # Compute the Kullback Leibler loss
             logpz = 0.5 * torch.sum(latent_x ** 2, -1)

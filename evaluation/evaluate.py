@@ -136,31 +136,6 @@ def evaluate_adam(
     save_png=False,
 ):
 
-    from types import MethodType
-    import copy
-
-    new_physics = copy.deepcopy(physics)
-
-    class OperatorFunction(torch.autograd.Function):
-        @staticmethod
-        def forward(ctx, operator, operator_adjoint, input):
-            # Save tensors for the backward pass
-            ctx.operator_adjoint = operator_adjoint
-            out = operator(input)
-            return out
-
-        @staticmethod
-        def backward(ctx, grad_output):
-
-            operator_adjoint = ctx.operator_adjoint
-            grad_input = operator_adjoint(grad_output)
-            return None, None, grad_input  # return `None` for the `operator` part
-
-    def new_forward(self, x):
-        return OperatorFunction.apply(new_physics.A, new_physics.A_adjoint, x)
-
-    physics.A = MethodType(new_forward, physics)
-
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
     if adaptive_range:
         psnr = PSNR(max_pixel=None)

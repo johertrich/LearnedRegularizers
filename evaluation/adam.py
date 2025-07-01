@@ -19,9 +19,6 @@ def reconstruct_adam(
 ):
     """wrapper for adam"""
 
-
-
-
     if x_init is not None:
         # User-defined initialization or warm start
         x = torch.clone(x_init).detach()
