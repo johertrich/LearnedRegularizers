@@ -33,7 +33,7 @@ if torch.backends.mps.is_available():
     # mps backend is used in Apple Silicon chips
     device = "mps"
 elif torch.cuda.is_available():
-    device = "cuda:1"
+    device = "cuda"
 else:
     device = "cpu"
 
