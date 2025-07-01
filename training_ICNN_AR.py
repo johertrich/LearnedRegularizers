@@ -73,7 +73,7 @@ test_ratio = 0.1
 test_len = int(len(dataset) * 0.1)
 train_len = len(dataset) - test_len
 train_set, val_set = torch.utils.data.random_split(dataset, [train_len, test_len])
-batch_size = 1
+batch_size = 8
 shuffle = True
 
 # create dataloaders
@@ -81,7 +81,7 @@ train_dataloader = torch.utils.data.DataLoader(
     train_set, batch_size=batch_size, shuffle=shuffle, drop_last=True
 )
 val_dataloader = torch.utils.data.DataLoader(
-    val_set, batch_size=8, shuffle=True, drop_last=True
+    val_set, batch_size=1, shuffle=True, drop_last=True
 )
 
 lmbd = estimate_lmbd(train_dataloader,physics,device)
@@ -96,15 +96,10 @@ simple_ar_training(
     train_dataloader,
     val_dataloader,
     device=device,
-    epochs=50,
+    epochs=1000,
+    validation_epochs=100,
     lr=1e-3,
-    lr_decay = 0.9,
+    lr_decay = 0.998,
     mu=10.0,
-    save_str=f"weights/simple_{regularizer.__class__.__name__}_ar_{problem}.pt"
 )
-# lr=1e-3,
-# lr_decay = 0.9,
-# mu=100.0,
-# torch.save(regularizer.state_dict(), f"weights/simple_{regularizer.__class__.__name__}_ar_{problem}.pt")
-
-
+torch.save(regularizer.state_dict(), f"weights/{regularizer.__class__.__name__}_ar_{problem}.pt")
