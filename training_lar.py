@@ -55,7 +55,8 @@ patch_size = 15
 
 regularizer = LocalAR(in_channels=1, pad=True, use_bias=True, n_patches=-1).to(device)
 
-lmbd = estimate_lmbd(train_set, physics, device="cuda").item()
+train_loader = torch.utils.data.DataLoader(train_set, batch_size=16)
+lmbd = estimate_lmbd(train_loader, physics, device="cuda").item()
 
 print("estimated : ", lmbd)
 dataset_name = "BSD500" if problem == "Denoising" else "LoDoPab"
@@ -70,12 +71,13 @@ simple_lar_training(
     val_set,
     patch_size=patch_size,
     device=device,
-    epochs=10,
+    epochs=40,
     lr=1e-3,
     mu=mu,
     batch_size=batch_size, 
-    save_str=f"{regularizer.__class__.__name__}_adversarial_p={patch_size}x{patch_size}_{dataset_name}",
-    dataset_name=dataset_name
+    savestr=f"{regularizer.__class__.__name__}_adversarial_p={patch_size}x{patch_size}_{dataset_name}",
+    validation_epochs=1,
+    dynamic_range_psnr = True if problem == "CT" else False 
 )
 
 torch.save(
