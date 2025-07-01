@@ -182,6 +182,7 @@ else:
         NAG_tol_train=1e-4,
         NAG_tol_val=1e-4,
         lr=lr,
+        momentum_optim=(0.5, 0.9),
         lr_decay=0.999,
         device=device,
         verbose=False,
