@@ -17,42 +17,48 @@ def WGAN_loss(regularizer, images, images_gt,mu=10):
     real_samples=images_gt
     fake_samples=images
     
-    # with torch.enable_grad():
     alpha = torch.rand(real_samples.size(0), 1, 1, 1).type_as(real_samples)
     interpolates = (alpha * real_samples + ((1 - alpha) * fake_samples)).requires_grad_(True)
-    gradients = regularizer.grad(interpolates)
-    gradients = gradients.view(gradients.size(0), -1)
+    grad_norm = torch.linalg.vector_norm(regularizer.grad(interpolates), dim=(1,2,3))
     data_loss = regularizer.g(real_samples).mean() - regularizer.g(fake_samples).mean()
-    grad_loss = mu*(torch.clip(gradients.norm(2, dim=1) - 1, min=0.) ** 2).mean()
+    grad_loss = mu*(torch.clip(grad_norm - 1, min=0.) ** 2).mean()
     return data_loss + grad_loss,  grad_loss
 
 def estimate_lmbd(dataset,physics,device):
-    lmbd=None
     if dataset is None: lmbd=1.0
     else: 
-        residual = 0.0
-        for x in tqdm(dataset, total=len(dataset)):
-            if isinstance(x, list):
-                x = x[0]
-
-            if device == "mps":
-                x = x.to(torch.float32).to(device)
-            else:
-                x = x.to(device).to(torch.float)
-            y = physics(x) ##Ax+e
-            noise = y - physics.A(x)
-            residual += torch.norm(physics.A_adjoint(noise),dim=(-2,-1)).mean()
-        lmbd = residual/(len(dataset))
-    print('Estimated lambda: ' + str(lmbd))
+        with torch.no_grad():
+            residual = 0.0
+            for x in tqdm(dataset, total=len(dataset)):
+                x = x.to(device)
+                y = physics(x) ##Ax+e
+                residual += torch.norm(physics.A_adjoint(y - physics.A(x)),dim=(-2,-1)).mean()
+            lmbd = residual/(len(dataset))
+        print('Estimated lambda: ' + str(lmbd.item()))
     return lmbd
+
+def estimate_lip (regularizer,dataset,device):
+    if dataset is None: lip=1.0
+    else:
+        with torch.no_grad():
+            lip_avg = torch.tensor(0.0, device=device)
+            lip_max = torch.tensor(0.0, device=device)
+            for x in tqdm(dataset, total=len(dataset)):
+                x = x.to(device)
+                gradients = torch.sqrt(torch.sum(regularizer.grad(x)**2))
+                lip_avg += gradients
+                lip_max = torch.max(lip_max, gradients)
+            lip_avg = lip_avg/len(dataset)
+        print('Lipschitz constant: Max ' + str(lip_max.item()) +  ' Avg ' + str(lip_avg.item()))
+    return lip_max
 
 def simple_ar_training(
     regularizer,
     physics,
     data_fidelity,
-    lmbd,
     train_dataloader,
     val_dataloader,
+    lmbd=None,
     epochs=1000,
     validation_epochs=100,
     lr=1e-3,
@@ -71,13 +77,15 @@ def simple_ar_training(
     
     NAG_step_size=1e-1
     NAG_max_iter=1000
-    NAG_tol_train=1e-4
     NAG_tol_val=1e-4
 
     if dynamic_range_psnr:
         psnr = PSNR(max_pixel=None)
     else:
         psnr = PSNR()
+
+    if lmbd == None:
+        lmbd = estimate_lmbd(val_dataloader,physics,device)
     
     adversarial_loss = WGAN_loss
     optimizer = torch.optim.Adam(regularizer.parameters(), lr=lr)
@@ -107,6 +115,7 @@ def simple_ar_training(
         best_val_psnr=-999
         if (epoch + 1) % validation_epochs == 0:
             regularizer.eval()
+            lip = estimate_lip(regularizer,val_dataloader,device)
             with torch.no_grad():
                 val_loss_epoch = 0
                 val_psnr_epoch = 0
@@ -122,7 +131,7 @@ def simple_ar_training(
                         physics,
                         data_fidelity,
                         regularizer,
-                        lmbd,
+                        lmbd/lip,
                         NAG_step_size,
                         NAG_max_iter,
                         NAG_tol_val,
