@@ -8,6 +8,7 @@ from deepinv.utils import patch_extractor
 import torch
 
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class cnn(nn.Module):
@@ -52,12 +53,10 @@ class LocalAR(Prior):
         use_bias=True,
         reduction="mean",
         output_factor=1.0,
-        normalise_grad=False,
     ):
         super(LocalAR, self).__init__()
 
         self.device = device
-        self.normalise_grad = normalise_grad
         self.reduction = reduction
         self.output_factor = output_factor
         self.cnn = cnn(in_channels=in_channels, use_bias=use_bias)
@@ -82,26 +81,10 @@ class LocalAR(Prior):
 
         :param torch.Tensor x: image tensor
         """
-        return_patch_per_pixel = kwargs.get("return_patch_per_pixel", False)
-        # print("RETURN EXTRA: ", return_patch_per_pixel)
 
         if self.pad:
-            x = torch.cat(
-                (
-                    torch.flip(x[:, :, -self.patch_size : -1, :].detach(), (2,)),
-                    x,
-                    torch.flip(x[:, :, 1 : self.patch_size, :].detach(), (2,)),
-                ),
-                2,
-            )
-            x = torch.cat(
-                (
-                    torch.flip(x[:, :, :, -self.patch_size : -1].detach(), (3,)),
-                    x,
-                    torch.flip(x[:, :, :, 1 : self.patch_size].detach(), (3,)),
-                ),
-                3,
-            )
+            pad = self.patch_size - 1
+            x = F.pad(x, (pad, pad, pad, pad), mode='replicate')
 
         if self.n_patches == -1:
             # print("x.shape ", x.shape)
@@ -109,11 +92,9 @@ class LocalAR(Prior):
                 out = self.cnn(x).mean([1, 2, 3])
             else:
                 out = self.cnn(x).sum([1, 2, 3])
-            # .mean([1,2,3]).unsqueeze(-1)
-            patches, linear_inds = patch_extractor(x, self.n_patches, self.patch_size)
-            # print(patches.shape, linear_inds.shape, out.shape)
+            
         else:
-            patches, linear_inds = patch_extractor(x, self.n_patches, self.patch_size)
+            patches, _ = patch_extractor(x, self.n_patches, self.patch_size)
             B, n_patches = patches.shape[0:2]
 
             out = self.cnn(
@@ -128,16 +109,8 @@ class LocalAR(Prior):
                 out = out.sum(1)
 
         out = out * self.output_factor
-        if return_patch_per_pixel:
-            patch_per_pixel = torch.zeros(*x.shape[1:], device=x.device).reshape(-1)
-            patch_per_pixel.index_put_(
-                (linear_inds,), torch.ones_like(patches[0]).view(-1), accumulate=True
-            )
-            patch_per_pixel = patch_per_pixel.reshape(x[0].shape)
-
-            return out, patch_per_pixel.unsqueeze(0)
-        else:
-            return out  # .squeeze()
+        
+        return out 
 
     def grad(self, x, *args, **kwargs):
         r"""
@@ -146,27 +119,13 @@ class LocalAR(Prior):
         :param torch.Tensor x: image tensor
         """
         with torch.enable_grad():
-            x.requires_grad_()
-
-            nll, patch_per_pixel = self.g(x, return_patch_per_pixel=True)
-            # print(nll)
+            x_ = x.clone()
+            x_.requires_grad_(True)
+            nll = self.g(x_)
             nll = nll.sum()
-            grad = torch.autograd.grad(outputs=nll, inputs=x, create_graph=True)[0]
-            # print(torch.sum(grad**2))
-            grad_norm = (patch_per_pixel + 1) / torch.max(patch_per_pixel)
-            if self.pad:
-                grad_norm = grad_norm[
-                    :, :, self.patch_size - 1 : -(self.patch_size - 1), :
-                ]
-                # Remove the columns added for horizontal padding
-                grad_norm = grad_norm[
-                    :, :, :, self.patch_size - 1 : -(self.patch_size - 1)
-                ]
-
-        if self.normalise_grad:
-            return grad / grad_norm
-        else:
-            return grad
+            grad = torch.autograd.grad(outputs=nll, inputs=x_, create_graph=True)[0]
+           
+        return grad
 
 
 if __name__ == "__main__":

@@ -21,8 +21,13 @@ from priors import LocalAR
 
 
 problem = "CT" # "CT"
-#pretrained_weights = "weights/LocalAR_bilevel_JFB_p=15x15_LoDoPab.pt"
-pretrained_weights = "weights/LocalAR_bilevel_IFT_p=15x15_BSD500.pt" #"weights/LocalAR_adversarial_p=15x15_BSD500.pt" # "weights/LocalAR_bilevel_IFT_p=15x15_BSD500.pt" #"LocalAR_adversarial_p=15x15_BSD500.pt"
+#pretrained_weights = "weights/LocalAR_adversarial_p=15x15_LoDoPab.pt"
+pretrained_weights = "weights/LocalAR_bilevel_JFB_p=15x15_LoDoPab.pt"
+#pretrained_weights = "weights/LocalAR_bilevel_IFT_p=15x15_LoDoPab.pt"
+
+#pretrained_weights = "weights/LocalAR_bilevel_IFT_p=15x15_BSD500.pt" #"weights/LocalAR_adversarial_p=15x15_BSD500.pt" # "weights/LocalAR_bilevel_IFT_p=15x15_BSD500.pt" #"LocalAR_adversarial_p=15x15_BSD500.pt"
+#pretrained_weights = "weights/LocalAR_adversarial_p=15x15_BSD500.pt"
+#pretrained_weights = "weights/LocalAR_bilevel_JFB_p=15x15_BSD500.pt"
 # "LocalAR_{trainingmethod}_p={patchszie}_{training_data}.pt"
 
 if torch.backends.mps.is_available():
@@ -76,7 +81,7 @@ if bilevel_training:
                 NAG_max_iter = 300  # maximum number of iterations in NAG
                 NAG_tol = 1e-4  # tolerance for the relative error (stopping criterion)
             elif train_on == "LoDoPab":
-                lmbd = 1.0 # TODO
+                lmbd = 1.0 
                 NAG_step_size = 1e-2  # step size in NAG
                 NAG_max_iter = 300 #300  # maximum number of iterations in NAG
                 NAG_tol = 1e-6  # tolerance for the relative error (stopping criterion)
@@ -88,12 +93,12 @@ if bilevel_training:
             NAG_tol = 1e-6  # tolerance for the relative error (stopping criterion)
         elif problem == "CT":
             if train_on == "BSD500":
-                lmbd = 1.0 # TODO
+                lmbd = 2500.
                 NAG_step_size = 1e-2  # step size in NAG
                 NAG_max_iter = 300 #300  # maximum number of iterations in NAG
                 NAG_tol = 1e-6  # tolerance for the relative error (stopping criterion)
             elif train_on == "LoDoPab":
-                lmbd = 1.2
+                lmbd = 0.8
                 NAG_step_size = 1e-2  # step size in NAG
                 NAG_max_iter = 300 #300  # maximum number of iterations in NAG
                 NAG_tol = 1e-6  # tolerance for the relative error (stopping criterion)
@@ -115,6 +120,7 @@ else: # "adversarial training"
             NAG_step_size = 1e-2  # step size in NAG
             NAG_max_iter = 300 #300  # maximum number of iterations in NAG
             NAG_tol = 1e-4  # tolerance for the relative error (stopping criterion)
+
 #############################################################
 ############# Problem setup and evaluation ##################
 ############# This should not be changed   ##################
@@ -136,7 +142,7 @@ regularizer = LocalAR(
 )
 regularizer.to(device)
 
-
+print("Number of parameters: ", sum([p.numel() for p in regularizer.parameters()]))
 
 
 start = time.time()

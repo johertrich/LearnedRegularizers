@@ -35,6 +35,7 @@ load_fitted_parameters = inp.load_fitted_parameters
 mode = "IFT"
 
 lmbd_initial_guess = 60
+lr=0.1
 
 if regularizer_name == "CRR":
     reg = WCRR(
@@ -87,8 +88,10 @@ if (
     or evaluation_mode == "bilevel-JFB"
     or evaluation_mode == "Score"
 ):
-    if regularizer_name == "IDCNN":
+    if regularizer_name == "IDCNN" or "LAR":
         mode = "JFB"
+    if regularizer_name == "LSR":
+        lr=0.01
     regularizer = ParameterLearningWrapper(reg, device=device)
     if evaluation_mode == "Score":
         weights = torch.load(
@@ -113,7 +116,7 @@ elif evaluation_mode == "AR":
     elif regularizer_name == "ICNN":
         pretrained = "./weights/simple_simple_ICNNPrior_ar_Denoising.pt"
         cpk = torch.load(pretrained, map_location=device)
-        regularizer.load_state_dict(ckp)
+        regularizer.load_state_dict(cpk)
     else:
         raise ValueError(f"no configuration for AR with regularizer {regularizer_name}")
 else:
@@ -164,7 +167,7 @@ else:
         NAG_max_iter=1000,
         NAG_tol_train=1e-4,
         NAG_tol_val=1e-4,
-        lr=0.1,
+        lr=lr,
         lr_decay=0.999,
         device=device,
         verbose=False,
@@ -183,6 +186,7 @@ only_first = False
 wrapped_regularizer.alpha.requires_grad_(False)
 wrapped_regularizer.scale.requires_grad_(False)
 torch.random.manual_seed(0)  # make results deterministic
+print(lmbd_initial_guess)
 
 mean_psnr, x_out, y_out, recon_out = evaluate(
     physics=physics,

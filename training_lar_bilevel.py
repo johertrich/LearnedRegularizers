@@ -25,7 +25,7 @@ elif torch.cuda.is_available():
 else:
     device = "cpu"
 
-problem = "Denoising" # "Denoising" "CT"
+problem = "CT" # "Denoising" "CT"
 
 # problem dependent parameters
 if problem == "Denoising":
@@ -46,13 +46,13 @@ test_len = int(len(dataset) * test_ratio)
 train_len = len(dataset) - test_len
 train_set, val_set = torch.utils.data.random_split(dataset, [train_len, test_len])
 
-batch_size = 8
+batch_size = 2
 shuffle = True
 mode = "IFT" # "IFT" "JFB"
 
 patch_size = 15
 
-regularizer = LocalAR(in_channels=1, pad=True, use_bias=False, n_patches=-1, normalise_grad=False, pretrained="weights/LocalAR_bilevel_IFT_p=15x15_BSD500.pt").to(device)
+regularizer = LocalAR(in_channels=1, pad=True, use_bias=False, n_patches=-1, normalise_grad=False, pretrained="weights/LocalAR_bilevel_JFB_p=15x15_LoDoPab.pt").to(device)
 
 train_dataloader = torch.utils.data.DataLoader(train_set, batch_size=batch_size)
 
@@ -70,10 +70,10 @@ regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
     epochs=100,
     mode=mode,
     NAG_step_size=1e-1,
-    NAG_max_iter=500,
+    NAG_max_iter=80, #500,
     NAG_tol_train=1e-4,
     NAG_tol_val=1e-4,
-    minres_max_iter=1000,
+    minres_max_iter=10, #1000,
     minres_tol=1e-6,
     jfb_step_size_factor=1.0,
     lr=0.005,
