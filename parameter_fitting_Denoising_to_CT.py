@@ -147,7 +147,7 @@ if load_fitted_parameters:
             map_location=device,
         )
     )
-elif False:
+else:
     for p in wrapped_regularizer.parameters():
         p.requires_grad_(False)
     wrapped_regularizer.alpha.requires_grad_(True)
