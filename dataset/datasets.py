@@ -9,8 +9,9 @@ import h5py
 
 
 class BSDS500Dataset(Dataset):
-    def __init__(self, root, download=True, test=False, transform=None):
+    def __init__(self, root, download=True, test=False, transform=None, rotate=False):
         self.base_path = root
+        self.rotate = rotate
         self.transforms = transform
         if not os.path.exists(self.base_path):
             os.makedirs(self.base_path)
@@ -61,6 +62,8 @@ class BSDS500Dataset(Dataset):
         img = np.array(img) / 255.0
         if self.transforms is not None:
             img = self.transforms(img)
+        if self.rotate and img.shape[-1] > img.shape[-2]:
+            img = img.transpose(-2, -1)
         return img
 
 

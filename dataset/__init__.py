@@ -4,7 +4,7 @@ import torch
 import os
 
 
-def get_dataset(key, test=False, transform=None, root=None):
+def get_dataset(key, test=False, transform=None, root=None, rotate=False):
     if root is not None:
         location = os.path.join(root, key)
     else:
@@ -20,7 +20,7 @@ def get_dataset(key, test=False, transform=None, root=None):
                 [ToImage(), ToDtype(torch.float32, scale=True), Grayscale(), transform]
             )
         return BSDS500Dataset(
-            root=location, download=True, test=test, transform=transforms
+            root=location, download=True, test=test, transform=transforms, rotate=rotate
         )
     elif key == "BSD68":
         if transform is None:
