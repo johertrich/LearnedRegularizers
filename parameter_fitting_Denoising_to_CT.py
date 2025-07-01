@@ -88,10 +88,10 @@ if (
     or evaluation_mode == "bilevel-JFB"
     or evaluation_mode == "Score"
 ):
-    if regularizer_name == "IDCNN" or "LAR":
+    if regularizer_name == "IDCNN" or regularizer_name == "LAR":
         mode = "JFB"
     if regularizer_name == "LSR":
-        lr=0.01
+        lr=0.1
     regularizer = ParameterLearningWrapper(reg, device=device)
     if evaluation_mode == "Score":
         weights = torch.load(
