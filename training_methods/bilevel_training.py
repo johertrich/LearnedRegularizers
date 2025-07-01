@@ -26,6 +26,7 @@ def bilevel_training(
     jfb_step_size_factor=1.0,
     lr=0.005,
     lr_decay=0.99,
+    momentum_optim=None,
     reg=False,
     reg_para=1e-5,
     reg_reduced=False,
@@ -119,6 +120,7 @@ def bilevel_training(
         return torch.clip(norm_sq, min=200, max=None)
 
     if adabelief:
+        momentum_optim = (0.5, 0.9) if momentum_optim is None else momentum_optim
         optimizer = AdaBelief(
             [
                 {"params": regularizer.parameters(), "lr": lr},
@@ -127,7 +129,10 @@ def bilevel_training(
             betas=(0.5, 0.9),
         )
     else:
-        optimizer = torch.optim.Adam(regularizer.parameters(), lr=lr)
+        momentum_optim = (0.9, 0.999) if momentum_optim is None else momentum_optim
+        optimizer = torch.optim.Adam(
+            regularizer.parameters(), lr=lr, betas=momentum_optim
+        )
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=lr_decay)
     if dynamic_range_psnr:
         psnr = PSNR(max_pixel=None)

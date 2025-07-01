@@ -37,9 +37,18 @@ class cnn(nn.Module):
         return output
 
     def g(self, image):
-        output = self.convnet(image).squeeze().unsqueeze(-1)
+        output = self.convnet(image)
         return output
 
+    def grad(self, image):
+        with torch.enable_grad():
+            image_ = image.clone()
+            image_.requires_grad_(True)
+            nll = self.g(image_)
+            nll = nll.sum()
+            grad = torch.autograd.grad(outputs=nll, inputs=image_, create_graph=True)[0]
+           
+        return grad
 
 class LocalAR(Prior):
     def __init__(
