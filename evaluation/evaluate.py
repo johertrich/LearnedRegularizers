@@ -4,10 +4,12 @@ from .nmAPG import reconstruct_nmAPG
 from .adam import reconstruct_adam
 import torch
 from deepinv.loss.metric import PSNR
+from tqdm import tqdm
 
-import matplotlib.pyplot as plt 
-import os 
+import matplotlib.pyplot as plt
+import os
 from PIL import Image
+
 
 def evaluate(
     physics,
@@ -43,8 +45,8 @@ def evaluate(
     x_out = None
     y_out = None
     recon_out = None
-    for i, x in enumerate(dataloader):
-        
+    for i, x in (progress_bar := tqdm(enumerate(dataloader))):
+
         if device == "mps":
             # mps does not support float64
             x = x.to(torch.float32).to(device)
@@ -62,24 +64,24 @@ def evaluate(
             NAG_max_iter,
             NAG_tol,
             return_stats=True,
-            verbose=verbose,
+            verbose=False,
         )
         iters.append(stats["steps"])
         Lip.append(stats["L"].cpu())
         psnrs.append(psnr(recon, x).squeeze().item())
 
         if save_path is not None:
-            fig, (ax1, ax2, ax3) = plt.subplots(1,3, figsize=(13,6))
+            fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(13, 6))
 
-            ax1.imshow(x[0,0].cpu().numpy(), cmap="gray")
+            ax1.imshow(x[0, 0].cpu().numpy(), cmap="gray")
             ax1.axis("off")
             ax1.set_title("ground truth")
 
-            ax2.imshow(recon[0,0].cpu().numpy(), cmap="gray")
+            ax2.imshow(recon[0, 0].cpu().numpy(), cmap="gray")
             ax2.axis("off")
             ax2.set_title("reconstruction")
 
-            ax3.imshow(y[0,0].cpu().numpy(), cmap="gray")
+            ax3.imshow(y[0, 0].cpu().numpy(), cmap="gray")
             ax3.axis("off")
             ax3.set_title("measurements")
 
@@ -88,12 +90,12 @@ def evaluate(
             plt.close()
 
         if save_png and save_path is not None:
-            
+
             # Scale to [0, 255] and convert to uint8
-            image_uint8 = (recon[0,0].cpu().numpy().clip(0,1) * 255).astype(np.uint8)
+            image_uint8 = (recon[0, 0].cpu().numpy().clip(0, 1) * 255).astype(np.uint8)
 
             # Create a PIL Image object
-            image = Image.fromarray(image_uint8, mode='L')  # 'L' for grayscale
+            image = Image.fromarray(image_uint8, mode="L")  # 'L' for grayscale
 
             # Save as a PNG file
             image.save(os.path.join(save_path, f"reco_{i}.png"))
@@ -102,6 +104,10 @@ def evaluate(
             y_out = y
             x_out = x
             recon_out = recon
+
+        progress_bar.set_description(
+            f"Mean PSNR: {np.mean(psnrs):.2f}, Last PSNR: {psnrs[-1]:.2f}, steps: {iters[-1]}"
+        )
         if only_first:
             break
     mean_psnr = np.mean(psnrs)
@@ -111,7 +117,6 @@ def evaluate(
     mean_Lip = np.mean(Lip)
     print("Mean L over the test set: {0:.2f}".format(mean_Lip))
     return mean_psnr, x_out, y_out, recon_out
-
 
 
 def evaluate_adam(
@@ -132,7 +137,8 @@ def evaluate_adam(
 ):
 
     from types import MethodType
-    import copy 
+    import copy
+
     new_physics = copy.deepcopy(physics)
 
     class OperatorFunction(torch.autograd.Function):
@@ -145,17 +151,15 @@ def evaluate_adam(
 
         @staticmethod
         def backward(ctx, grad_output):
-    
+
             operator_adjoint = ctx.operator_adjoint
             grad_input = operator_adjoint(grad_output)
             return None, None, grad_input  # return `None` for the `operator` part
- 
 
     def new_forward(self, x):
-        return OperatorFunction.apply(new_physics.A, new_physics.A_adjoint, x) 
+        return OperatorFunction.apply(new_physics.A, new_physics.A_adjoint, x)
 
     physics.A = MethodType(new_forward, physics)
-
 
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
     if adaptive_range:
@@ -175,8 +179,8 @@ def evaluate_adam(
             x = x.to(torch.float32).to(device)
         else:
             x = x.to(device).to(torch.float32)
-        
-        #def psnr_fun(rec):
+
+        # def psnr_fun(rec):
         #    return psnr(rec, x).squeeze().item()
 
         y = physics(x)
@@ -191,22 +195,22 @@ def evaluate_adam(
             max_iter,
             tol,
             verbose=verbose,
-            psnr_fun = None
+            psnr_fun=None,
         )
         psnrs.append(psnr(recon, x).squeeze().item())
 
         if save_path is not None:
-            fig, (ax1, ax2, ax3) = plt.subplots(1,3, figsize=(13,6))
+            fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(13, 6))
 
-            ax1.imshow(x[0,0].cpu().numpy(), cmap="gray")
+            ax1.imshow(x[0, 0].cpu().numpy(), cmap="gray")
             ax1.axis("off")
             ax1.set_title("ground truth")
 
-            ax2.imshow(recon[0,0].cpu().numpy(), cmap="gray")
+            ax2.imshow(recon[0, 0].cpu().numpy(), cmap="gray")
             ax2.axis("off")
             ax2.set_title("reconstruction")
 
-            ax3.imshow(y[0,0].cpu().numpy(), cmap="gray")
+            ax3.imshow(y[0, 0].cpu().numpy(), cmap="gray")
             ax3.axis("off")
             ax3.set_title("measurements")
 
@@ -215,29 +219,27 @@ def evaluate_adam(
             plt.close()
 
         if save_png and save_path is not None:
-            
+
             # Scale to [0, 255] and convert to uint8
-            image_uint8 = (recon[0,0].cpu().numpy().clip(0,1) * 255).astype(np.uint8)
+            image_uint8 = (recon[0, 0].cpu().numpy().clip(0, 1) * 255).astype(np.uint8)
 
             # Create a PIL Image object
-            image = Image.fromarray(image_uint8, mode='L')  # 'L' for grayscale
+            image = Image.fromarray(image_uint8, mode="L")  # 'L' for grayscale
 
             # Save as a PNG file
             image.save(os.path.join(save_path, f"reco_{i}.png"))
-
 
         if i == 0:
             y_out = y
             x_out = x
             recon_out = recon
 
-        del y 
-        del recon 
-        del x 
-        
+        del y
+        del recon
+        del x
+
         if only_first:
             break
     mean_psnr = np.mean(psnrs)
 
     return mean_psnr, x_out, y_out, recon_out
-
