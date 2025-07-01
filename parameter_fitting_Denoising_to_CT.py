@@ -14,6 +14,8 @@ from dataset import get_dataset
 from evaluation import evaluate
 import argparse
 import os
+import logging
+import datetime
 
 if torch.backends.mps.is_available():
     device = "mps"
@@ -35,7 +37,7 @@ load_fitted_parameters = inp.load_fitted_parameters
 mode = "IFT"
 
 lmbd_initial_guess = 60
-lr=0.1
+lr = 0.1
 
 if regularizer_name == "CRR":
     reg = WCRR(
@@ -63,7 +65,7 @@ elif regularizer_name == "LAR":
         n_patches=-1,
         normalise_grad=False,
         reduction="sum",
-        output_factor=1 / 142**2,
+        output_factor=1 / 142 ** 2,
         pretrained=None,
     ).to(device)
 elif regularizer_name == "TDV":
@@ -91,7 +93,7 @@ if (
     if regularizer_name == "IDCNN" or regularizer_name == "LAR":
         mode = "JFB"
     if regularizer_name == "LSR":
-        lr=0.1
+        lr = 0.1
     regularizer = ParameterLearningWrapper(reg, device=device)
     if evaluation_mode == "Score":
         weights = torch.load(
@@ -122,6 +124,18 @@ elif evaluation_mode == "AR":
 else:
     raise ValueError("Unknown evaluation mode!")
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    filename="log_parameter_fitting_"
+    + regularizer_name
+    + "_"
+    + evaluation_mode
+    + "_"
+    + str(datetime.datetime.now())
+    + ".log",
+    level=logging.INFO,
+    format="%(asctime)s: %(message)s",
+)
 
 if not os.path.isdir("weights"):
     os.mkdir("weights")
@@ -173,6 +187,7 @@ else:
         verbose=False,
         validation_epochs=100,
         dynamic_range_psnr=True,
+        logger=logger,
     )
     torch.save(
         wrapped_regularizer.state_dict(),
@@ -204,3 +219,5 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
 )
 
 print("Mean PSNR: ", mean_psnr)
+
+logger.info("Mean PSNR: " + str(mean_psnr))
