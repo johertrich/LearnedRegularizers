@@ -45,17 +45,18 @@ load_parameter_fitting = (
 score_sigma = 3e-2
 
 if regularizer_name == "CRR":
-    if problem=="Denoising":
+    if problem == "Denoising":
         pretrain_epochs = 300
         epochs = 100
         jacobian_regularization_parameter = 1e-6
-    elif problem=="CT":
+    elif problem == "CT":
         pretrain_epochs = 40
         epochs = 4
         jacobian_regularization_parameter = 1e-8
     pretrain_lr = 1e-2
     fitting_lr = 0.1
     lr = 1e-3
+    noise_multiplier = 0.0
     adabelief = True
     jacobian_regularization = True
     reg = WCRR(
@@ -63,16 +64,17 @@ if regularizer_name == "CRR":
         weak_convexity=0.0,
     ).to(device)
 elif regularizer_name == "WCRR":
-    if problem=="Denoising":
+    if problem == "Denoising":
         pretrain_epochs = 300
         epochs = 100
         jacobian_regularization_parameter = 1e-6
-    elif problem=="CT":
+    elif problem == "CT":
         pretrain_epochs = 40
         epochs = 4
         jacobian_regularization_parameter = 1e-8
     pretrain_lr = 1e-2
     fitting_lr = 0.1
+    noise_multiplier = 0.0
     adabelief = True
     lr = 1e-3
     jacobian_regularization = True
@@ -81,15 +83,16 @@ elif regularizer_name == "WCRR":
         weak_convexity=1.0,
     ).to(device)
 elif regularizer_name == "ICNN":
-    if problem=="Denoising":
+    if problem == "Denoising":
         pretrain_epochs = 300
         epochs = 200
         jacobian_regularization_parameter = 1e-6
-    elif problem=="CT":
-        pretrain_epochs= 40
-        epochs=4
+    elif problem == "CT":
+        pretrain_epochs = 40
+        epochs = 4
         jacobian_regularization_parameter = 1e-8
     pretrain_lr = 1e-3
+    noise_multiplier = 0.0
     fitting_lr = 0.1
     adabelief = True
     lr = 1e-3
@@ -98,17 +101,18 @@ elif regularizer_name == "ICNN":
         device
     )
 elif regularizer_name == "IDCNN":
-    if problem=="Denoising":
+    if problem == "Denoising":
         pretrain_epochs = 300
         epochs = 200
         jacobian_regularization_parameter = 1e-5
-    elif problem=="CT":
-        pretrain_epochs= 40
-        epochs=4
+    elif problem == "CT":
+        pretrain_epochs = 40
+        epochs = 4
         jacobian_regularization_parameter = 1e-7
     pretrain_lr = 1e-3
     fitting_lr = 0.01
     adabelief = True
+    noise_multiplier = 0.0
     lr = 1e-3
     jacobian_regularization = True
     reg = simple_IDCNNPrior(
@@ -121,6 +125,7 @@ elif regularizer_name == "LAR":
     adabelief = True
     epochs = 200
     lr = 1e-3
+    noise_multiplier = 0.0
     jacobian_regularization = True
     jacobian_regularization_parameter = 1e-5
     reg = LocalAR(
@@ -134,15 +139,17 @@ elif regularizer_name == "LAR":
         pretrained=None,
     ).to(device)
 elif regularizer_name == "TDV":
-    if problem=="Denoising":
+    if problem == "Denoising":
         pretrain_epochs = 7500
         epochs = 200
         jacobian_regularization_parameter = 1e-4
         fitting_lr = 0.005
-    elif problem=="CT":
-        pretrain_epochs= 750
-        epochs=10
+        noise_multiplier = 0.0
+    elif problem == "CT":
+        pretrain_epochs = 750
+        epochs = 10
         jacobian_regularization_parameter = 1e-7
+        noise_multiplier = 1.0
         fitting_lr = 0.05
     pretrain_lr = 4e-4
     adabelief = True
@@ -160,14 +167,16 @@ elif regularizer_name == "TDV":
     )
     reg = TDV(**config).to(device)
 elif regularizer_name == "LSR":
-    if problem=="Denoising":
+    if problem == "Denoising":
         pretrain_epochs = 7500
         epochs = 200
         jacobian_regularization_parameter = 1e-4
-    elif problem=="CT":
-        pretrain_epochs= 750
-        epochs=10
+        noise_multiplier = 0.0
+    elif problem == "CT":
+        pretrain_epochs = 750
+        epochs = 10
         jacobian_regularization_parameter = 1e-7
+        noise_multiplier = 1.0
     pretrain_lr = 2e-4
     adabelief = True
     fitting_lr = 0.05
@@ -209,7 +218,7 @@ for p in regularizer.parameters():
 print(params)
 logger.info(f"Train {regularizer_name} with {hypergradient_computation} on {problem}")
 logger.info(f"The model has {params} parameters")
-logger.info(f"Parameters:")
+logger.info("Parameters:")
 logger.info(
     f"load_pretrain: {load_pretrain}, load_parameter_fitting: {load_parameter_fitting}, score_sigma: {score_sigma}"
 )
@@ -254,17 +263,17 @@ if problem == "Denoising":
     fitting_dataloader = train_dataloader
 elif problem == "CT":
     train_dataset = get_dataset("LoDoPaB", test=False)
-    pretrain_dataset = get_dataset("LoDoPaB", test=False, transform=rotation_flip_transform)
+    pretrain_dataset = get_dataset(
+        "LoDoPaB", test=False, transform=rotation_flip_transform
+    )
     val_dataset = get_dataset("LoDoPaB", test=False)
     # splitting in training and validation set
     test_ratio = 0.1
     test_len = int(len(train_dataset) * 0.1)
     train_len = len(train_dataset) - test_len
     train_set = torch.utils.data.Subset(train_dataset, range(train_len))
-    #val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
-    val_set = get_dataset(
-    "LoDoPaB", test=True
-    )
+    # val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
+    val_set = get_dataset("LoDoPaB", test=True)
     train_dataloader = torch.utils.data.DataLoader(
         train_set, batch_size=8, shuffle=True, drop_last=True, num_workers=8
     )
@@ -310,12 +319,12 @@ elif not load_parameter_fitting:
         epochs=pretrain_epochs,
         lr=pretrain_lr,
         lr_decay=0.1 ** (1 / pretrain_epochs),
-        noise_multiplier=1.,
+        noise_multiplier=noise_multiplier,
         device=device,
         validation_epochs=20,
         logger=logger,
         adabelief=adabelief,
-        dynamic_range_psnr=problem=="CT",
+        dynamic_range_psnr=problem == "CT",
         # loss_fn=lambda x,y:torch.abs(x-y).sum()
     )
     torch.save(
@@ -335,9 +344,9 @@ else:
     regularizer.alpha.requires_grad_(True)
     regularizer.scale.requires_grad_(True)
     if problem == "CT":
-        regularizer.alpha.data = regularizer.alpha.data + np.log(60.)
-        if regularizer_name=="TDV":
-            regularizer.alpha.data = regularizer.alpha.data + np.log(60.)
+        regularizer.alpha.data = regularizer.alpha.data + np.log(60.0)
+        if regularizer_name == "TDV":
+            regularizer.alpha.data = regularizer.alpha.data + np.log(60.0)
     if regularizer_name == "WCRR" and problem == "Denoising":
         regularizer.alpha.requires_grad_(False)
         regularizer.regularizer.beta.requires_grad_(True)
@@ -358,7 +367,7 @@ else:
         lr_decay=0.95,
         device=device,
         verbose=False,
-        dynamic_range_psnr=problem=="CT",
+        dynamic_range_psnr=problem == "CT",
         validation_epochs=5 if problem == "Denoising" else 25,
         logger=logger,
     )
@@ -394,13 +403,13 @@ regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
     lr_decay=0.1 ** (1 / epochs),
     reg=jacobian_regularization,
     reg_para=jacobian_regularization_parameter,
-    reg_reduced=problem=="CT",
+    reg_reduced=problem == "CT",
     device=device,
     verbose=False,
     logger=logger,
     adabelief=adabelief,
-    dynamic_range_psnr=problem=="CT",
-    validation_epochs=20 if problem=="Denoising" else 1,
+    dynamic_range_psnr=problem == "CT",
+    validation_epochs=20 if problem == "Denoising" else 1,
 )
 
 torch.save(
