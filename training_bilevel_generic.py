@@ -38,11 +38,11 @@ else:
 
 
 problem = "Denoising"  # Denoising or CT
-hypergradient_computation = "JFB"  # IFT or JFB
-regularizer_name = "LSR"  # CRR, WCRR, ICNN, IDCNN, LAR, TDV or LSR
+hypergradient_computation = "IFT"  # IFT or JFB
+regularizer_name = "WCRR"  # CRR, WCRR, ICNN, IDCNN, LAR, TDV or LSR
 load_pretrain = True  # load pretrained weights given that they exist
 load_parameter_fitting = (
-    False  # load pretrained weights and learned regularization and scaling parameter
+    True  # load pretrained weights and learned regularization and scaling parameter
 )
 score_sigma = 3e-2
 
@@ -279,7 +279,7 @@ else:
     regularizer.alpha.requires_grad_(True)
     regularizer.scale.requires_grad_(True)
     if regularizer_name == "WCRR":
-        regularizer.alpha.requires_grad_(True)
+        regularizer.alpha.requires_grad_(False)
         regularizer.regularizer.beta.requires_grad_(True)
     regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
         regularizer,
@@ -306,6 +306,7 @@ else:
         f"weights/score_parameter_fitting_for_{problem}/{regularizer_name}_fitted_parameters_with_{hypergradient_computation}_for_{problem}.pt",
     )
 
+print(regularizer.alpha)
 # bilevel training
 
 for p in regularizer.parameters():
