@@ -34,6 +34,8 @@ class LSR(Prior):
             device=device,
         )
 
+        self.model.detach=False
+
         self.sigma=sigma
 
         if pretrained is not None:

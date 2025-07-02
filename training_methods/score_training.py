@@ -12,6 +12,7 @@ def score_training(
     epochs=100,
     lr=0.005,
     lr_decay=0.99,
+    noise_multiplier=0,
     device="cuda" if torch.cuda.is_available() else "cpu",
     validation_epochs=20,
     logger=None,
@@ -50,13 +51,15 @@ def score_training(
         train_psnr_epoch = 0
 
         for x in tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{epochs} - Train"):
-            x = x.to(device).to(torch.float32)
+            x = x.to(device)
             noise = torch.randn_like(x)
+            noise = torch.exp(2*noise_multiplier*torch.rand((x.shape[0],1,1,1),device=device)-noise_multiplier)*noise
             y = x + sigma * noise
             xhat = y - regularizer.grad(y)
             loss = loss_fn(xhat, x)
             optimizer.zero_grad()
             loss.backward()
+            xhat=xhat.detach()
             optimizer.step()
             train_loss_epoch += loss.item()
             train_psnr_epoch += psnr(xhat, x).mean().item()

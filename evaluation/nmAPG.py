@@ -73,11 +73,10 @@ def nmAPG(
                 s
                 / (dx * (x_bar[idx] - x_bar_old[idx]))
                 .sum((1, 2, 3), keepdim=True)
-                .clip(min=1e-6, max=None),  # alpha_y = <s,r>/<r,r> in paper, Eq 150
+                .clip(min=0., max=None),  # alpha_y = <s,r>/<r,r> in paper, Eq 150
                 min=1.0,
-                max=1e6,
+                max=None,
             )  # clips for stability --> on a long term we can adjust min-clip based on the spectral norm of physics.A
-
         # line search on z (Eq 151 and 152)
         idx_search = idx
         idx_sub = torch.arange(0, idx.shape[0], device=x.device)
@@ -119,9 +118,9 @@ def nmAPG(
                     s
                     / (dx * (x[idx_idx2] - x_bar_old[idx_idx2]))
                     .sum((1, 2, 3), keepdim=True)
-                    .clip(min=1e-6, max=None),
+                    .clip(min=0, max=None),
                     min=1.0,
-                    max=1e6,
+                    max=None,
                 )
             L_old.copy_(L)
 
