@@ -39,8 +39,8 @@ else:
 
 problem = "Denoising"  # Denoising or CT
 hypergradient_computation = "JFB"  # IFT or JFB
-regularizer_name = "LSR"  # CRR, WCRR, ICNN, IDCNN, LAR, TDV or LSR
-load_pretrain = True  # load pretrained weights given that they exist
+regularizer_name = "LAR"  # CRR, WCRR, ICNN, IDCNN, LAR, TDV or LSR
+load_pretrain = False  # load pretrained weights given that they exist
 load_parameter_fitting = (
     False  # load pretrained weights and learned regularization and scaling parameter
 )
@@ -91,18 +91,18 @@ elif regularizer_name == "IDCNN":
     adabelief = True
     epochs = 200
     lr = 1e-3
-    jacobian_regularization = False
-    jacobian_regularization_parameter = 1e-6
+    jacobian_regularization = True
+    jacobian_regularization_parameter = 1e-5
     reg = simple_IDCNNPrior(
         in_channels=1, channels=32, device=device, kernel_size=5
     ).to(device)
 elif regularizer_name == "LAR":
     pretrain_epochs = 300
     pretrain_lr = 1e-3
-    fitting_lr = 0.05
+    fitting_lr = 0.01
     adabelief = True
     epochs = 200
-    lr = 1e-3
+    lr = 1e-4
     jacobian_regularization = True
     jacobian_regularization_parameter = 1e-5
     reg = LocalAR(
@@ -110,7 +110,6 @@ elif regularizer_name == "LAR":
         pad=True,
         use_bias=False,
         n_patches=-1,
-        normalise_grad=False,
         reduction="sum",
         output_factor=1 / 142**2,
         pretrained=None,
