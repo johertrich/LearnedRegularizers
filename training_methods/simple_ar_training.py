@@ -16,12 +16,14 @@ def WGAN_loss(regularizer, images, images_gt,mu=10):
     """Calculates the gradient penalty loss for WGAN GP"""
     real_samples=images_gt
     fake_samples=images
-    
-    alpha = torch.rand(real_samples.size(0), 1, 1, 1).type_as(real_samples)
-    interpolates = (alpha * real_samples + ((1 - alpha) * fake_samples)).requires_grad_(True)
-    grad_norm = torch.linalg.vector_norm(regularizer.grad(interpolates), dim=(1,2,3))
+
+    B = real_samples.size(0) 
+    alpha = torch.rand(B, 1, 1, 1, device=real_samples.device)
+    interpolates = images_gt + alpha * (images - images_gt)
+    interpolates.requires_grad_(True)
+    grad_norm = regularizer.grad(interpolates).flatten(1).norm(2, dim=1) 
     data_loss = regularizer.g(real_samples).mean() - regularizer.g(fake_samples).mean()
-    grad_loss = mu*(torch.clip(grad_norm - 1, min=0.) ** 2).mean()
+    grad_loss = mu * torch.nn.functional.relu(grad_norm - 1).square().mean()
     return data_loss + grad_loss,  grad_loss
 
 def estimate_lmbd(dataset,physics,device):
@@ -177,16 +179,10 @@ def simple_lar_training(
     device="cuda" if torch.cuda.is_available() else "cpu",
     mu = 10.0,
     batch_size=128,
-    savestr=None,
-    validation_epochs = 5,
-    dynamic_range_psnr=False
+    save_str=None,
+    val_epochs = 5,
+    dataset_name="BSD500"
 ):
-    assert validation_epochs <= epochs, (
-        "validation_epochs cannot be greater than epochs. "
-        "If validation_epochs > epochs, no validation will occur, "
-        "best_regularizer_state will remain unchanged, and the returned model will be identical to the initial state."
-    )
-
     adversarial_loss = WGAN_loss
     regularizer.to(device)
     optimizer = torch.optim.Adam(regularizer.parameters(), lr=lr)
@@ -195,21 +191,37 @@ def simple_lar_training(
     regularizer.train()
     NAG_step_size = 1e-2  # step size in NAG
     NAG_max_iter = 200  # maximum number of iterations in NAG
-    NAG_tol_val = 1e-4  # tolerance for therelative error (stopping criterion)
+    NAG_tol = 1e-4  # tolerance for therelative error (stopping criterion)
+    only_first = False
+    def eval_routine():
+        mean_psnr, x_out, y_out, recon_out = evaluate(
+                    physics=physics,
+                    data_fidelity=data_fidelity,
+                    dataset=val_data, 
+                    regularizer=regularizer,
+                    lmbd=lmbd,
+                    NAG_step_size=NAG_step_size,
+                    NAG_max_iter=NAG_max_iter,
+                    NAG_tol=NAG_tol,
+                    only_first=only_first,
+                    device=device,
+                    verbose=False,
+                    adaptive_range=True if dataset_name == "LoDoPab" else False 
+                )
+        for p in regularizer.parameters():
+            p.requires_grad_(True)
+        return mean_psnr, x_out, y_out, recon_out
+    mean_psnr, x_out, y_out, recon_out = eval_routine()
     
-    if dynamic_range_psnr:
-        psnr = PSNR(max_pixel=None)
-    else:
-        psnr = PSNR()
-
-
-    for epoch in range(epochs):
+    print("PSNR of initial model: ", mean_psnr)
+    
+    best_psnr = mean_psnr
+    for epoch in tqdm(range(epochs)):
         loss_vals = []
-        grad_loss_vals = []
         regularizer.train()
 
         train_dataloader = DataLoader(train_data, batch_size=1, shuffle=True)
-        for x in tqdm(train_dataloader, total=len(train_dataloader)):
+        for x in train_dataloader:
             optimizer.zero_grad()
             if isinstance(x, list):
                 x = x[0]
@@ -229,64 +241,30 @@ def simple_lar_training(
             x_noisy_patches = imgs.view(1, -1)[:, linear_inds]
             x_noisy_patches = x_noisy_patches.reshape(batch_size, C, patch_size, patch_size)
 
-            loss, grad_loss = adversarial_loss(regularizer.cnn, x_noisy_patches, x_patches, mu)
+            loss = adversarial_loss(regularizer.cnn, x_noisy_patches, x_patches, mu)
 
             mean_loss = torch.mean(loss)
             mean_loss.backward()
             optimizer.step()
             loss_vals.append(mean_loss.item())
-            grad_loss_vals.append(grad_loss.item())
+        print(
+            "Average training loss in epoch {0}: {1:.2E}".format(
+                epoch + 1, np.mean(loss_vals)
+            )
+        )
         
-        print_str = f"Average training loss in epoch {epoch + 1}: {np.mean(loss_vals):.2E}, average grad loss: {np.mean(grad_loss_vals):.2E}"
-        print(print_str)
         loss_vals = []
+        
         
         scheduler.step()    
         
         print("Learning rate: ", scheduler.get_last_lr()[0])
-        best_val_psnr=-999
-        val_dataloader = DataLoader(val_data, batch_size=1, shuffle=False)
-        if (epoch + 1) % validation_epochs == 0:
-            regularizer.eval()
-            lip = estimate_lip(regularizer,val_dataloader,device)
-            with torch.no_grad():
-                val_loss_epoch = 0
-                val_psnr_epoch = 0
-                for x_val in tqdm(
-                    val_dataloader, desc=f"Epoch {epoch+1}/{epochs} - Val"
-                ):
-                    x_val = x_val.to(device).to(torch.float32)
-                    y_val = physics(x_val)
-                    x_val_noisy = physics.A_dagger(y_val)
+        if epoch % val_epochs == 0 and epoch > 0:
+            mean_psnr, x_out, y_out, recon_out = eval_routine()
 
-                    x_recon_val = reconstruct_nmAPG(
-                        y_val,
-                        physics,
-                        data_fidelity,
-                        regularizer,
-                        lmbd/lip,
-                        NAG_step_size,
-                        NAG_max_iter,
-                        NAG_tol_val,
-                        verbose=False,
-                        x_init=x_val_noisy,
-                    )
-
-                    val_psnr_epoch += psnr(x_recon_val, x_val).mean().item()
-
-                mean_val_psnr = val_psnr_epoch / len(val_dataloader)
-                print_str = f"[Epoch {epoch+1}] PSNR: {mean_val_psnr:.2f}"
-                print(print_str)
-
-                if savestr is not None:
-                    torch.save(
-                        regularizer.state_dict(),
-                        savestr + "_epoch_" + str(epoch) + ".pt",
-                    )
-
-                # ---- Save best regularizer based on validation PSNR ----
-                if mean_val_psnr > best_val_psnr:
-                    best_val_psnr = mean_val_psnr
-                    best_regularizer_state = copy.deepcopy(regularizer.state_dict())
-    # Load best regularizer
-    regularizer.load_state_dict(best_regularizer_state)
+            print("Mean val PSNR: ", mean_psnr)
+            if mean_psnr > best_psnr:
+                best_psnr = mean_psnr
+                print("New best PSNR: ", best_psnr)
+                if save_str is not None: 
+                    torch.save(regularizer.cnn.state_dict(), save_str)
