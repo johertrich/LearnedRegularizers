@@ -37,8 +37,8 @@ else:
 
 problem = "CT"  # Denoising or CT
 hypergradient_computation = "JFB"  # IFT or JFB
-regularizer_name = "LSR"  # CRR, WCRR, ICNN, IDCNN, LAR, TDV or LSR
-load_pretrain = False  # load pretrained weights given that they exist
+regularizer_name = "TDV"  # CRR, WCRR, ICNN, IDCNN, LAR, TDV or LSR
+load_pretrain = True  # load pretrained weights given that they exist
 load_parameter_fitting = (
     False  # load pretrained weights and learned regularization and scaling parameter
 )
@@ -345,8 +345,9 @@ else:
     regularizer.scale.requires_grad_(True)
     if problem == "CT":
         regularizer.alpha.data = regularizer.alpha.data + np.log(60.0)
-        if regularizer_name == "TDV":
-            regularizer.alpha.data = regularizer.alpha.data + np.log(60.0)
+        if regularizer_name == "TDV" or regularizer_name == "LSR":
+            regularizer.alpha.data = regularizer.alpha.data + np.log(5.0)
+            regularizer.scale.requires_grad_(False)
     if regularizer_name == "WCRR" and problem == "Denoising":
         regularizer.alpha.requires_grad_(False)
         regularizer.regularizer.beta.requires_grad_(True)
