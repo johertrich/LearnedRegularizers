@@ -23,7 +23,7 @@ def WGAN_loss(regularizer, images, images_gt,mu=10):
     interpolates.requires_grad_(True)
     grad_norm = regularizer.grad(interpolates).flatten(1).norm(2, dim=1) 
     data_loss = regularizer.g(real_samples).mean() - regularizer.g(fake_samples).mean()
-    grad_loss = mu * torch.nn.functional.relu(grad_norm - 1).square().mean()
+    grad_loss = mu * (grad_norm - 1).square().mean()
     return data_loss + grad_loss,  grad_loss
 
 def estimate_lmbd(dataset,physics,device):
@@ -92,7 +92,8 @@ def simple_ar_training(
     adversarial_loss = WGAN_loss
     optimizer = torch.optim.Adam(regularizer.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=lr_decay)
-    
+    best_val_psnr=-999
+
     for epoch in range(epochs):
         loss_vals = []
         grad_loss_vals = []
@@ -114,7 +115,6 @@ def simple_ar_training(
         print(print_str)
         if logger is not None:
             logger.info(print_str)
-        best_val_psnr=-999
         if (epoch + 1) % validation_epochs == 0:
             regularizer.eval()
             lip = estimate_lip(regularizer,val_dataloader,device)
