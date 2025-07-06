@@ -12,7 +12,7 @@ from operators import get_operator, get_evaluation_setting
 from evaluation import evaluate
 from dataset import get_dataset
 from torchvision.transforms import CenterCrop
-from priors import ICNNPrior, NETT, DRUNet
+from priors import ICNNPrior, NETT, DRUNet, simpleNETT
 import torch
 
 if torch.backends.mps.is_available():
@@ -36,13 +36,15 @@ only_first = False  # just evaluate on the first image of the dataset for test p
 
 # Define regularizer
 
-regularizer = DRUNet(in_channels=1,out_channels = 1,device = device)
-regularizer.load_state_dict(torch.load('weights/simple_DRUNETT_denoising.pt'))
+regularizer = simpleNETT(in_channels = 1, out_channels = 1).to(device)
+
+#regularizer = DRUNet(in_channels=1,out_channels = 1,device = device,p = 2)
+regularizer.load_state_dict(torch.load('weights/NETT_weights_denoising.pt'))
 
 
 # reconstruction hyperparameters, might be problem dependent
 if problem == "Denoising":
-    lmbd = 3
+    lmbd = 6
     
     # regularization parameter
 elif problem == "CT":
@@ -51,8 +53,8 @@ elif problem == "CT":
 # Parameters for the Nesterov Algorithm, might also be problem dependent...
 
 NAG_step_size = 1e-1  # step size in NAG
-NAG_max_iter = 200  # maximum number of iterations in NAG
-NAG_tol = 1e-3  # tolerance for the relative error (stopping criterion)
+NAG_max_iter = 800  # maximum number of iterations in NAG
+NAG_tol = 1e-6  # tolerance for the relative error (stopping criterion)
 
 
 #############################################################
@@ -67,7 +69,7 @@ if problem == "Denoising":
 
 # Call unified evaluation routine
 
-regularizer.compute_padding((dataset[0][0].shape[-2],dataset[0][0].shape[-1]))
+#regularizer.compute_padding((dataset[0][0].shape[-2],dataset[0][0].shape[-1]))
 
 mean_psnr, x_out, y_out, recon_out = evaluate(
     physics=physics,
