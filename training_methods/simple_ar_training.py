@@ -7,6 +7,7 @@ import numpy as np
 from evaluation import reconstruct_nmAPG
 from dataset import get_dataset
 from torchvision.transforms import CenterCrop, RandomCrop
+import torchvision.transforms.functional as TF
 from deepinv.utils import patch_extractor
 from torch.utils.data import DataLoader
 from deepinv.loss.metric import PSNR
@@ -23,7 +24,7 @@ def WGAN_loss(regularizer, images, images_gt,mu=10):
     interpolates.requires_grad_(True)
     grad_norm = regularizer.grad(interpolates).flatten(1).norm(2, dim=1) 
     data_loss = regularizer.g(real_samples).mean() - regularizer.g(fake_samples).mean()
-    grad_loss = mu * (grad_norm - 1).square().mean()
+    grad_loss = mu * torch.nn.functional.relu(grad_norm - 1).square().mean()
     return data_loss + grad_loss,  grad_loss
 
 def estimate_lmbd(dataset,physics,device):
@@ -66,7 +67,9 @@ def simple_ar_training(
     lr=1e-3,
     lr_decay=0.998,
     device="cuda" if torch.cuda.is_available() else "cpu",
-    mu = 10.0,
+    mu=10.0,
+    patch_size=None,
+    num_patches=8,
     dynamic_range_psnr=False,
     savestr=None,
     logger=None,
@@ -77,10 +80,6 @@ def simple_ar_training(
         "best_regularizer_state will remain unchanged, and the returned model will be identical to the initial state."
     )
     
-    NAG_step_size=1e-1
-    NAG_max_iter=1000
-    NAG_tol_val=1e-4
-
     if dynamic_range_psnr:
         psnr = PSNR(max_pixel=None)
     else:
@@ -88,7 +87,11 @@ def simple_ar_training(
 
     if lmbd == None:
         lmbd = estimate_lmbd(val_dataloader,physics,device)
-    
+
+    NAG_step_size=1e-2/lmbd
+    NAG_max_iter=1000
+    NAG_tol_val=1e-4
+
     adversarial_loss = WGAN_loss
     optimizer = torch.optim.Adam(regularizer.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=lr_decay)
@@ -102,8 +105,16 @@ def simple_ar_training(
             x = x.to(device)
             y = physics(x)
             x_noisy = physics.A_dagger(y)
-            
-            loss, grad_loss = adversarial_loss(regularizer, x_noisy, x, mu)
+            if patch_size == None:
+                x_patches, linear_inds = patch_extractor(x, n_patches=batch_size, patch_size=patch_size)
+                x_patches = x_patches.squeeze(0)
+                _, C, _, _ = x_noisy.shape
+                imgs = x_noisy.reshape(1, -1)
+                x_noisy_patches = imgs.view(1, -1)[:, linear_inds]
+                x_noisy_patches = x_noisy_patches.reshape(batch_size, C, patch_size, patch_size)
+                loss, grad_loss = adversarial_loss(regularizer.cnn, x_noisy_patches, x_patches, mu)
+            else:
+                loss, grad_loss = adversarial_loss(regularizer, x_noisy, x, mu)
             loss.backward()
             optimizer.step()
             loss_vals.append(loss.item())
@@ -141,7 +152,10 @@ def simple_ar_training(
                         x_init=x_val_noisy,
                     )
 
-                    val_psnr_epoch += psnr(x_recon_val, x_val).mean().item()
+                    new_psnr = psnr(x_recon_val, x_val).mean().item()
+                    if new_psnr <= 0:
+                        print(f"Warning: Negativ PSNR occured {new_psnr}")
+                    val_psnr_epoch += new_psnr
 
                 mean_val_psnr = val_psnr_epoch / len(val_dataloader)
                 print_str = f"[Epoch {epoch+1}] PSNR: {mean_val_psnr:.2f}"
@@ -158,11 +172,14 @@ def simple_ar_training(
 
                 # ---- Save best regularizer based on validation PSNR ----
                 if mean_val_psnr > best_val_psnr:
+                    print("Updated best PSNR")
                     best_val_psnr = mean_val_psnr
                     best_regularizer_state = copy.deepcopy(regularizer.state_dict())
     # Load best regularizer
+    print_str = f"Best Training PSNR: {best_val_psnr}"
+    print(print_str)
+    logger.info(print_str)
     regularizer.load_state_dict(best_regularizer_state)
-
     return regularizer
 
 # Training function for the LocalAR
