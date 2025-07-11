@@ -1,3 +1,4 @@
+#%%
 from priors import WCRR
 import torch
 from deepinv.physics import Denoising
@@ -241,8 +242,8 @@ regularizer = WCRR(
 ).to(device)
 
 # In case you want to experiment with different lower-level accuracy and upper-level step sizes
-eps_list = [1e-2]
-alpha_list = [1e-2]
+eps_list = [1e-1]
+alpha_list = [1e-1]
 
 for eps in eps_list:
     for alpha in alpha_list:
@@ -263,15 +264,17 @@ for eps in eps_list:
                     drop_last=True,
                     num_workers=8,
                 )
+        
                 if rep == 0:
                     logs = None  
+                    optimizer = None 
                 if rep == NUM_REPS - 1:
                     epochs = 200 # to ensure convergence in the last repetition
                 else:
-                    epochs = 5    
+                    epochs = 50   
                 if eps < 1e-4:
-                    eps = 1e-4  # Ensure eps is not too small for stability         
-                regularizer, loss_train, loss_val, psnr_train, psnr_val , eps, alpha, logs = (
+                    eps = 1e-4  # Ensure eps is not too small for stability          
+                regularizer, loss_train, loss_val, psnr_train, psnr_val , eps, alpha, logs, _ = (
                     simple_bilevel_training_maid(
                         regularizer,
                         physics,
@@ -285,8 +288,8 @@ for eps in eps_list:
                         NAG_tol_train=eps,
                         NAG_tol_val=1e-4,
                         CG_tol=eps,
-                        lr=alpha0,
-                        lr_decay=0.25,
+                        lr=alpha,
+                        lr_decay=0.5,
                         device=device,
                         precondition=True,  # Use preconditioned upper-level optimization
                         verbose=False,
@@ -295,15 +298,23 @@ for eps in eps_list:
                         + str(eps0)
                         + "_"
                         + str(alpha0)
-                        + "_CRR",  # Directory to save the model and logs
-                        val_checkpoint=None,  # You can specify in which epoch to save the model, or None to save the best model based on validation loss
+                        + "_ICNN_Ada_chain",  # Directory to save the model and logs
+                        # val_checkpoint=[],  # You can specify in which epoch to save the model, or None to save the best model based on validation loss
                         logs=logs,  # Dictionary to store logs
+                        optimizer=optimizer,  # Optimizer to use for the training
+                        algorithm="MAID Adagrad",  # Algorithm used for training
                     )
                 )
+                # controlling alpha in chain to not blow up
+                if alpha > 0.5:
+                    alpha = 0.5
+                if alpha < 1e-5:
+                    alpha = 1e-5
                 physics = Denoising(noise_model=GaussianNoise(sigma=noise_level))
 
         else:
-            regularizer, loss_train, loss_val, psnr_train, psnr_val, eps, alpha, logs = (
+            print(f"Training on fixed dataset with eps: {eps}, alpha: {alpha}")
+            regularizer, loss_train, loss_val, psnr_train, psnr_val, eps, alpha, logs, _ = (
                 simple_bilevel_training_maid(
                     regularizer,
                     physics,
@@ -311,7 +322,7 @@ for eps in eps_list:
                     lmbd,
                     train_dataloader,
                     val_dataloader,
-                    epochs=100,
+                    epochs=300,
                     NAG_step_size=1e-1,
                     NAG_max_iter=1000,
                     NAG_tol_train=eps,
@@ -320,8 +331,15 @@ for eps in eps_list:
                     lr=alpha,
                     lr_decay=0.25,
                     device=device,
-                    precondition=True,  # Use preconditioned upper-level optimization
-                    verbose=False,
+                    precondition=True,  # Use preconditioned upper-level optimization (AdaGrad)
+                    verbose=True,
+                    save_dir=str(SUBSET)
+                    + "_"
+                    + str(eps)
+                    + "_"
+                    + str(alpha)
+                    + "_CRR_MAID",  # Directory to save the model and logs
+                    algorithm = "MAID Adagrad",  # Algorithm used for training
                 )
             )
         print(f"Training completed with eps: {eps}, alpha: {alpha}")
