@@ -69,7 +69,7 @@ def simple_ar_training(
     device="cuda" if torch.cuda.is_available() else "cpu",
     mu=10.0,
     patch_size=None,
-    num_patches=8,
+    patches_per_img=4,
     dynamic_range_psnr=False,
     savestr=None,
     logger=None,
@@ -106,7 +106,7 @@ def simple_ar_training(
             y = physics(x)
             x_noisy = physics.A_dagger(y)
             if patch_size == None:
-                x_patches, linear_inds = patch_extractor(x, n_patches=batch_size, patch_size=patch_size)
+                x_patches, linear_inds = patch_extractor(x, n_patches=patches_per_img, patch_size=patch_size)
                 x_patches = x_patches.squeeze(0)
                 _, C, _, _ = x_noisy.shape
                 imgs = x_noisy.reshape(1, -1)
