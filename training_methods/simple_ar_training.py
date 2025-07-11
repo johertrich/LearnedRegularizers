@@ -88,7 +88,7 @@ def simple_ar_training(
     if lmbd == None:
         lmbd = estimate_lmbd(val_dataloader,physics,device)
 
-    NAG_step_size=1e-2/lmbd
+    NAG_step_size=1e-2#/lmbd
     NAG_max_iter=1000
     NAG_tol_val=1e-4
 
@@ -105,13 +105,13 @@ def simple_ar_training(
             x = x.to(device)
             y = physics(x)
             x_noisy = physics.A_dagger(y)
-            if patch_size == None:
+            if not patch_size == None:
                 x_patches, linear_inds = patch_extractor(x, n_patches=patches_per_img, patch_size=patch_size)
-                x_patches = x_patches.squeeze(0)
-                _, C, _, _ = x_noisy.shape
-                imgs = x_noisy.reshape(1, -1)
-                x_noisy_patches = imgs.view(1, -1)[:, linear_inds]
-                x_noisy_patches = x_noisy_patches.reshape(batch_size, C, patch_size, patch_size)
+                B, C, _, _ = x_noisy.shape
+                imgs = x_noisy.reshape(B, -1)
+                x_noisy_patches = imgs.view(B, -1)[:, linear_inds]
+                x_noisy_patches = x_noisy_patches.reshape(patches_per_img*x.shape[0], C, patch_size, patch_size)
+                x_patches = x_patches.reshape(patches_per_img*x.shape[0], C, patch_size, patch_size)
                 loss, grad_loss = adversarial_loss(regularizer.cnn, x_noisy_patches, x_patches, mu)
             else:
                 loss, grad_loss = adversarial_loss(regularizer, x_noisy, x, mu)
@@ -152,6 +152,12 @@ def simple_ar_training(
                         x_init=x_val_noisy,
                     )
 
+                    #import matplotlib.pyplot as plt 
+                    #fig, (ax1, ax2) = plt.subplots(1,2, figsize=(12,6))
+                    #ax1.imshow(x_val[0,0].cpu().numpy(), cmap="gray")
+                    #ax2.imshow(x_recon_val[0,0].cpu().numpy(), cmap="gray")
+                    #plt.show()
+
                     new_psnr = psnr(x_recon_val, x_val).mean().item()
                     if new_psnr <= 0:
                         print(f"Warning: Negativ PSNR occured {new_psnr}")
@@ -178,110 +184,7 @@ def simple_ar_training(
     # Load best regularizer
     print_str = f"Best Training PSNR: {best_val_psnr}"
     print(print_str)
-    logger.info(print_str)
+    if logger is not None:
+        logger.info(print_str)
     regularizer.load_state_dict(best_regularizer_state)
     return regularizer
-
-# Training function for the LocalAR
-def simple_lar_training(
-    regularizer,
-    physics,
-    data_fidelity,
-    lmbd,
-    train_data,
-    val_data,
-    patch_size,
-    epochs=25,
-    lr=1e-3,
-    device="cuda" if torch.cuda.is_available() else "cpu",
-    mu = 10.0,
-    batch_size=128,
-    save_str=None,
-    val_epochs = 5,
-    dataset_name="BSD500"
-):
-    adversarial_loss = WGAN_loss
-    regularizer.to(device)
-    optimizer = torch.optim.Adam(regularizer.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=lr/100. )
-    
-    regularizer.train()
-    NAG_step_size = 1e-2  # step size in NAG
-    NAG_max_iter = 200  # maximum number of iterations in NAG
-    NAG_tol = 1e-4  # tolerance for therelative error (stopping criterion)
-    only_first = False
-    def eval_routine():
-        mean_psnr, x_out, y_out, recon_out = evaluate(
-                    physics=physics,
-                    data_fidelity=data_fidelity,
-                    dataset=val_data, 
-                    regularizer=regularizer,
-                    lmbd=lmbd,
-                    NAG_step_size=NAG_step_size,
-                    NAG_max_iter=NAG_max_iter,
-                    NAG_tol=NAG_tol,
-                    only_first=only_first,
-                    device=device,
-                    verbose=False,
-                    adaptive_range=True if dataset_name == "LoDoPab" else False 
-                )
-        for p in regularizer.parameters():
-            p.requires_grad_(True)
-        return mean_psnr, x_out, y_out, recon_out
-    mean_psnr, x_out, y_out, recon_out = eval_routine()
-    
-    print("PSNR of initial model: ", mean_psnr)
-    
-    best_psnr = mean_psnr
-    for epoch in tqdm(range(epochs)):
-        loss_vals = []
-        regularizer.train()
-
-        train_dataloader = DataLoader(train_data, batch_size=1, shuffle=True)
-        for x in train_dataloader:
-            optimizer.zero_grad()
-            if isinstance(x, list):
-                x = x[0]
-            if device == "mps":
-                x = x.to(torch.float32).to(device)
-            else:
-                x = x.to(device).to(torch.float)
-            y = physics(x)
-            x_noisy = physics.A_dagger(y)
-
-            ### patch-based training
-            x_patches, linear_inds = patch_extractor(x, n_patches=batch_size, patch_size=patch_size)
-            x_patches = x_patches.squeeze(0)
-
-            _, C, _, _ = x_noisy.shape
-            imgs = x_noisy.reshape(1, -1)
-            x_noisy_patches = imgs.view(1, -1)[:, linear_inds]
-            x_noisy_patches = x_noisy_patches.reshape(batch_size, C, patch_size, patch_size)
-
-            loss = adversarial_loss(regularizer.cnn, x_noisy_patches, x_patches, mu)
-
-            mean_loss = torch.mean(loss)
-            mean_loss.backward()
-            optimizer.step()
-            loss_vals.append(mean_loss.item())
-        print(
-            "Average training loss in epoch {0}: {1:.2E}".format(
-                epoch + 1, np.mean(loss_vals)
-            )
-        )
-        
-        loss_vals = []
-        
-        
-        scheduler.step()    
-        
-        print("Learning rate: ", scheduler.get_last_lr()[0])
-        if epoch % val_epochs == 0 and epoch > 0:
-            mean_psnr, x_out, y_out, recon_out = eval_routine()
-
-            print("Mean val PSNR: ", mean_psnr)
-            if mean_psnr > best_psnr:
-                best_psnr = mean_psnr
-                print("New best PSNR: ", best_psnr)
-                if save_str is not None: 
-                    torch.save(regularizer.cnn.state_dict(), save_str)
