@@ -1,5 +1,5 @@
 #%%
-from priors import simple_IDCNNPrior, linearIDCNNPrior, simple_IDCNNPrior_final
+from priors import simple_IDCNNPrior, linearIDCNNPrior
 import torch
 from deepinv.physics import Denoising, GaussianNoise
 from deepinv.optim import L2
@@ -26,7 +26,7 @@ elif torch.cuda.is_available():
 else:
     device = "cpu"
 
-problem = "CT"
+problem = "Denoising"
 
   
  
@@ -34,14 +34,23 @@ problem = "CT"
 
 physics , data_fidelity = get_operator(problem, device)
 
-train_dataset = get_dataset("LoDoPaB", root='/home/yasmin/projects/backup/LearnedRegularizers/', test=False, transform=None)
+transform = Compose(
+    [
+        RandomCrop(64),
+        RandomHorizontalFlip(p=0.5),
+        RandomVerticalFlip(p=0.5),
+        RandomApply([RandomRotation((90, 90))], p=0.5),
+    ]
+)
+train_dataset = get_dataset("BSDS500_gray", test=False, transform=transform)
+val_dataset = get_dataset("BSDS500_gray", test=False, transform=CenterCrop(321))
 # splitting in training and validation set
-test_ratio = 0.003
-val_len = int(len(train_dataset) * test_ratio)
-train_len = len(train_dataset) - val_len
+test_ratio = 0.1
+test_len = int(len(train_dataset) * 0.1)
+print('train_dataset length:',len(train_dataset))
+train_len = len(train_dataset) - test_len
 train_set = torch.utils.data.Subset(train_dataset, range(train_len))
-val_set = torch.utils.data.Subset(train_dataset, range(train_len, len(train_dataset)))
-print(len(train_set), len(val_set))
+val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
 
 # create dataloaders
 train_dataloader = torch.utils.data.DataLoader(
@@ -52,13 +61,10 @@ val_dataloader = torch.utils.data.DataLoader(
 )
 
 # define regularizer
-regularizer = simple_IDCNNPrior(in_channels=1, channels=32, device=device, kernel_size=5, )
-
-
+regularizer = simple_IDCNNPrior(in_channels=1, channels=32, device=device, kernel_size=5)
 
 lmbd = estimate_lmbd(train_dataloader,physics,device)
  
-
 
 simple_ar_training(
     regularizer,
@@ -71,9 +77,8 @@ simple_ar_training(
     epochs=50,
     lr=1e-3,
     mu=10,
-    save_str=f"./weights/simple_{regularizer.__class__.__name__}_ar_{problem}.pt"
+    savestr=f"./weights/simple_{regularizer.__class__.__name__}_ar_{problem}.pt"
 )
 
 
-# torch.save(regularizer.state_dict(), f"weights/{idx}/simple_{regularizer.__class__.__name__}_ar_{problem}.pt")
-# %%
+

@@ -58,7 +58,7 @@ NAG_max_iter = 1000  # maximum number of iterations in NAG
 NAG_tol = 1e-4  # tolerance for therelative error (stopping criterion)
 only_first = False
 
-lmbd=1000
+lmbd=1200
    
 
 mean_psnr, x_out, y_out, recon_out = evaluate(
@@ -76,13 +76,5 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
     verbose=True,
 )
 
-# save mean_psnr
-    
 
-# plot ground truth, observation and reconstruction for the first image from the test dataset
-# plot([x_out, y_out, recon_out])
 
-# save mean_PNSR and lmdb
-# if not only_first:
-#     with open(f'result_CT_{lmbd}_{idx}.txt', 'w') as file:
-#         file.write(str(mean_psnr))
