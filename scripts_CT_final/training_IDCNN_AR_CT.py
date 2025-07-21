@@ -1,5 +1,5 @@
 #%%
-from priors import simple_IDCNNPrior, linearIDCNNPrior, simple_IDCNNPrior_final
+from priors import simple_IDCNNPrior, linearIDCNNPrior, simple_IDCNNPrior_final, linearIDCNNPrior_Softplus
 import torch
 from deepinv.physics import Denoising, GaussianNoise
 from deepinv.optim import L2
@@ -36,7 +36,7 @@ physics , data_fidelity = get_operator(problem, device)
 
 train_dataset = get_dataset("LoDoPaB", root='/home/yasmin/projects/backup/LearnedRegularizers/', test=False, transform=None)
 # splitting in training and validation set
-test_ratio = 0.003
+test_ratio = 0.1
 val_len = int(len(train_dataset) * test_ratio)
 train_len = len(train_dataset) - val_len
 train_set = torch.utils.data.Subset(train_dataset, range(train_len))
@@ -52,7 +52,7 @@ val_dataloader = torch.utils.data.DataLoader(
 )
 
 # define regularizer
-regularizer = simple_IDCNNPrior(in_channels=1, channels=32, device=device, kernel_size=5)
+regularizer = simple_IDCNNPrior_Softplus(in_channels=1, channels=32, device=device, kernel_size=5)
 
 
 
@@ -60,7 +60,7 @@ lmbd = estimate_lmbd(train_dataloader,physics,device)
  
 
 
-simple_ar_training(
+regularizer = simple_ar_training(
     regularizer,
     physics,
     data_fidelity,
@@ -68,12 +68,13 @@ simple_ar_training(
     train_dataloader,
     val_dataloader,
     device=device,
-    epochs=10,
+    epochs=50,
     lr=1e-3,
+    lr_decay=1.0,
     mu=10,
     savestr=f"./weights/simple_{regularizer.__class__.__name__}_ar_{problem}.pt"
 )
 
 
-# torch.save(regularizer.state_dict(), f"weights/{idx}/simple_{regularizer.__class__.__name__}_ar_{problem}.pt")
-# %%
+torch.save(regularizer.state_dict(), f"weights/{idx}/simple_{regularizer.__class__.__name__}_ar_{problem}.pt")
+
