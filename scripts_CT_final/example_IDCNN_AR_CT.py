@@ -1,5 +1,5 @@
 #%%
-from priors import simple_IDCNNPrior, linearIDCNNPrior
+from priors import simple_IDCNNPrior, linearIDCNNPrior, linearIDCNNPrior_Softplus
 import torch
 from deepinv.physics import Denoising, GaussianNoise
 from deepinv.optim import L2
@@ -36,7 +36,7 @@ else:
 problem = "CT"
 
 
-regularizer = simple_IDCNNPrior(in_channels=1, channels=32, device=device, kernel_size=5,
+regularizer = linearIDCNNPrior_Softplus(in_channels=1, channels=32, device=device, kernel_size=5,
     pretrained=f'./weights/simple_simple_IDCNNPrior_ar_CT.pt'
 ).to(device)
 
@@ -58,7 +58,7 @@ NAG_max_iter = 1000  # maximum number of iterations in NAG
 NAG_tol = 1e-4  # tolerance for therelative error (stopping criterion)
 only_first = False
 
-lmbd=1200
+lmbd=1400
    
 
 mean_psnr, x_out, y_out, recon_out = evaluate(
