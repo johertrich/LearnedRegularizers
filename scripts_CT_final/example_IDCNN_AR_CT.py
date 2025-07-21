@@ -36,8 +36,13 @@ else:
 problem = "CT"
 
 
-regularizer = linearIDCNNPrior_Softplus(in_channels=1, channels=32, device=device, kernel_size=5,
-    pretrained=f'./weights/simple_simple_IDCNNPrior_ar_CT.pt'
+regularizer = linearIDCNNPrior_Softplus(in_channels=1,
+        num_filters=32,
+        kernel_dim=5,
+        num_layers=1,
+        pos_weights=True,
+        device=device,
+        pretrained=f'./weights/simple_simple_IDCNNPrior_ar_CT.pt'
 ).to(device)
 
 
