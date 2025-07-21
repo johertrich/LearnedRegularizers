@@ -52,7 +52,12 @@ val_dataloader = torch.utils.data.DataLoader(
 )
 
 # define regularizer
-regularizer = linearIDCNNPrior_Softplus(in_channels=1, channels=32, device=device, kernel_size=5)
+regularizer = linearIDCNNPrior_Softplus(in_channels=1,
+        num_filters=32,
+        kernel_dim=5,
+        num_layers=1,
+        pos_weights=True,
+        device=device,)
 
 
 
