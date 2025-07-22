@@ -117,7 +117,8 @@ def simple_ar_training(
                     loss, grad_loss = adversarial_loss(regularizer.cnn, x_noisy_patches, x_patches, mu)
                 else:
                     loss, grad_loss = adversarial_loss(regularizer, x_noisy_patches, x_patches, mu)
-            loss, grad_loss = adversarial_loss(regularizer, x_noisy, x, mu)
+            else:
+                loss, grad_loss = adversarial_loss(regularizer, x_noisy, x, mu)
             loss.backward()
             optimizer.step()
             loss_vals.append(loss.item())
