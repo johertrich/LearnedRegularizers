@@ -70,6 +70,7 @@ def simple_ar_training(
     mu=10.0,
     patch_size=None,
     patches_per_img=4,
+    LAR_eval = False,
     dynamic_range_psnr=False,
     savestr=None,
     logger=None,
@@ -112,9 +113,11 @@ def simple_ar_training(
                 x_noisy_patches = imgs.view(B, -1)[:, linear_inds]
                 x_noisy_patches = x_noisy_patches.reshape(patches_per_img*x.shape[0], C, patch_size, patch_size)
                 x_patches = x_patches.reshape(patches_per_img*x.shape[0], C, patch_size, patch_size)
-                loss, grad_loss = adversarial_loss(regularizer.cnn, x_noisy_patches, x_patches, mu)
-            else:
-                loss, grad_loss = adversarial_loss(regularizer, x_noisy, x, mu)
+                if LAR_eval:
+                    loss, grad_loss = adversarial_loss(regularizer.cnn, x_noisy_patches, x_patches, mu)
+                else:
+                    loss, grad_loss = adversarial_loss(regularizer, x_noisy_patches, x_patches, mu)
+            loss, grad_loss = adversarial_loss(regularizer, x_noisy, x, mu)
             loss.backward()
             optimizer.step()
             loss_vals.append(loss.item())
