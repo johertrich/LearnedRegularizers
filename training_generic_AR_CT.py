@@ -7,7 +7,7 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from priors import LSR, LSR_LogCosh, DCRR_Prior, WCRR, simple_ICNNPrior, simple_IDCNNPrior, TDV, ParameterLearningWrapper
+from priors import LSR, DCRR_Prior, WCRR, simple_ICNNPrior, simple_IDCNNPrior, TDV, ParameterLearningWrapper
 import torch
 from deepinv.physics import Denoising, GaussianNoise
 from training_methods import simple_ar_training, bilevel_training
@@ -33,13 +33,13 @@ if torch.backends.mps.is_available():
     # mps backend is used in Apple Silicon chips
     device = "mps"
 elif torch.cuda.is_available():
-    device = "cuda:0"
+    device = "cuda:2"
 else:
     device = "cpu"
 
-problem = "Denoising"
-reg_name = "TDV"
-only_fitting = False
+problem = "CT"
+reg_name = "WCRR"
+only_fitting = True
 
 # define regularizer
 if reg_name == "CRR":
@@ -47,52 +47,57 @@ if reg_name == "CRR":
         sigma=0.1,
         weak_convexity=0.0,
         ).to(device)
-    patch_size = 64
     batch_size = 8
     lr = 1e-2
-    lr_decay = 0.998
-    epochs = 500
-    val_epochs = 25
+    lr_decay = 0.98
+    fitting_lr = 0.1
+    epochs = 150
+    val_epochs = 10
     mu = 10
+    patch_size = 64
 elif reg_name == "WCRR":
     regularizer = WCRR(
         sigma=0.1,
         weak_convexity=1.0,
         ).to(device)
-    patch_size = 64
     batch_size = 8
     lr = 1e-2
-    lr_decay = 0.998
-    epochs = 500
-    val_epochs = 25
+    lr_decay = 0.98
+    fitting_lr = 0.1
+    epochs = 150
+    val_epochs = 10
     mu = 10
+    patch_size = 64
 elif reg_name == "DCRR":
     regularizer = DCRR_Prior(device=device).to(device)
-    patch_size = 64
     batch_size = 8
-    lr = 1e-2
-    lr_decay = 0.998
-    epochs = 500
-    val_epochs = 25
+    lr = 5e-3
+    fitting_lr = 0.01
+    lr_decay = 0.985
+    epochs = 200
+    val_epochs = 10
     mu = 10
+    patch_size = 64
 elif reg_name == "ICNN":
     regularizer = simple_ICNNPrior(in_channels=1,channels=32,device=device)
-    patch_size = 64
     batch_size = 8
     lr = 1e-3
-    lr_decay = 0.998
-    epochs = 500
-    val_epochs = 25
+    fitting_lr = 0.1
+    lr_decay = 0.985
+    epochs = 200
+    val_epochs = 10
     mu = 10
+    patch_size = 64
 elif reg_name == "IDCNN":
     regularizer = simple_IDCNNPrior(in_channels=1,channels=32,kernel_size=5,device=device)
-    patch_size = 64
     batch_size = 8
-    lr = 1e-3
-    lr_decay = 0.998
-    epochs = 500
-    val_epochs = 25
+    lr = 1e-4
+    lr_decay = 0.985
+    fitting_lr = 1e-2
+    epochs = 200
+    val_epochs = 10
     mu = 10
+    patch_size = 64
 elif reg_name == "TDV":
     config = dict(
         in_channels=1,
@@ -105,70 +110,53 @@ elif reg_name == "TDV":
         zero_mean=True,
         )
     regularizer = TDV(**config).to(device)
-    patch_size = 64
     batch_size = 8
-    lr = 2e-4
-    lr_decay = 0.9997
-    epochs = 4000
-    val_epochs = 100
+    lr = 1e-4
+    lr_decay = 0.99
+    fitting_lr = 1e-2
+    epochs = 250
+    val_epochs = 10
     mu = 10
+    patch_size = 64
 elif reg_name == "LSR":
     regularizer = LSR(
         nc=[32, 64, 128, 256], pretrained_denoiser=False,
     ).to(device)
-    patch_size = 64
     batch_size = 16
     lr = 1e-4
-    lr_decay = 0.9998
-    epochs = 4000
-    val_epochs = 100
+    lr_decay = 0.99
+    fitting_lr = 1e-2
+    epochs = 500
+    val_epochs = 10
     mu = 15
-elif reg_name == "LSR_LogCosh":
-    regularizer = LSR_LogCosh(
-        nc=[32, 64, 128, 256], pretrained_denoiser=False,
-    ).to(device)
-    patch_size = 96
-    batch_size = 16
-    lr = 5e-5
-    lr_decay = 0.9998
-    epochs = 4000
-    val_epochs = 100
-    mu = 15
+    patch_size = 64
 else:
     raise ValueError("Unknown model!")
 
 # problem dependent parameters
-transform = Compose(
-    [
-    RandomCrop(patch_size),
-    RandomHorizontalFlip(p=0.5),
-    RandomVerticalFlip(p=0.5),
-    RandomApply([RandomRotation((90, 90))], p=0.5),
-    ]
-)
-dataset = get_dataset("BSDS500_gray", test=False, transform=transform)
 physics, data_fidelity = get_operator(problem, device)
 
 # splitting in training and validation set
+train_dataset = get_dataset("LoDoPaB", test=False)
+val_dataset = get_dataset("LoDoPaB", test=False)
+# splitting in training and validation set
 test_ratio = 0.1
-test_len = int(len(dataset) * 0.1)
-train_len = len(dataset) - test_len
-train_set = torch.utils.data.Subset(dataset, range(train_len))
-val_dataset = get_dataset("BSDS500_gray", test=False, transform=CenterCrop(321))
-val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(dataset)))
-shuffle = True
+test_len = int(len(train_dataset) * 0.1)
+train_len = len(train_dataset) - test_len
+train_set = torch.utils.data.Subset(train_dataset, range(train_len))
+val_set = torch.utils.data.Subset(train_dataset, range(train_len, train_len + int(50.)))
 
 # create dataloaders
 train_dataloader = torch.utils.data.DataLoader(
-    train_set, batch_size=batch_size, shuffle=shuffle, drop_last=True
+    train_set, batch_size=batch_size, shuffle=True, drop_last=True
 )
 val_dataloader = torch.utils.data.DataLoader(
-    val_set, batch_size=1, shuffle=True, drop_last=True
+    val_set, batch_size=1, shuffle=False, drop_last=True
 )
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
-    filename=f"log_training_{reg_name}"
+    filename=f"log_training_{reg_name}_CT"
     + "_AR_"
     + str(datetime.datetime.now())
     + ".log",
@@ -192,7 +180,9 @@ else:
         lr=lr,
         lr_decay = lr_decay,
         mu=mu,
+        patch_size=patch_size,
         logger=logger,
+        dynamic_range_psnr=True,
     )
     torch.save(regularizer.state_dict(), f"weights/adversarial_{problem}/{reg_name}_adversarial_for_{problem}.pt")
 
@@ -211,7 +201,7 @@ for p in wrapped_regularizer.parameters():
     wrapped_regularizer.scale.requires_grad_(True)
 
 # parameter search on first five images of training set
-fit_set = torch.utils.data.Subset(val_dataset, range(0, 5))
+fit_set = get_dataset("LoDoPaB_val")
 fit_dataloader = torch.utils.data.DataLoader(
     fit_set, batch_size=5, shuffle=True, drop_last=True
 )
@@ -230,14 +220,15 @@ bilevel_training(
     NAG_tol_train=1e-4,
     NAG_tol_val=1e-4,
     minres_tol=1e-4,
-    lr=0.1,
-    lr_decay=0.99,
-    reg = True,
+    lr=fitting_lr,
+    lr_decay=0.98,
     device=device,
     verbose=False,
     validation_epochs=10,
-    dynamic_range_psnr=False,
+    dynamic_range_psnr=True,
     adabelief=True,
+    reg=True,
+    reg_para=1e-5,
     logger=logger,
 )
 
