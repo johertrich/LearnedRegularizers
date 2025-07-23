@@ -117,6 +117,10 @@ def bilevel_training(
         )
         norm_sq = torch.sum(hvp ** 2) / x.size(0)
         print(f"Jac_Loss: {norm_sq}")
+        if logger is not None:
+            logger.info(
+                f"Jac Loss {norm_sq}"
+            )
         return torch.clip(norm_sq, min=200, max=None)
 
     if adabelief:
