@@ -33,13 +33,13 @@ if torch.backends.mps.is_available():
     # mps backend is used in Apple Silicon chips
     device = "mps"
 elif torch.cuda.is_available():
-    device = "cuda:2"
+    device = "cuda:0"
 else:
     device = "cpu"
 
 problem = "CT"
-reg_name = "WCRR"
-only_fitting = True
+reg_name = "TDV"
+only_fitting = False
 
 # define regularizer
 if reg_name == "CRR":
@@ -117,7 +117,8 @@ elif reg_name == "TDV":
     epochs = 250
     val_epochs = 10
     mu = 10
-    patch_size = 64
+    patch_size = 40
+    patch_per_img = 16
 elif reg_name == "LSR":
     regularizer = LSR(
         nc=[32, 64, 128, 256], pretrained_denoiser=False,
@@ -227,7 +228,7 @@ bilevel_training(
     validation_epochs=10,
     dynamic_range_psnr=True,
     adabelief=True,
-    reg=True,
+    reg=False,
     reg_para=1e-5,
     logger=logger,
 )
