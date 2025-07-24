@@ -27,6 +27,7 @@ import datetime
 import numpy as np
 import os
 from hyperparameters import get_bilevel_hyperparameters
+import argparse
 
 if torch.cuda.is_available():
     device = "cuda"
@@ -36,13 +37,22 @@ else:
     device = "cpu"
 
 
-problem = "CT"  # Denoising or CT
-hypergradient_computation = "JFB"  # IFT or JFB
-regularizer_name = "IDCNN"  # CRR, WCRR, ICNN, IDCNN, LAR, TDV or LSR
-load_pretrain = True  # load pretrained weights given that they exist
+parser = argparse.ArgumentParser(description="Choosing evaluation setting")
+parser.add_argument("--problem", type=str, default="Denoising")
+parser.add_argument("--hypergradient", type=str, default="IFT")
+parser.add_argument("--regularizer_name", type=str, default="CRR")
+parser.add_argument("--load_pretrain", type=bool, default=False)
+parser.add_argument("load_parameter_fitting", type=bool, default=False)
+inp = parser.parse_args()
+
+problem = inp.problem  # Denoising or CT
+hypergradient_computation = inp.hypergradient  # IFT or JFB
+regularizer_name = inp.regularizer_name  # CRR, WCRR, ICNN, IDCNN, LAR, TDV or LSR
+load_pretrain = inp.load_pretrain  # load pretrained weights given that they exist
 load_parameter_fitting = (
-    True  # load pretrained weights and learned regularization and scaling parameter
-)
+    inp.load_parameter_fitting
+)  # load pretrained weights and learned regularization and scaling parameter
+
 
 hyper_params = get_bilevel_hyperparameters(regularizer_name, problem)
 
@@ -210,12 +220,18 @@ if load_pretrain and not load_parameter_fitting:
 elif not load_parameter_fitting and not hyper_params.pretrain_epochs == 0:
     for p in regularizer.parameters():
         p.requires_grad_(True)
-    if regularizer_name == "WCRR":
+    if (
+        regularizer_name == "WCRR"
+    ):  # for the WCRR a regularization parameter >1 would destroy the 1-weak convexity
         regularizer.alpha.requires_grad_(False)
-    if regularizer_name == "IDCNN":
+    if (
+        regularizer_name == "IDCNN"
+    ):  # for the sake of stability, we do not train the regularization and scale parameter
         regularizer.alpha.requires_grad_(False)
         regularizer.scale.requires_grad_(False)
-        if problem == "CT":
+        if (
+            problem == "CT"
+        ):  # to ensure that the variational problem has a solution after pretraining, we enforce convexity of the IDCNN in the pretraining
             regularizer.alpha.requires_grad_(True)
             regularizer.regularizer.icnn2.wz.weight.data.fill_(0)
             regularizer.regularizer.icnn2.wz.weight.requires_grad_(False)
@@ -268,10 +284,12 @@ else:
             )
             regularizer.scale.requires_grad_(False)
 
-    if regularizer_name == "WCRR" and problem == "Denoising":
+    if (
+        regularizer_name == "WCRR" and problem == "Denoising"
+    ):  # don't tune the regularization parameter for the WCRR to ensure 1-weak convexity
         regularizer.alpha.requires_grad_(False)
         regularizer.regularizer.beta.requires_grad_(True)
-    if (not regularizer_name in ["TDV", "LSR"]) or (not problem == "CT"):
+    if hyper_params.do_parameter_fitting:
         regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
             regularizer,
             physics,
@@ -303,18 +321,12 @@ else:
     )
 
 
-print(regularizer.alpha)
 # bilevel training
-print(regularizer.alpha)
-print(regularizer.scale)
 
 for p in regularizer.parameters():
     p.requires_grad_(True)
-if regularizer_name == "WCRR":
+if regularizer_name == "WCRR":  # fix regularization parameter to ensure 1-weak convexit
     regularizer.alpha.requires_grad_(False)
-
-if not hyper_params.jacobian_regularization:
-    hyper_params.jacobian_regularization_parameter = 0.0
 
 regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
     regularizer,
