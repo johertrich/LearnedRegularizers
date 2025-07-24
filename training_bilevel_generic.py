@@ -3,7 +3,6 @@
 import torch
 from training_methods import bilevel_training, score_training
 from dataset import get_dataset
-from torchvision.transforms import RandomCrop, CenterCrop, Compose
 from priors import (
     ParameterLearningWrapper,
     WCRR,
@@ -25,9 +24,10 @@ from torchvision.transforms import (
 from operators import get_operator
 import logging
 import datetime
-from tqdm import tqdm
 import numpy as np
 import os
+from hyperparameters import get_bilevel_hyperparameters
+import argparse
 
 if torch.cuda.is_available():
     device = "cuda"
@@ -37,74 +37,45 @@ else:
     device = "cpu"
 
 
-problem = "Denoising"  # Denoising or CT
-hypergradient_computation = "IFT"  # IFT or JFB
-regularizer_name = "WCRR"  # CRR, WCRR, ICNN, IDCNN, LAR, TDV or LSR
-load_pretrain = True  # load pretrained weights given that they exist
-load_parameter_fitting = (
-    True  # load pretrained weights and learned regularization and scaling parameter
-)
-score_sigma = 3e-2
+parser = argparse.ArgumentParser(description="Choosing evaluation setting")
+parser.add_argument("--problem", type=str, default="Denoising")
+parser.add_argument("--hypergradient", type=str, default="IFT")
+parser.add_argument("--regularizer_name", type=str, default="CRR")
+parser.add_argument("--load_pretrain", type=bool, default=False)
+parser.add_argument("load_parameter_fitting", type=bool, default=False)
+inp = parser.parse_args()
 
+problem = inp.problem  # Denoising or CT
+hypergradient_computation = inp.hypergradient  # IFT or JFB
+regularizer_name = inp.regularizer_name  # CRR, WCRR, ICNN, IDCNN, LAR, TDV or LSR
+load_pretrain = inp.load_pretrain  # load pretrained weights given that they exist
+load_parameter_fitting = (
+    inp.load_parameter_fitting
+)  # load pretrained weights and learned regularization and scaling parameter
+
+
+hyper_params = get_bilevel_hyperparameters(regularizer_name, problem)
+
+# Choose Regularizer
 if regularizer_name == "CRR":
-    pretrain_epochs = 300
-    pretrain_lr = 1e-2
-    fitting_lr = 0.1
-    epochs = 100
-    lr = 1e-3
-    adabelief = True
-    jacobian_regularization = True
-    jacobian_regularization_parameter = 1e-6
     reg = WCRR(
         sigma=0.1,
         weak_convexity=0.0,
     ).to(device)
 elif regularizer_name == "WCRR":
-    pretrain_epochs = 300
-    pretrain_lr = 1e-2
-    fitting_lr = 0.1
-    adabelief = True
-    epochs = 100
-    lr = 1e-3
-    jacobian_regularization = True
-    jacobian_regularization_parameter = 1e-6
     reg = WCRR(
         sigma=0.1,
         weak_convexity=1.0,
     ).to(device)
 elif regularizer_name == "ICNN":
-    pretrain_epochs = 300
-    pretrain_lr = 1e-3
-    fitting_lr = 0.1
-    adabelief = True
-    epochs = 200
-    lr = 1e-3
-    jacobian_regularization = True
-    jacobian_regularization_parameter = 1e-6
     reg = simple_ICNNPrior(in_channels=1, channels=32, device=device, kernel_size=5).to(
         device
     )
 elif regularizer_name == "IDCNN":
-    pretrain_epochs = 300
-    pretrain_lr = 1e-3
-    fitting_lr = 0.01
-    adabelief = True
-    epochs = 200
-    lr = 1e-3
-    jacobian_regularization = True
-    jacobian_regularization_parameter = 1e-5
     reg = simple_IDCNNPrior(
         in_channels=1, channels=32, device=device, kernel_size=5
     ).to(device)
 elif regularizer_name == "LAR":
-    pretrain_epochs = 300
-    pretrain_lr = 1e-3
-    fitting_lr = 0.01
-    adabelief = True
-    epochs = 200
-    lr = 1e-4
-    jacobian_regularization = True
-    jacobian_regularization_parameter = 1e-5
     reg = LocalAR(
         in_channels=1,
         pad=True,
@@ -115,14 +86,6 @@ elif regularizer_name == "LAR":
         pretrained=None,
     ).to(device)
 elif regularizer_name == "TDV":
-    pretrain_epochs = 7500
-    pretrain_lr = 4e-4
-    fitting_lr = 0.005
-    epochs = 200
-    adabelief = True
-    lr = 1e-4
-    jacobian_regularization_parameter = 1e-4
-    jacobian_regularization = True
     config = dict(
         in_channels=1,
         num_features=32,
@@ -135,16 +98,11 @@ elif regularizer_name == "TDV":
     )
     reg = TDV(**config).to(device)
 elif regularizer_name == "LSR":
-    pretrain_epochs = 7500
-    pretrain_lr = 2e-4
-    epochs = 200
-    adabelief = True
-    fitting_lr = 0.05
-    lr = 1e-4
-    jacobian_regularization = True
-    jacobian_regularization_parameter = 1e-4
     reg = LSR(
-        nc=[32, 64, 128, 256], pretrained_denoiser=False, alpha=1.0, sigma=score_sigma
+        nc=[32, 64, 128, 256],
+        pretrained_denoiser=False,
+        alpha=1.0,
+        sigma=hyper_params.score_sigma,
     ).to(device)
 
 regularizer = ParameterLearningWrapper(reg, device=device)
@@ -153,6 +111,8 @@ lmbd = 1.0
 logger = logging.getLogger(__name__)
 logging.basicConfig(
     filename="log_training_"
+    + problem
+    + "_"
     + regularizer_name
     + "_bilevel_"
     + hypergradient_computation
@@ -177,16 +137,18 @@ for p in regularizer.parameters():
 print(params)
 logger.info(f"Train {regularizer_name} with {hypergradient_computation} on {problem}")
 logger.info(f"The model has {params} parameters")
-logger.info(f"Parameters:")
+logger.info("Parameters:")
 logger.info(
-    f"load_pretrain: {load_pretrain}, load_parameter_fitting: {load_parameter_fitting}, score_sigma: {score_sigma}"
+    f"load_pretrain: {load_pretrain}, load_parameter_fitting: {load_parameter_fitting}, score_sigma: {hyper_params.score_sigma}"
 )
 logger.info(
-    f"pretrain_epochs: {pretrain_epochs}, pretrain_lr: {pretrain_lr}, epochs: {epochs}"
+    f"pretrain_epochs: {hyper_params.pretrain_epochs}, pretrain_lr: {hyper_params.pretrain_lr}, epochs: {hyper_params.epochs}"
 )
-logger.info(f"adabelief: {adabelief}, fitting_lr: {fitting_lr}, lr: {lr}")
 logger.info(
-    f"jacobian_regularization: {jacobian_regularization}, jacobian_regularization_parameter: {jacobian_regularization_parameter}, lmbd: {lmbd}"
+    f"adabelief: {hyper_params.adabelief}, fitting_lr: {hyper_params.fitting_lr}, lr: {hyper_params.lr}"
+)
+logger.info(
+    f"jacobian_regularization: {hyper_params.jacobian_regularization}, jacobian_regularization_parameter: {hyper_params.jacobian_regularization_parameter}, lmbd: {lmbd}"
 )
 
 
@@ -219,6 +181,29 @@ if problem == "Denoising":
     train_dataloader = torch.utils.data.DataLoader(
         train_set, batch_size=8, shuffle=True, drop_last=True, num_workers=8
     )
+    fitting_dataloader = train_dataloader
+elif problem == "CT":
+    train_dataset = get_dataset("LoDoPaB", test=False)
+    pretrain_dataset = get_dataset(
+        "LoDoPaB", test=False, transform=rotation_flip_transform
+    )
+    val_dataset = get_dataset("LoDoPaB", test=False)
+    # splitting in training and validation set
+    test_ratio = 0.1
+    test_len = int(len(train_dataset) * 0.1)
+    train_len = len(train_dataset) - test_len
+    train_set = torch.utils.data.Subset(train_dataset, range(train_len))
+    # val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
+    val_set = get_dataset("LoDoPaB", test=True)
+    train_dataloader = torch.utils.data.DataLoader(
+        train_set, batch_size=8, shuffle=True, drop_last=True, num_workers=8
+    )
+    fitting_set = get_dataset("LoDoPaB_val")
+    # use smaller dataset for parameter fitting
+    fitting_dataloader = torch.utils.data.DataLoader(
+        fitting_set, batch_size=5, shuffle=True, drop_last=True, num_workers=8
+    )
+
 
 val_dataloader = torch.utils.data.DataLoader(
     val_set, batch_size=1, shuffle=False, drop_last=True, num_workers=8
@@ -233,13 +218,25 @@ if load_pretrain and not load_parameter_fitting:
             f"weights/score_for_{problem}/{regularizer_name}_score_training_for_{problem}.pt"
         )
     )
-elif not load_parameter_fitting:
+elif not load_parameter_fitting and not hyper_params.pretrain_epochs == 0:
     for p in regularizer.parameters():
         p.requires_grad_(True)
-    if regularizer_name == "WCRR":
+    if (
+        regularizer_name == "WCRR"
+    ):  # for the WCRR a regularization parameter >1 would destroy the 1-weak convexity
         regularizer.alpha.requires_grad_(False)
-    if regularizer_name == "IDCNN":
+    if (
+        regularizer_name == "IDCNN"
+    ):  # for the sake of stability, we do not train the regularization and scale parameter
         regularizer.alpha.requires_grad_(False)
+        regularizer.scale.requires_grad_(False)
+        if (
+            problem == "CT"
+        ):  # to ensure that the variational problem has a solution after pretraining, we enforce convexity of the IDCNN in the pretraining
+            regularizer.alpha.requires_grad_(True)
+            regularizer.regularizer.icnn2.wz.weight.data.fill_(0)
+            regularizer.regularizer.icnn2.wz.weight.requires_grad_(False)
+    if regularizer_name == "TDV" and problem == "CT":
         regularizer.scale.requires_grad_(False)
     (
         regularizer,
@@ -251,14 +248,17 @@ elif not load_parameter_fitting:
         regularizer,
         pretrain_dataloader,
         val_dataloader,
-        sigma=score_sigma,
-        epochs=pretrain_epochs,
-        lr=pretrain_lr,
-        lr_decay=0.1 ** (1 / pretrain_epochs),
+        sigma=hyper_params.score_sigma,
+        epochs=hyper_params.pretrain_epochs,
+        lr=hyper_params.pretrain_lr,
+        weight_decay=hyper_params.pretrain_weight_decay,
+        lr_decay=0.1 ** (1 / hyper_params.pretrain_epochs),
         device=device,
         validation_epochs=20,
         logger=logger,
-        adabelief=adabelief,
+        adabelief=hyper_params.adabelief,
+        dynamic_range_psnr=problem == "CT",
+        model_selection=False,
         # loss_fn=lambda x,y:torch.abs(x-y).sum()
     )
     torch.save(
@@ -277,44 +277,57 @@ else:
         p.requires_grad_(False)
     regularizer.alpha.requires_grad_(True)
     regularizer.scale.requires_grad_(True)
-    if regularizer_name == "WCRR":
+    if problem == "CT":
+        regularizer.alpha.data = regularizer.alpha.data + np.log(60.0)
+        if regularizer_name in ["TDV", "LSR"]:
+            regularizer.alpha.datatraining_bilevel_generic.py = (
+                regularizer.alpha.data + np.log(20.0)
+            )
+            regularizer.scale.requires_grad_(False)
+
+    if (
+        regularizer_name == "WCRR" and problem == "Denoising"
+    ):  # don't tune the regularization parameter for the WCRR to ensure 1-weak convexity
         regularizer.alpha.requires_grad_(False)
         regularizer.regularizer.beta.requires_grad_(True)
-    regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
-        regularizer,
-        physics,
-        data_fidelity,
-        lmbd,
-        train_dataloader,
-        val_dataloader,
-        epochs=20,
-        mode=hypergradient_computation,
-        NAG_step_size=1e-1,
-        NAG_max_iter=1000,
-        NAG_tol_train=1e-4,
-        NAG_tol_val=1e-4,
-        lr=fitting_lr,
-        lr_decay=0.95,
-        device=device,
-        verbose=False,
-        validation_epochs=5,
-        logger=logger,
-    )
+    if hyper_params.do_parameter_fitting:
+        regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
+            regularizer,
+            physics,
+            data_fidelity,
+            lmbd,
+            fitting_dataloader,
+            val_dataloader,
+            epochs=20 if problem == "Denoising" else 100,
+            mode=hypergradient_computation,
+            NAG_step_size=1e-1,
+            NAG_max_iter=1500,
+            NAG_tol_train=1e-4,
+            NAG_tol_val=1e-4,
+            lr=hyper_params.fitting_lr,
+            momentum_optim=(0.5, 0.9),
+            reg=False,  # jacobian_regularization,
+            reg_para=hyper_params.jacobian_regularization_parameter,
+            reg_reduced=problem == "CT",
+            lr_decay=0.95,
+            device=device,
+            verbose=False,
+            dynamic_range_psnr=problem == "CT",
+            validation_epochs=5 if problem == "Denoising" else 25,
+            logger=logger,
+        )
     torch.save(
         regularizer.state_dict(),
         f"weights/score_parameter_fitting_for_{problem}/{regularizer_name}_fitted_parameters_with_{hypergradient_computation}_for_{problem}.pt",
     )
 
-print(regularizer.alpha)
+
 # bilevel training
 
 for p in regularizer.parameters():
     p.requires_grad_(True)
-if regularizer_name == "WCRR":
+if regularizer_name == "WCRR":  # fix regularization parameter to ensure 1-weak convexit
     regularizer.alpha.requires_grad_(False)
-
-if not jacobian_regularization:
-    jacobian_regularization_parameter = 0.0
 
 regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
     regularizer,
@@ -323,20 +336,23 @@ regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
     lmbd,
     train_dataloader,
     val_dataloader,
-    epochs=epochs,
+    epochs=hyper_params.epochs,
     mode=hypergradient_computation,
     NAG_step_size=1e-1,
     NAG_max_iter=1500,
     NAG_tol_train=1e-4,
     NAG_tol_val=1e-4,
-    lr=lr,
-    lr_decay=0.1 ** (1 / epochs),
-    reg=jacobian_regularization,
-    reg_para=jacobian_regularization_parameter,
+    lr=hyper_params.lr,
+    lr_decay=0.1 ** (1 / hyper_params.epochs),
+    reg=hyper_params.jacobian_regularization,
+    reg_para=hyper_params.jacobian_regularization_parameter,
+    reg_reduced=problem == "CT",
     device=device,
     verbose=False,
     logger=logger,
-    adabelief=adabelief,
+    adabelief=hyper_params.adabelief,
+    dynamic_range_psnr=problem == "CT",
+    validation_epochs=20 if problem == "Denoising" else 1,
 )
 
 torch.save(
