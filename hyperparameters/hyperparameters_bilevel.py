@@ -21,6 +21,7 @@ def get_bilevel_hyperparameters(regularizer_name, problem):
         args.pretrain_lr = 1e-2  # learning rate in pretraining
         args.fitting_lr = 0.1  # learning rate in the parameter fitting phase
         args.lr = 1e-3  # learning rate in the bilevel phase
+        args.do_parameter_fitting = True
 
         if problem == "Denoising":
             args.pretrain_epochs = 300  # number of epochs in pretraining
@@ -42,6 +43,7 @@ def get_bilevel_hyperparameters(regularizer_name, problem):
         args.pretrain_lr = 1e-3  # learning rate in pretraining
         args.fitting_lr = 0.1  # learning rate in the parameter fitting phase
         args.lr = 1e-3  # learning rate in the bilevel phase
+        args.do_parameter_fitting = True
 
         if problem == "Denoising":
             args.pretrain_epochs = 300  # number of epochs in pretraining
@@ -61,6 +63,7 @@ def get_bilevel_hyperparameters(regularizer_name, problem):
 
         args.pretrain_weight_decay = 0  # weight decay in pretraining
         args.pretrain_lr = 1e-3  # learning rate in pretraining
+        args.do_parameter_fitting = True
 
         if problem == "Denoising":
             args.pretrain_epochs = 300  # number of epochs in pretraining
@@ -92,6 +95,7 @@ def get_bilevel_hyperparameters(regularizer_name, problem):
                 1e-5  # Jacobian regularization parameter
             )
             args.epochs = 200  # number of epochs in the bilevel phase
+            args.do_parameter_fitting = True
 
         if problem == "CT":
             raise ValueError("We did not run the LAR for CT...")
@@ -109,6 +113,7 @@ def get_bilevel_hyperparameters(regularizer_name, problem):
             args.epochs = 200  # number of epochs in the bilevel phase
             args.fitting_lr = 0.005  # learning rate in the parameter fitting phase
             args.lr = 1e-4  # learning rate in the bilevel phase
+            args.do_parameter_fitting = True
 
         if problem == "CT":
             args.pretrain_epochs = 750  # number of epochs in pretraining
@@ -118,6 +123,7 @@ def get_bilevel_hyperparameters(regularizer_name, problem):
             args.epochs = 10  # number of epochs in the bilevel phase
             args.fitting_lr = 0.05  # learning rate in the parameter fitting phase
             args.lr = 5e-5  # learning rate in the bilevel phase
+            args.do_parameter_fitting = False
 
     if regularizer_name == "LSR":
         args.pretrain_lr = 2e-4  # learning rate in pretraining
@@ -131,6 +137,7 @@ def get_bilevel_hyperparameters(regularizer_name, problem):
             args.fitting_lr = 0.05  # learning rate in the parameter fitting phase
             args.lr = 1e-4  # learning rate in the bilevel phase
             args.pretrain_weight_decay = 0  # weight decay in pretraining
+            args.do_parameter_fitting = True
 
         if problem == "CT":
             args.pretrain_epochs = 750  # number of epochs in pretraining
@@ -141,5 +148,6 @@ def get_bilevel_hyperparameters(regularizer_name, problem):
             args.fitting_lr = 0.05  # learning rate in the parameter fitting phase
             args.lr = 5e-6  # learning rate in the bilevel phase
             args.pretrain_weight_decay = 1e-4  # weight decay in pretraining
+            args.do_parameter_fitting = True
 
     return args

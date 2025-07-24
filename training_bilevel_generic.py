@@ -56,6 +56,7 @@ load_parameter_fitting = (
 
 hyper_params = get_bilevel_hyperparameters(regularizer_name, problem)
 
+# Choose Regularizer
 if regularizer_name == "CRR":
     reg = WCRR(
         sigma=0.1,

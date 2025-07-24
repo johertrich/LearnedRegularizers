@@ -14,7 +14,6 @@ def score_training(
     lr=0.005,
     lr_decay=0.99,
     weight_decay=0,
-    noise_multiplier=0,
     device="cuda" if torch.cuda.is_available() else "cpu",
     validation_epochs=20,
     logger=None,
@@ -60,15 +59,6 @@ def score_training(
         ):
             x = x.to(device)
             noise = torch.randn_like(x)
-            noise = (
-                torch.exp(
-                    2
-                    * noise_multiplier
-                    * torch.rand((x.shape[0], 1, 1, 1), device=device)
-                    - noise_multiplier
-                )
-                * noise
-            )
             y = x + sigma * noise
             xhat = y - regularizer.grad(y)
             loss = loss_fn(xhat, x)
