@@ -26,6 +26,7 @@ import logging
 import datetime
 import numpy as np
 import os
+from hyperparameters import get_bilevel_hyperparameters
 
 if torch.cuda.is_available():
     device = "cuda"
@@ -42,95 +43,28 @@ load_pretrain = True  # load pretrained weights given that they exist
 load_parameter_fitting = (
     True  # load pretrained weights and learned regularization and scaling parameter
 )
-score_sigma = 3e-2 if problem == "Denoising" else 1.5e-2
-pretrain_weight_decay=0
+
+hyper_params = get_bilevel_hyperparameters(regularizer_name, problem)
 
 if regularizer_name == "CRR":
-    if problem == "Denoising":
-        pretrain_epochs = 300
-        epochs = 100
-        jacobian_regularization_parameter = 1e-6
-    elif problem == "CT":
-        pretrain_epochs = 40
-        epochs = 4
-        jacobian_regularization_parameter = 1e-8
-    pretrain_lr = 1e-2
-    fitting_lr = 0.1
-    lr = 1e-3
-    noise_multiplier = 0.0
-    adabelief = True
-    jacobian_regularization = True
     reg = WCRR(
         sigma=0.1,
         weak_convexity=0.0,
     ).to(device)
 elif regularizer_name == "WCRR":
-    if problem == "Denoising":
-        pretrain_epochs = 300
-        epochs = 100
-        jacobian_regularization_parameter = 1e-6
-    elif problem == "CT":
-        pretrain_epochs = 40
-        epochs = 4
-        jacobian_regularization_parameter = 1e-8
-    pretrain_lr = 1e-2
-    fitting_lr = 0.1
-    noise_multiplier = 0.0
-    adabelief = True
-    lr = 1e-3
-    jacobian_regularization = True
     reg = WCRR(
         sigma=0.1,
         weak_convexity=1.0,
     ).to(device)
 elif regularizer_name == "ICNN":
-    if problem == "Denoising":
-        pretrain_epochs = 300
-        epochs = 200
-        jacobian_regularization_parameter = 1e-6
-    elif problem == "CT":
-        pretrain_epochs = 40
-        epochs = 4
-        jacobian_regularization_parameter = 1e-7
-    pretrain_lr = 1e-3
-    noise_multiplier = 0.0
-    fitting_lr = 0.1
-    adabelief = True
-    lr = 1e-3
-    jacobian_regularization = True
     reg = simple_ICNNPrior(in_channels=1, channels=32, device=device, kernel_size=5).to(
         device
     )
 elif regularizer_name == "IDCNN":
-    if problem == "Denoising":
-        pretrain_epochs = 300
-        epochs = 200
-        jacobian_regularization_parameter = 1e-5
-        fitting_lr = 0.01
-        lr = 1e-3
-    elif problem == "CT":
-        pretrain_epochs = 40
-        epochs = 10
-        jacobian_regularization_parameter = 1e-8
-        fitting_lr = 0.1
-        lr = 1e-4
-    pretrain_lr = 1e-3
-    adabelief = True
-    noise_multiplier = 0.0
-    jacobian_regularization = True
     reg = simple_IDCNNPrior(
         in_channels=1, channels=32, device=device, kernel_size=5
     ).to(device)
 elif regularizer_name == "LAR":
-    pretrain_epochs = 300
-    pretrain_lr = 1e-3
-    fitting_lr = 0.01
-    adabelief = True
-    epochs = 200
-    lr = 1e-3
-    noise_multiplier = 1.0
-    jacobian_regularization = True
-    jacobian_regularization_parameter = 1e-5
     reg = LocalAR(
         in_channels=1,
         pad=True,
@@ -141,24 +75,6 @@ elif regularizer_name == "LAR":
         pretrained=None,
     ).to(device)
 elif regularizer_name == "TDV":
-    jacobian_regularization = True
-    if problem == "Denoising":
-        pretrain_epochs = 7500
-        epochs = 200
-        jacobian_regularization_parameter = 1e-4
-        fitting_lr = 0.005
-        noise_multiplier = 0.0
-        lr = 1e-4
-    elif problem == "CT":
-        pretrain_epochs = 750
-        epochs = 10
-        jacobian_regularization_parameter = 1e-8
-        noise_multiplier = 0.0
-        fitting_lr = 0.05
-        lr = 5e-5
-        jacobian_regularization = True
-    pretrain_lr = 4e-4
-    adabelief = True
     config = dict(
         in_channels=1,
         num_features=32,
@@ -171,27 +87,11 @@ elif regularizer_name == "TDV":
     )
     reg = TDV(**config).to(device)
 elif regularizer_name == "LSR":
-    jacobian_regularization = True
-    if problem == "Denoising":
-        pretrain_epochs = 7500
-        epochs = 200
-        jacobian_regularization_parameter = 1e-4
-        noise_multiplier = 0.0
-        fitting_lr = 0.05
-        lr = 1e-4
-    elif problem == "CT":
-        pretrain_epochs = 750
-        epochs = 10
-        jacobian_regularization_parameter = 1e-8
-        noise_multiplier = 0.
-        fitting_lr = 0.05
-        lr = 5e-6
-        jacobian_regularization = True
-        pretrain_weight_decay=1e-4
-    pretrain_lr = 2e-4
-    adabelief = True
     reg = LSR(
-        nc=[32, 64, 128, 256], pretrained_denoiser=False, alpha=1.0, sigma=score_sigma
+        nc=[32, 64, 128, 256],
+        pretrained_denoiser=False,
+        alpha=1.0,
+        sigma=hyper_params.score_sigma,
     ).to(device)
 
 regularizer = ParameterLearningWrapper(reg, device=device)
@@ -228,14 +128,16 @@ logger.info(f"Train {regularizer_name} with {hypergradient_computation} on {prob
 logger.info(f"The model has {params} parameters")
 logger.info("Parameters:")
 logger.info(
-    f"load_pretrain: {load_pretrain}, load_parameter_fitting: {load_parameter_fitting}, score_sigma: {score_sigma}"
+    f"load_pretrain: {load_pretrain}, load_parameter_fitting: {load_parameter_fitting}, score_sigma: {hyper_params.score_sigma}"
 )
 logger.info(
-    f"pretrain_epochs: {pretrain_epochs}, pretrain_lr: {pretrain_lr}, epochs: {epochs}"
+    f"pretrain_epochs: {hyper_params.pretrain_epochs}, pretrain_lr: {hyper_params.pretrain_lr}, epochs: {hyper_params.epochs}"
 )
-logger.info(f"adabelief: {adabelief}, fitting_lr: {fitting_lr}, lr: {lr}")
 logger.info(
-    f"jacobian_regularization: {jacobian_regularization}, jacobian_regularization_parameter: {jacobian_regularization_parameter}, lmbd: {lmbd}"
+    f"adabelief: {hyper_params.adabelief}, fitting_lr: {hyper_params.fitting_lr}, lr: {hyper_params.lr}"
+)
+logger.info(
+    f"jacobian_regularization: {hyper_params.jacobian_regularization}, jacobian_regularization_parameter: {hyper_params.jacobian_regularization_parameter}, lmbd: {lmbd}"
 )
 
 
@@ -305,7 +207,7 @@ if load_pretrain and not load_parameter_fitting:
             f"weights/score_for_{problem}/{regularizer_name}_score_training_for_{problem}.pt"
         )
     )
-elif not load_parameter_fitting and not pretrain_epochs == 0:
+elif not load_parameter_fitting and not hyper_params.pretrain_epochs == 0:
     for p in regularizer.parameters():
         p.requires_grad_(True)
     if regularizer_name == "WCRR":
@@ -329,16 +231,15 @@ elif not load_parameter_fitting and not pretrain_epochs == 0:
         regularizer,
         pretrain_dataloader,
         val_dataloader,
-        sigma=score_sigma,
-        epochs=pretrain_epochs,
-        lr=pretrain_lr,
-        weight_decay=pretrain_weight_decay,
-        lr_decay=0.1 ** (1 / pretrain_epochs),
-        noise_multiplier=noise_multiplier,
+        sigma=hyper_params.score_sigma,
+        epochs=hyper_params.pretrain_epochs,
+        lr=hyper_params.pretrain_lr,
+        weight_decay=hyper_params.pretrain_weight_decay,
+        lr_decay=0.1 ** (1 / hyper_params.pretrain_epochs),
         device=device,
         validation_epochs=20,
         logger=logger,
-        adabelief=adabelief,
+        adabelief=hyper_params.adabelief,
         dynamic_range_psnr=problem == "CT",
         model_selection=False,
         # loss_fn=lambda x,y:torch.abs(x-y).sum()
@@ -362,13 +263,15 @@ else:
     if problem == "CT":
         regularizer.alpha.data = regularizer.alpha.data + np.log(60.0)
         if regularizer_name in ["TDV", "LSR"]:
-            regularizer.alpha.datatraining_bilevel_generic.py = regularizer.alpha.data + np.log(20.0)
+            regularizer.alpha.datatraining_bilevel_generic.py = (
+                regularizer.alpha.data + np.log(20.0)
+            )
             regularizer.scale.requires_grad_(False)
 
     if regularizer_name == "WCRR" and problem == "Denoising":
         regularizer.alpha.requires_grad_(False)
         regularizer.regularizer.beta.requires_grad_(True)
-    if (not regularizer_name in ["TDV", "LSR"]) or (not problem=="CT"):
+    if (not regularizer_name in ["TDV", "LSR"]) or (not problem == "CT"):
         regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
             regularizer,
             physics,
@@ -382,10 +285,10 @@ else:
             NAG_max_iter=1500,
             NAG_tol_train=1e-4,
             NAG_tol_val=1e-4,
-            lr=fitting_lr,
+            lr=hyper_params.fitting_lr,
             momentum_optim=(0.5, 0.9),
-            reg=False,#jacobian_regularization,
-            reg_para=jacobian_regularization_parameter,
+            reg=False,  # jacobian_regularization,
+            reg_para=hyper_params.jacobian_regularization_parameter,
             reg_reduced=problem == "CT",
             lr_decay=0.95,
             device=device,
@@ -398,7 +301,7 @@ else:
         regularizer.state_dict(),
         f"weights/score_parameter_fitting_for_{problem}/{regularizer_name}_fitted_parameters_with_{hypergradient_computation}_for_{problem}.pt",
     )
-    
+
 
 print(regularizer.alpha)
 # bilevel training
@@ -410,8 +313,8 @@ for p in regularizer.parameters():
 if regularizer_name == "WCRR":
     regularizer.alpha.requires_grad_(False)
 
-if not jacobian_regularization:
-    jacobian_regularization_parameter = 0.0
+if not hyper_params.jacobian_regularization:
+    hyper_params.jacobian_regularization_parameter = 0.0
 
 regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
     regularizer,
@@ -420,21 +323,21 @@ regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
     lmbd,
     train_dataloader,
     val_dataloader,
-    epochs=epochs,
+    epochs=hyper_params.epochs,
     mode=hypergradient_computation,
     NAG_step_size=1e-1,
     NAG_max_iter=1500,
     NAG_tol_train=1e-4,
     NAG_tol_val=1e-4,
-    lr=lr,
-    lr_decay=0.1 ** (1 / epochs),
-    reg=jacobian_regularization,
-    reg_para=jacobian_regularization_parameter,
+    lr=hyper_params.lr,
+    lr_decay=0.1 ** (1 / hyper_params.epochs),
+    reg=hyper_params.jacobian_regularization,
+    reg_para=hyper_params.jacobian_regularization_parameter,
     reg_reduced=problem == "CT",
     device=device,
     verbose=False,
     logger=logger,
-    adabelief=adabelief,
+    adabelief=hyper_params.adabelief,
     dynamic_range_psnr=problem == "CT",
     validation_epochs=20 if problem == "Denoising" else 1,
 )
