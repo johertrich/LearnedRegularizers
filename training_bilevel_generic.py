@@ -42,7 +42,7 @@ parser.add_argument("--problem", type=str, default="Denoising")
 parser.add_argument("--hypergradient", type=str, default="IFT")
 parser.add_argument("--regularizer_name", type=str, default="CRR")
 parser.add_argument("--load_pretrain", type=bool, default=False)
-parser.add_argument("load_parameter_fitting", type=bool, default=False)
+parser.add_argument("--load_parameter_fitting", type=bool, default=False)
 inp = parser.parse_args()
 
 problem = inp.problem  # Denoising or CT

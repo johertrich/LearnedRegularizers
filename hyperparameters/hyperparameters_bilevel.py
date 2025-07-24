@@ -9,7 +9,7 @@ def get_bilevel_hyperparameters(regularizer_name, problem):
     args = argparse.Namespace()
 
     # hyperparmaters which are the same for all settings:
-    args.score_sigmea = (
+    args.score_sigma = (
         3e-2 if problem == "Denoising" else 1.5e-2
     )  # noise level for pretraining
     args.adabelief = True  # chooses optimizer
