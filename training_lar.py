@@ -8,7 +8,7 @@ Training of Local (patch-based) adversarial regulariser.
 from priors import LocalAR
 import torch
 from deepinv.physics import Denoising, GaussianNoise
-from training_methods.simple_ar_training import simple_lar_training, estimate_lmbd
+from training_methods.simple_ar_training import simple_ar_training, estimate_lmbd
 from deepinv.optim import L2
 from dataset import get_dataset
 from deepinv.datasets import PatchDataset
@@ -56,29 +56,31 @@ patch_size = 15
 regularizer = LocalAR(in_channels=1, pad=True, use_bias=True, n_patches=-1).to(device)
 
 train_loader = torch.utils.data.DataLoader(train_set, batch_size=16)
+val_loader = torch.utils.data.DataLoader(val_set, batch_size=1)
 lmbd = estimate_lmbd(train_loader, physics, device="cuda").item()
 
 print("estimated : ", lmbd)
 dataset_name = "BSD500" if problem == "Denoising" else "LoDoPab"
 
 mu = 5.0
-simple_lar_training(
-    regularizer,
-    physics,
-    data_fidelity,
-    lmbd,
-    train_set,
-    val_set,
+simple_ar_training(
+    regularizer=regularizer,
+    physics=physics,
+    data_fidelity=data_fidelity,
+    lmbd=lmbd,
+    train_dataloader=train_loader,
+    val_dataloader=val_loader,
     patch_size=patch_size,
     device=device,
-    epochs=40,
+    epochs=100,
     lr=1e-3,
     mu=mu,
-    batch_size=batch_size, 
     savestr=f"{regularizer.__class__.__name__}_adversarial_p={patch_size}x{patch_size}_{dataset_name}",
     validation_epochs=1,
-    dynamic_range_psnr = True if problem == "CT" else False 
+    dynamic_range_psnr = True if problem == "CT" else False,
+    patches_per_img=64,
 )
+
 
 torch.save(
     regularizer.cnn.state_dict(),

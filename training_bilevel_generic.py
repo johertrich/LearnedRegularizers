@@ -124,7 +124,7 @@ elif regularizer_name == "IDCNN":
 elif regularizer_name == "LAR":
     pretrain_epochs = 300
     pretrain_lr = 1e-3
-    fitting_lr = 0.05
+    fitting_lr = 0.01
     adabelief = True
     epochs = 200
     lr = 1e-3
@@ -362,7 +362,7 @@ else:
     if problem == "CT":
         regularizer.alpha.data = regularizer.alpha.data + np.log(60.0)
         if regularizer_name in ["TDV", "LSR"]:
-            regularizer.alpha.data = regularizer.alpha.data + np.log(20.0)
+            regularizer.alpha.datatraining_bilevel_generic.py = regularizer.alpha.data + np.log(20.0)
             regularizer.scale.requires_grad_(False)
 
     if regularizer_name == "WCRR" and problem == "Denoising":
@@ -400,6 +400,7 @@ else:
     )
     
 
+print(regularizer.alpha)
 # bilevel training
 print(regularizer.alpha)
 print(regularizer.scale)

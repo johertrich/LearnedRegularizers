@@ -1,0 +1,126 @@
+import torch
+from deepinv.datasets import PatchDataset
+from torchvision.transforms import CenterCrop
+from deepinv.optim.utils import GaussianMixtureModel
+from evaluation import evaluate_adam
+from priors.epll import EPLL
+import yaml
+from dataset import get_dataset
+from operators import get_operator
+from pathlib import Path
+import os
+from copy import deepcopy
+
+device ="cuda" if torch.cuda.is_available() else "cpu"
+torch.random.manual_seed(0)
+
+if torch.backends.mps.is_available():
+    device = "mps"
+elif torch.cuda.is_available():
+    device = "cuda"
+else:
+    device = "cpu"
+
+problem = "Denoising"  # "CT" or "Denoising"
+
+if problem == "Denoising":
+    dataset_name = "BSDS500_gray"
+    transform = CenterCrop(321)
+    lmbd = 13.5
+    adaptive_range = False
+elif problem == "CT":
+    dataset_name = "LoDoPaB"
+    transform = None
+    lmbd = 500.
+    adaptive_range = True
+else:
+    raise NotImplementedError("Problem not found")
+
+train_dataset = get_dataset(dataset_name, test=False, transform=transform)
+physics, data_fidelity = get_operator(problem, device)
+
+# Split the full train into training and validation set. The training is used to learn the GMM weights
+val_ratio = 0.1
+val_len = int(len(train_dataset) * val_ratio)
+train_len = len(train_dataset) - val_len
+train_set = torch.utils.data.Subset(train_dataset, range(train_len))
+val_set = torch.utils.data.Subset(train_dataset, range(train_len, len(train_dataset)))
+channels = train_dataset[0].shape[0]
+
+train_imgs = []
+num_training_images = 100 
+for i in range(num_training_images):
+    train_imgs.append(train_set[i].unsqueeze(0).float())
+train_imgs = torch.concat(train_imgs)
+channels = train_imgs.shape[1]
+
+val_dataloader = torch.utils.data.DataLoader(
+    val_set, batch_size=1, shuffle=False, drop_last=True
+)
+
+patch_sizes = [6, 8]
+n_gmm_components = [100, 200, 300, 400]
+best_mean_psnr = -float("inf")
+
+for j, patch_size in enumerate(patch_sizes):
+
+    train_patch_dataset = PatchDataset(train_imgs, patch_size=patch_size, transforms=None)
+
+    patch_dataloader = torch.utils.data.DataLoader(
+        train_patch_dataset,
+        batch_size=1024,
+        shuffle=True,
+        drop_last=True,
+    )
+    for k, n_gmm_component in enumerate(n_gmm_components):
+        print("-"*30)
+        print(f"Running for patch size {patch_size} and {n_gmm_component} components")
+
+        GMM = GaussianMixtureModel(n_gmm_component, patch_size**2 * channels, device=device)
+        GMM.fit(patch_dataloader, verbose=True, max_iters=50)
+        print("Fitting GMM done")
+
+        # Create the EPLL regularizer with the learned GMM
+        regularizer = EPLL(
+            device=device,
+            patch_size=patch_size,
+            channels=channels,
+            n_gmm_components=n_gmm_component,
+            GMM=GMM,
+            pad=True,
+            batch_size=30000
+        )
+        
+        # Reconstruction with the given GMM
+        mean_psnr, x_out, y_out, recon_out = evaluate_adam(
+            physics=physics,
+            data_fidelity=data_fidelity,
+            dataset=val_set,
+            regularizer=regularizer,
+            lmbd=lmbd,
+            step_size=1e-3,
+            max_iter=1000,
+            tol=1e-4,
+            only_first=False,
+            device=device,
+            verbose=False,
+            adaptive_range=adaptive_range
+        )
+        print(f"Mean PSNR for patch size {patch_size} and {n_gmm_component} components: {mean_psnr:.2f}")
+        if mean_psnr > best_mean_psnr:
+            best_mean_psnr = mean_psnr
+            best_gmm = deepcopy(GMM.state_dict())
+            best_patch_size = patch_size
+            best_n_gmm_component = n_gmm_component
+            print(f"\t New best GMM found!")
+
+print(f"Best GMM: Patch Size: {best_patch_size}, Components: {best_n_gmm_component}, Mean PSNR: {best_mean_psnr:.2f}")
+
+gmm_dir = Path(f"weights")
+gmm_dir.mkdir(parents=True, exist_ok=True)
+gmm_filepath = gmm_dir / "gmm_{}.pt".format(problem)
+torch.save(best_gmm, gmm_filepath)
+
+data = {'patch_size': best_patch_size, "n_gmm_components": best_n_gmm_component, 'gmm_weights': str(gmm_filepath), 'training mean psnr': float(best_mean_psnr)}
+with open(os.path.join(gmm_dir, f"gmm_{problem}_setup.yaml"), 'w') as f:
+    yaml.dump(data, f)

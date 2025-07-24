@@ -4,41 +4,84 @@ from tqdm import tqdm
 from deepinv.loss.metric import PSNR
 from torchvision.transforms import RandomCrop, Compose
 from torch.utils.data import RandomSampler
-from deepinv.optim.utils import conjugate_gradient
+from deepinv.optim.utils import conjugate_gradient, minres
 from evaluation import reconstruct_nmAPG
 import random
 from collections import deque
 from torch.optim import Optimizer
+import torch.nn as nn
 
-class TruncatedAdaGrad(Optimizer):
-    def __init__(self, params, lr=1e-2, eps=1e-6, window_size=5):
-        defaults = dict(lr=lr, eps=eps, window_size=window_size)
-        super().__init__(params, defaults)
+class GradientDescent(nn.Module):
+    """
+    Simple gradient descent module for upper-level problem in the bilevel optimization.
+    This module applies a gradient descent step to the parameters of the regularizer.
+    """
+    def __init__(self, regularizer, lr=1e-3):
+        super(GradientDescent, self).__init__()
+        self.regularizer = regularizer
+        self.lr = lr
+    def zero_grad(self):
+        """
+        Zero out the gradients of the regularizer parameters.
+        """
+        for param in self.regularizer.parameters():
+            if param.grad is not None:
+                param.grad.zero_()
+    def forward(self):
+        """
+        Apply gradient descent step to the regularizer parameters.
+        """
+        with torch.no_grad():
+            for param in self.regularizer.parameters():
+                if param.grad is not None:
+                    param -= self.lr * param.grad
 
-    def step(self, closure=None):
-        loss = closure() if closure else None
-        
-        for group in self.param_groups:
-            for p in group['params']:
-                if p.grad is None:
-                    continue
+class AdaGrad(nn.Module):
+    """
+    Manual AdaGrad optimizer module for upper-level problem in the bilevel optimization.
+    Applies AdaGrad update to the regularizer's parameters.
+    """
+    def __init__(self, regularizer, lr=1e-2, eps=1e-8, window_size=0):
+        super(AdaGrad, self).__init__()
+        self.regularizer = regularizer
+        self.lr = lr
+        self.eps = eps
+        self.window_size = window_size  # Optional: for truncated AdaGrad. We do not use it by default
+        # Initialize state for each parameter (accumulator for squared gradients)
+        self._grad_squared_accum = {}
+        self._momentum_buffer = {}  # Optional momentum buffer
+        for name, param in self.regularizer.named_parameters():
+            if param.requires_grad:
+                if self.window_size > 0:
+                    self._grad_squared_accum[name] = deque(maxlen=self.window_size)
+                else:
+                    self._grad_squared_accum[name] = torch.zeros_like(param.data)
+    def zero_grad(self):
+        """
+        Zero out the gradients of the regularizer parameters.
+        """
+        for param in self.regularizer.parameters():
+            if param.grad is not None:
+                param.grad.zero_()
+    def forward(self):
+        with torch.no_grad():
+            for name, param in self.regularizer.named_parameters():
+                if param.grad is not None:
+                    grad = param.grad
+                    if self.window_size > 0:
+                        # Truncated AdaGrad: push to window
+                        self._grad_squared_accum[name].append(grad.pow(2))
+                        avg_sq_grad = torch.stack(list(self._grad_squared_accum[name])).mean(dim=0)
+                        adjusted_lr = self.lr / (avg_sq_grad.sqrt() + self.eps)
+                    else:
+                        # Standard AdaGrad
+                        self._grad_squared_accum[name].add_(grad.pow(2))
+                        adjusted_lr = self.lr / (self._grad_squared_accum[name].sqrt() + self.eps)
 
-                grad = p.grad.data
-                state = self.state[p]
-                
-                if 'grad_sq_window' not in state:
-                    state['grad_sq_window'] = deque(maxlen=group['window_size'])
-
-                # Append current squared gradient
-                state['grad_sq_window'].append(grad.pow(2))
-
-                # Compute mean of gradient memory
-                grad_sq_avg = torch.stack(list(state['grad_sq_window'])).mean(dim=0)
-
-                adjusted_lr = group['lr'] / (grad_sq_avg.sqrt() + group['eps'])
-                p.data.add_(-adjusted_lr * grad)
-
-        return loss
+                    param -= adjusted_lr * grad
+def preprocess(x, device):
+    dtype = torch.float32 if device == "mps" else torch.float
+    return x.to(dtype).to(device)
 
 def simple_bilevel_training_maid(
     regularizer,
@@ -63,6 +106,8 @@ def simple_bilevel_training_maid(
     save_dir="",
     val_checkpoint=None,
     logs=None,
+    optimizer=None,
+    algorithm="AdaGrad",
 ):
     """
     Bilevel learning using inexact hypegradient methods described in
@@ -98,26 +143,27 @@ def simple_bilevel_training_maid(
         return regularizer
 
     # Initialize optimizer for the upper-level
-    if precondition:
-        optimizer = TruncatedAdaGrad(
-            regularizer.parameters(),
-            lr=lr,
-            window_size=10
-        )
-    else:
-        optimizer = torch.optim.SGD(regularizer.parameters(), lr=lr)
-    success = False
-
-    psnr = PSNR()
-
-    # Training loop
+    if optimizer is None:
+        if precondition:
+            optimizer = AdaGrad(
+                regularizer,
+                lr=lr,
+            )
+        else:
+            optimizer = GradientDescent(
+                regularizer,
+                lr=lr,
+            )
+    success = False # Flag for backtracking line search success
+    psnr = PSNR() # PSNR metric definition
+    # logging lists and dictionaries
     loss_vals = []
     psnr_vals = []
     loss_train = []
     loss_val = []
     psnr_train = []
     psnr_val = []
-
+    first_run = False
     if logs is None: # Initialize logs if not provided else continue with existing logs
         logs = {
             "train_loss": [],
@@ -127,52 +173,52 @@ def simple_bilevel_training_maid(
             "eps": [],
             "lr": [],
             "grad_norm": [],
+            "algorithm": algorithm,
         }
-    # Parameters for the MAID optimizer
+        first_run = True
+    # Hyperparameters for the MAID optimizer
     rho_maid = lr_decay
-    nu_over = 1.25
+    nu_over = 1.05
     nu_under = 0.5
     rho_over = 1.25
     eps = NAG_tol_train
     eps_old = NAG_tol_train
-    max_line_search = 10
+    max_line_search = 5
     fixed_eps = False
     fixed_lr = False
 
     # initialize logs
-    logs["eps"].append(eps)
-    logs["lr"].append(optimizer.param_groups[0]["lr"])
-    for img in train_dataloader:
-        if device == "mps":
-            img = img.to(torch.float32).to(device)
-        else:
-            img = img.to(device).to(torch.float)
-        y = physics(img)
-        loss_vals.append(
-            torch.sum(((y - img) ** 2).view(img.shape[0], -1), -1).mean().item()
-        )
-        psnr_vals.append(psnr(y, img).mean().item())
+    if first_run:
+        logs["eps"].append(eps)
+        logs["lr"].append(optimizer.lr)
+        # Initialising training PSNR and loss values before training starts
+        for img in train_dataloader:
+            img = preprocess(img, device)
+            y = physics(img)
+            loss_vals.append(
+                torch.sum(((y - img) ** 2).view(img.shape[0], -1), -1).mean().item()
+            )
+            psnr_vals.append(psnr(y, img).mean().item())
 
-    logs["train_loss"].append(loss_vals[-1])
-    logs["psnr"].append(psnr_vals[-1])
-    loss_vals_val = []
-    psnr_vals_val = []
-    for x_val in tqdm(val_dataloader):
-        if device == "mps":
-            x_val = x_val.to(torch.float32).to(device)
-        else:
-            x_val = x_val.to(device).to(torch.float)
-        y = physics(x_val)
-        loss_validation = lambda x_in: torch.sum(
-            ((x_in - x_val) ** 2).view(x_val.shape[0], -1), -1
-        ).mean()
-        loss_vals_val.append(loss_validation(y).item())
-        psnr_vals_val.append(psnr(y, x_val).mean().item())
+        logs["train_loss"].append(loss_vals[-1])
+        logs["psnr"].append(psnr_vals[-1])
+        loss_vals_val = []
+        psnr_vals_val = []
+        # Initialising validation PSNR and loss values before training starts
+        for x_val in tqdm(val_dataloader):
+            x_val = preprocess(x_val, device)
+            y = physics(x_val)
+            loss_validation = lambda x_in: torch.sum(
+                ((x_in - x_val) ** 2).view(x_val.shape[0], -1), -1
+            ).mean()
+            loss_vals_val.append(loss_validation(y).item())
+            psnr_vals_val.append(psnr(y, x_val).mean().item())
 
-    mean_psnr_val = np.mean(psnr_vals_val)
-    mean_loss_val = np.mean(loss_vals_val)
-    logs["val_loss"].append(mean_loss_val)
-    logs["val_psnr"].append(mean_psnr_val)
+        mean_psnr_val = np.mean(psnr_vals_val)
+        mean_loss_val = np.mean(loss_vals_val)
+        logs["val_loss"].append(mean_loss_val)
+        logs["val_psnr"].append(mean_psnr_val)
+    # Training loop
     for epoch in range(epochs):
         # Check if the data loader is deterministic
         if len(train_dataloader) > 1:
@@ -187,37 +233,32 @@ def simple_bilevel_training_maid(
                 "Set shuffle=False in the DataLoader."
             )
         for x in tqdm(train_dataloader):
-            if device == "mps":
-                x = x.to(torch.float32).to(device)
-            else:
-                x = x.to(device).to(torch.float)
+            x = preprocess(x, device)
             y = physics(x)
-
             if epoch == 0:
                 x_init = y.detach().clone()
-
             else:
                 # Warm start with the previous reconstruction for MAID
                 if success:
                     x_init = x_recon.detach().clone()
-
-            # if not success:
-            x_recon = reconstruct_nmAPG(
+            # Solve the lower-level problem to compute the hypergradient
+            x_recon, stats = reconstruct_nmAPG(
                 y,
                 physics,
                 data_fidelity,
-                regularizer,
+                optimizer.regularizer,
                 lmbd,
                 NAG_step_size,
                 NAG_max_iter,
                 NAG_tol_train,
                 verbose=verbose,
                 x_init=x_init,
+                return_stats = True
             )
             optimizer.zero_grad()
             loss = lambda x_in: torch.sum(
                 ((x_in - x) ** 2).view(x.shape[0], -1), -1
-            ).mean()
+            ).mean() # Defining the upper-level loss function
             if epoch == 0:
                 loss_vals.append(loss(x_recon).item())
                 psnr_vals.append(psnr(x_recon, x).mean().item())
@@ -227,14 +268,14 @@ def simple_bilevel_training_maid(
             grad_loss = torch.autograd.grad(loss(x_recon), x_recon, create_graph=False)[
                 0
             ].detach()
-            # Computing the approximate inverse Hessian vector product using CG
-            q = conjugate_gradient(
+            # Computing the approximate inverse Hessian vector product using CG/MINRES
+            q = minres(
                 lambda input: hessian_vector_product(
                     x_recon.detach(),
                     input,
                     data_fidelity,
                     y,
-                    regularizer,
+                    optimizer.regularizer,
                     lmbd,
                     physics,
                 ),
@@ -244,7 +285,7 @@ def simple_bilevel_training_maid(
             )
             # Computing the approximate hypergradient using the Jacobian vector product
             regularizer = jac_vector_product(
-                x_recon, q, data_fidelity, y, regularizer, lmbd, physics
+                x_recon, q, data_fidelity, y, optimizer.regularizer, lmbd, physics
             )
 
             def closure(
@@ -254,11 +295,10 @@ def simple_bilevel_training_maid(
                 y,
                 physics,
                 data_fidelity,
-                regularizer,
                 lmbd,
+                optimizer,
                 NAG_step_size,
                 NAG_max_iter,
-                NAG_tol_train,
                 rho_maid,
                 eps,
                 eps_old,
@@ -281,51 +321,94 @@ def simple_bilevel_training_maid(
                 )
                 old_params = [
                     param.detach().clone()
-                    for param in optimizer.param_groups[0]["params"]
+                    for param in optimizer.regularizer.parameters()
                 ]
                 old_grads = [
                     param.grad.detach().clone()
-                    for param in optimizer.param_groups[0]["params"]
-                ]
-
-                def revert(params_before, grads_before):
+                    for param in optimizer.regularizer.parameters()
+                ]     
+                def revert(optimizer, params_before, grads_before):
+                    """
+                    This function reverts the optimizer's parameters and gradients to their state before taking a gradient step. 
+                    """
                     with torch.no_grad():
-                        for i, param in enumerate(optimizer.param_groups[0]["params"]):
+                        for param, p_old, g_old in zip(optimizer.regularizer.parameters(), params_before, grads_before):
                             if param.grad is not None:
-                                param.data.copy_(params_before[i])
-                                param.grad.copy_(grads_before[i])
-                        for i, param in enumerate(regularizer.parameters()):
-                            if param.grad is not None:
-                                param.data.copy_(params_before[i])
-                                param.grad.copy_(grads_before[i])
+                                param.data.copy_(p_old)
+                                param.grad.copy_(g_old)
+                    if isinstance(optimizer, AdaGrad):
+                        # pop the most recent entry from grad_sq_window when the line search fails
+                        for param in optimizer.regularizer.parameters():
+                            if hasattr(optimizer, '_grad_squared_accum'):
+                                if param.name in optimizer._grad_squared_accum:
+                                    if optimizer.window_size == 0:
+                                        optimizer._grad_squared_accum[param.name].sub_(
+                                            param.grad.pow(2)
+                                    )
+                                    else:
+                                        optimizer._grad_squared_accum[param.name].pop()
+                    return optimizer
 
-                old_step = optimizer.param_groups[0]["lr"]
+                old_step = optimizer.lr
                 for i in range(max_line_search):
-                    optimizer.param_groups[0]["lr"] = (
-                        optimizer.param_groups[0]["lr"] * rho_maid**i
-                    )
-                    lr = optimizer.param_groups[0]["lr"]
+                    optimizer.lr  = (
+                        optimizer.lr * rho_maid**i
+                    ) # \rho_maid is the decay factor of line search
+                    lr = optimizer.lr
                     grad_params = [
                         param.grad
-                        for param in optimizer.param_groups[0]["params"]
+                        for param in optimizer.regularizer.parameters()
                         if param.grad is not None
                     ]
+                    optimizer.forward() # \theta_{k+1} = \theta_k - lr * hypergrad
+                    norm_grad_sq = 0.0 # Used in Adagrad to compute \|hypergrad\|^2_A where A is the AdaGrad preconditioner
+                    if isinstance(optimizer, AdaGrad):
+                        for name, param in optimizer.regularizer.named_parameters():
+                            if param.grad is None:
+                                continue
+                            grad = param.grad.detach()
+
+                            if name not in optimizer._grad_squared_accum:
+                                print("AdaGrad optimizer state missing '_grad_squared_accum'.")
+                                continue
+
+                            state = optimizer._grad_squared_accum[name]
+
+                            # Handle both full and truncated AdaGrad
+                            if isinstance(state, torch.Tensor):
+                                denom = (state.sqrt() + optimizer.eps)
+                            elif isinstance(state, deque):
+                                if len(state) == 0:
+                                    continue  # avoid division by zero or empty window
+                                avg_sq = torch.stack(list(state)).mean(dim=0)
+                                denom = (avg_sq.sqrt() + optimizer.eps)
+                            else:
+                                raise TypeError(f"Unexpected type for _grad_squared_accum[{name}]: {type(state)}")
+
+                            norm_grad_sq += ((grad / denom) ** 2).sum()    # computes \|hypergrad\|^2_A where A is the AdaGrad preconditioner      
                     hypergrad = torch.cat([g.reshape(-1) for g in grad_params])
-                    if verbose:
-                        print("norm hypergrad: ", torch.norm(hypergrad).item())
                     logs["grad_norm"].append(torch.norm(hypergrad).item())
-                    optimizer.step()
-                    x_new = reconstruct_nmAPG(
+                    if norm_grad_sq == 0.0:
+                        if verbose:
+                            print("norm hypergrad: ", torch.norm(hypergrad).item())
+                    else:
+                        if verbose:
+                            print(
+                                "norm hypergrad: ",
+                                torch.sqrt(norm_grad_sq).item()
+                            )
+                    x_new, stats= reconstruct_nmAPG(
                         y,
                         physics,
                         data_fidelity,
-                        regularizer,
+                        optimizer.regularizer,
                         lmbd,
                         NAG_step_size,
                         NAG_max_iter,
                         eps,
                         verbose=verbose,
                         x_init=x_old,
+                        return_stats = True
                     )
                     if verbose:
                         print(
@@ -337,12 +420,16 @@ def simple_bilevel_training_maid(
                             f"lr: {lr}",
                             f"iter: {i}",
                         )
+                    # Compute the line search condition
                     if lr * eta * torch.norm(hypergrad) ** 2 is None or torch.isnan(
                         lr * eta * torch.norm(hypergrad) ** 2
                     ):
-                        line_search_RHS = 1e-7
+                        line_search_RHS = 1e-7 # For numerical stability
                     else:
-                        line_search_RHS = lr * eta * torch.norm(hypergrad) ** 2
+                        if norm_grad_sq == 0.0:
+                            line_search_RHS = lr * eta * torch.norm(hypergrad) ** 2 # this is the case when AdaGrad is not used
+                        else:
+                            line_search_RHS = lr * eta * norm_grad_sq
                     line_search_LHS = (
                         loss(x_new)
                         - loss_vals[-1]
@@ -360,7 +447,7 @@ def simple_bilevel_training_maid(
                             "eps: ",
                             eps,
                         )
-                    if line_search_LHS <= -line_search_RHS:
+                    if line_search_LHS <= -line_search_RHS: # checking the line search condition
                         with torch.no_grad():
                             x_old.copy_(x_new)
                         loss_old = loss(x_new)
@@ -369,19 +456,12 @@ def simple_bilevel_training_maid(
                         logs["train_loss"].append(loss_vals[-1])
                         logs["psnr"].append(psnr_vals[-1])
                         success_flag = True
-                        return loss(x_new), x_new.detach(), success_flag, regularizer
-                    revert(old_params, old_grads)
-                    optimizer.param_groups[0]["lr"] = old_step
+                        return loss(x_new), x_new.detach(), success_flag, optimizer
+                    optimizer = revert(optimizer, old_params, old_grads)
+                    optimizer.lr= old_step
                     loss_old = loss_vals[-1]
-
-                    with torch.no_grad():
-                        for param_reg, param in zip(
-                            regularizer.parameters(),
-                            optimizer.param_groups[0]["params"],
-                        ):
-                            param_reg.data.copy_(param)
-                            param_reg.grad.copy_(param.grad)
-                return loss_old, x_old.detach(), success_flag, regularizer
+                optimizer.zero_grad()
+                return loss_old, x_old.detach(), success_flag, optimizer
 
             grad_loss = lambda x_in: torch.autograd.grad(
                 loss(x_in), x_in, create_graph=False
@@ -389,18 +469,18 @@ def simple_bilevel_training_maid(
             loss = lambda x_in: (
                 torch.sum(((x_in - x) ** 2).view(x.shape[0], -1), -1)
             ).mean()
-            _, x_recon, success, regularizer = closure(
+            # Call the closure function to perform a MAID step
+            _, x_recon, success, optimizer = closure(
                 grad_loss,
                 loss,
                 x_init,
                 y,
                 physics,
                 data_fidelity,
-                regularizer,
                 lmbd,
+                optimizer,
                 NAG_step_size,
                 NAG_max_iter,
-                NAG_tol_train,
                 rho_maid,
                 eps,
                 eps_old,
@@ -422,11 +502,12 @@ def simple_bilevel_training_maid(
                 eps = NAG_tol_train
                 CG_tol = CG_tol * nu_over
                 max_line_search = 10
-                optimizer.param_groups[0]["lr"] = (
-                    optimizer.param_groups[0]["lr"] * rho_over
-                )
+                optimizer.lr *= rho_over
             logs["eps"].append(eps)
-            logs["lr"].append(optimizer.param_groups[0]["lr"])
+            logs["lr"].append(optimizer.lr)
+            if not success:
+                if hasattr(optimizer, "clear_memory"):
+                    optimizer.clear_memory()
         print(
             "Mean PSNR training in epoch {0}: {1:.2f}".format(epoch + 1, psnr_vals[-1])
         )
@@ -437,17 +518,14 @@ def simple_bilevel_training_maid(
             loss_vals_val = []
             psnr_vals_val = []
             for x_val in tqdm(val_dataloader):
-                if device == "mps":
-                    x_val = x_val.to(torch.float32).to(device)
-                else:
-                    x_val = x_val.to(device).to(torch.float)
+                x_val = preprocess(x_val, device)
                 y = physics(x_val)
                 x_init_val = y
                 x_recon_val = reconstruct_nmAPG(
                     y,
                     physics,
                     data_fidelity,
-                    regularizer,
+                    optimizer.regularizer,
                     lmbd,
                     NAG_step_size,
                     NAG_max_iter,
@@ -479,19 +557,18 @@ def simple_bilevel_training_maid(
                         min(logs["val_loss"]), mean_loss_val
                     )
                 )
-                torch.save(regularizer.state_dict(), f"weights/MAID_{save_dir}.pt")
             loss_val.append(mean_loss_val)
             psnr_val.append(mean_psnr_val)
             logs["val_loss"].append(mean_loss_val)
             logs["val_psnr"].append(mean_psnr_val)
         torch.save(logs, f"weights/logs_{save_dir}.pt")
-        torch.save(regularizer.state_dict(), f"weights/MAID_last_{save_dir}.pt")
+        torch.save(regularizer.state_dict(), f"weights/MAID_{save_dir}.pt")
 
-        if NAG_tol_train < stopping_criterion or optimizer.param_groups[0]["lr"] < 1e-7:
+        if NAG_tol_train < stopping_criterion or optimizer.lr < 1e-7:
             print(
                 "Stopping criterion reached in epoch {0}: {1:.2E}".format(
                     epoch + 1, NAG_tol_train
                 )
             )
             break
-    return regularizer, loss_train, loss_val, psnr_train, psnr_val, eps, optimizer.param_groups[0]["lr"], logs
+    return optimizer.regularizer, loss_train, loss_val, psnr_train, psnr_val, eps, optimizer.lr, logs, optimizer

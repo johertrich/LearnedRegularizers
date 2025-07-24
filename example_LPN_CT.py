@@ -1,3 +1,4 @@
+import argparse
 import os
 
 import matplotlib.pyplot as plt
@@ -10,6 +11,7 @@ from deepinv.optim.prior import PnP
 from deepinv.utils.plotting import plot
 from PIL import Image
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from evaluation import evaluate
 from operators import get_evaluation_setting
@@ -25,11 +27,30 @@ else:
 print("device: ", device)
 torch.random.manual_seed(0)  # make results deterministic
 
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--pretrained_source",
+    type=str,
+    default="lodopab",
+    help="Training data source, 'lodopab' or 'bsd500'",
+)
+parser.add_argument("--only_first", default=False, action="store_true")
+parser.add_argument("--save_fn", default="", help="Path to save the figure.")
+args = parser.parse_args()
+
+pretrained_source = args.pretrained_source
+stepsize = {"lodopab": 0.02, "bsd500": 0.015}[pretrained_source]
+max_iter = 20
+
+
 ############################################################
 
 # Problem selection
 problem = "CT"  # Select problem setups, which we consider.
-only_first = False  # just evaluate on the first image of the dataset for test purposes
+only_first = (
+    args.only_first
+)  # just evaluate on the first image of the dataset for test purposes
 
 ############################################################
 
@@ -52,7 +73,6 @@ print(f"Problem: {problem} | Angles: {angles} | Noise level: {noise_level_img}")
 #############################################################
 
 # Define regularizer
-pretrained_source = "bsd500"
 pretrained_paths = {
     "lodopab": "weights/lpn_64_ct/simple_LPN.pt",  # LoDoPaB
     "bsd500": "weights/lpn_64_neg1_pm/simple_LPN.pt",  # BSD500 gray
@@ -62,8 +82,7 @@ regularizer = LPNPrior(model_name="lpn_64_neg1", pretrained=pretrained).to(devic
 
 # reconstruction hyperparameters, might be problem dependent
 iterator = "ADMM"
-params_algo = {"stepsize": 0.01, "g_param": noise_level_img}
-max_iter = 10
+params_algo = {"stepsize": stepsize, "g_param": noise_level_img}
 
 # instantiate the algorithm class to solve the IP problem.
 # initialize with the A_dagger(y)
@@ -114,7 +133,7 @@ def evaluate(
     psnrs = []
     iters = []
     Lip = []
-    for i, x in enumerate(dataloader):
+    for i, x in enumerate(tqdm(dataloader)):
         if device == "mps":
             # mps does not support float64
             x = x.to(torch.float32).to(device)
@@ -169,10 +188,10 @@ def evaluate(
             break
     mean_psnr = np.mean(psnrs)
     print("Mean PSNR over the test set: {0:.2f}".format(mean_psnr))
-    mean_iters = np.mean(iters)
-    print("Mean iterations over the test set: {0:.2f}".format(mean_iters))
-    mean_Lip = np.mean(Lip)
-    print("Mean L over the test set: {0:.2f}".format(mean_Lip))
+    # mean_iters = np.mean(iters)
+    # print("Mean iterations over the test set: {0:.2f}".format(mean_iters))
+    # mean_Lip = np.mean(Lip)
+    # print("Mean L over the test set: {0:.2f}".format(mean_Lip))
     return mean_psnr, x_out, y_out, recon_out
 
 
@@ -188,4 +207,4 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
 )
 
 # plot ground truth, observation and reconstruction for the first image from the test dataset
-plot([x_out, y_out, recon_out])
+plot([x_out, y_out, recon_out], save_fn=args.save_fn)

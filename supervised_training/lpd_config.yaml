@@ -1,0 +1,12 @@
+lr: 0.0001
+model_params:
+  batch_norm: true
+  internal_ch: 32
+  kernel_size: 3
+  lrelu_coeff: 0.2
+  n_dual: 4
+  n_iter: 6
+  n_layer: 4
+  n_primal: 4
+  use_sigmoid: false
+num_epochs: 1000
