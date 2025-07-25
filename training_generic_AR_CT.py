@@ -90,14 +90,14 @@ elif reg_name == "ICNN":
     patch_size = 64
 elif reg_name == "IDCNN":
     regularizer = simple_IDCNNPrior(in_channels=1,channels=32,kernel_size=5,device=device)
-    batch_size = 8
-    lr = 1e-4
-    lr_decay = 0.985
+    batch_size = 32
+    lr = 1e-3
+    lr_decay = 1.0
     fitting_lr = 1e-2
     epochs = 200
     val_epochs = 10
     mu = 10
-    patch_size = 64
+    patch_size = 76
 elif reg_name == "TDV":
     config = dict(
         in_channels=1,
