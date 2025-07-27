@@ -3,7 +3,7 @@
 from priors import NETT
 import torch
 from deepinv.physics import Denoising, GaussianNoise, Tomography
-from training_methods import simple_NETT_training
+from training_methods import NETT_training
 from deepinv.optim import L2, L1
 from dataset import get_dataset
 from operators import get_operator
@@ -81,7 +81,7 @@ val_dataloader = torch.utils.data.DataLoader(
 regularizer = NETT(in_channels = 1, out_channels = 1).to(device)#DRUNet(in_channels=1,out_channels = 1,device = device)
 #regularizer.compute_padding((dataset[torch.tensor(0)][0].shape[-2],dataset[torch.tensor(0)][0].shape[-1]))
 
-regularizer = simple_NETT_training(
+regularizer = NETT_training(
     regularizer,
     train_dataloader,
     val_dataloader,
