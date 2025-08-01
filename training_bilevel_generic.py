@@ -174,9 +174,7 @@ if problem == "Denoising":
     train_len = len(train_dataset) - test_len
     train_set = torch.utils.data.Subset(train_dataset, range(train_len))
     pretrain_dataset = train_set
-    val_set = get_dataset(
-        "BSD68"
-    )  # torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
+    val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
 
     train_dataloader = torch.utils.data.DataLoader(
         train_set, batch_size=8, shuffle=True, drop_last=True, num_workers=8
@@ -193,8 +191,7 @@ elif problem == "CT":
     test_len = int(len(train_dataset) * 0.1)
     train_len = len(train_dataset) - test_len
     train_set = torch.utils.data.Subset(train_dataset, range(train_len))
-    # val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
-    val_set = get_dataset("LoDoPaB", test=True)
+    val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
     train_dataloader = torch.utils.data.DataLoader(
         train_set, batch_size=8, shuffle=True, drop_last=True, num_workers=8
     )
@@ -306,10 +303,6 @@ else:
         regularizer.state_dict(),
         f"weights/score_parameter_fitting_for_{problem}/{regularizer_name}_fitted_parameters_with_{hypergradient_computation}_for_{problem}.pt",
     )
-
-
-print(regularizer.alpha)
-print(regularizer.scale)
 
 # bilevel training
 
