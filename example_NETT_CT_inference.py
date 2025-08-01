@@ -14,7 +14,7 @@ from evaluation import evaluate
 from dataset import get_dataset
 from operators import get_operator, get_evaluation_setting
 from torchvision.transforms import CenterCrop
-from priors import ICNNPrior, NETT, DRUNet, simpleNETT
+from priors import NETT
 import torch
 import matplotlib.pyplot as plt
 
@@ -39,8 +39,8 @@ only_first = False  # just evaluate on the first image of the dataset for test p
 
 # Define regularizer
 
-#regularizer = DRUNet(in_channels=1,out_channels = 1,device = device)
-regularizer = simpleNETT(in_channels = 1, out_channels = 1).to(device)
+
+regularizer = NETT(in_channels = 1, out_channels = 1).to(device)
 regularizer.positivity = True
 regularizer.load_state_dict(torch.load('weights/NETT_weights_CT.pt'))
 regularizer.eval()
@@ -72,23 +72,6 @@ if problem == "Denoising":
     dataset = get_dataset("BSD68", transform=CenterCrop(320))
 elif problem == "CT":
     dataset, physics, data_fidelity = get_evaluation_setting(problem, device)
-    # dataset = get_dataset("LoDoPaB", test=True)
-    # imsize = dataset[0].shape[-1]
-    # physics, data_fidelity = get_operator("CT", device = device)
-# elif problem == "MRI":
-#    dataset = get_dataset("BSDS500_gray", transform=CenterCrop(256), test=True)
-#    img_size = dataset[0].shape
-#    noise_level = 0.05
-#    # simple Cartesian mask generation from the deepinv tour...
-#    mask = torch.rand((1, img_size[-1]), device=device) > 0.75
-#    mask = torch.ones((img_size[-2], 1), device=device) * mask
-#    mask[:, int(img_size[-1] / 2) - 2 : int(img_size[-1] / 2) + 2] = 1
-#    # The MRI operator in deepinv operates on complex-valued images.
-#    # The MRIonR operator wraps it for real-valued images
-#    physics = MRIonR(
-#        mask=mask, device=device, noise_model=GaussianNoise(sigma=noise_level)
-#    )
-#    data_fidelity = L2(sigma=1.0)
 else:
     raise NotImplementedError("Problem not found")
 

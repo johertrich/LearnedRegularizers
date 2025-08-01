@@ -12,7 +12,7 @@ from operators import get_operator, get_evaluation_setting
 from evaluation import evaluate
 from dataset import get_dataset
 from torchvision.transforms import CenterCrop
-from priors import ICNNPrior, NETT, DRUNet, simpleNETT
+from priors import NETT
 import torch
 
 if torch.backends.mps.is_available():
@@ -36,9 +36,8 @@ only_first = False  # just evaluate on the first image of the dataset for test p
 
 # Define regularizer
 
-regularizer = simpleNETT(in_channels = 1, out_channels = 1).to(device)
+regularizer = NETT(in_channels = 1, out_channels = 1).to(device)
 
-#regularizer = DRUNet(in_channels=1,out_channels = 1,device = device,p = 2)
 regularizer.load_state_dict(torch.load('weights/NETT_weights_denoising.pt'))
 
 
