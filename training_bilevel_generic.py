@@ -42,7 +42,7 @@ parser.add_argument("--problem", type=str, default="Denoising")
 parser.add_argument("--hypergradient", type=str, default="IFT")
 parser.add_argument("--regularizer_name", type=str, default="CRR")
 parser.add_argument("--load_pretrain", type=bool, default=False)
-parser.add_argument("load_parameter_fitting", type=bool, default=False)
+parser.add_argument("--load_parameter_fitting", type=bool, default=False)
 inp = parser.parse_args()
 
 problem = inp.problem  # Denoising or CT
@@ -236,6 +236,9 @@ elif not load_parameter_fitting and not hyper_params.pretrain_epochs == 0:
             regularizer.alpha.requires_grad_(True)
             regularizer.regularizer.icnn2.wz.weight.data.fill_(0)
             regularizer.regularizer.icnn2.wz.weight.requires_grad_(False)
+    if regularizer_name == "ICNN" and problem == "CT":
+        regularizer.alpha.requires_grad_(False)
+        regularizer.scale.requires_grad_(False)
     if regularizer_name == "TDV" and problem == "CT":
         regularizer.scale.requires_grad_(False)
     (
@@ -277,12 +280,9 @@ else:
         p.requires_grad_(False)
     regularizer.alpha.requires_grad_(True)
     regularizer.scale.requires_grad_(True)
-    if problem == "CT":
-        regularizer.alpha.data = regularizer.alpha.data + np.log(60.0)
+    if problem == "CT" and not regularizer_name=="ICNN":
+        regularizer.alpha.data = regularizer.alpha.data + np.log(1200.0)
         if regularizer_name in ["TDV", "LSR"]:
-            regularizer.alpha.datatraining_bilevel_generic.py = (
-                regularizer.alpha.data + np.log(20.0)
-            )
             regularizer.scale.requires_grad_(False)
 
     if (
@@ -321,6 +321,9 @@ else:
         f"weights/score_parameter_fitting_for_{problem}/{regularizer_name}_fitted_parameters_with_{hypergradient_computation}_for_{problem}.pt",
     )
 
+
+print(regularizer.alpha)
+print(regularizer.scale)
 
 # bilevel training
 
