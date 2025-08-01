@@ -222,25 +222,12 @@ elif not load_parameter_fitting and not hyper_params.pretrain_epochs == 0:
     for p in regularizer.parameters():
         p.requires_grad_(True)
     if (
-        regularizer_name == "WCRR"
-    ):  # for the WCRR a regularization parameter >1 would destroy the 1-weak convexity
-        regularizer.alpha.requires_grad_(False)
-    if (
-        regularizer_name == "IDCNN"
-    ):  # for the sake of stability, we do not train the regularization and scale parameter
-        regularizer.alpha.requires_grad_(False)
-        regularizer.scale.requires_grad_(False)
-        if (
-            problem == "CT"
-        ):  # to ensure that the variational problem has a solution after pretraining, we enforce convexity of the IDCNN in the pretraining
-            regularizer.alpha.requires_grad_(True)
-            regularizer.regularizer.icnn2.wz.weight.data.fill_(0)
-            regularizer.regularizer.icnn2.wz.weight.requires_grad_(False)
-    if regularizer_name == "ICNN" and problem == "CT":
-        regularizer.alpha.requires_grad_(False)
-        regularizer.scale.requires_grad_(False)
-    if regularizer_name == "TDV" and problem == "CT":
-        regularizer.scale.requires_grad_(False)
+        regularizer_name == "IDCNN" and problem == "CT"
+    ):  # to ensure that the variational problem has a solution after pretraining, we enforce convexity of the IDCNN in the pretraining
+        regularizer.regularizer.icnn2.wz.weight.data.fill_(0)
+        regularizer.regularizer.icnn2.wz.weight.requires_grad_(False)
+    regularizer.alpha.requires_grad_(hyper_params.pretrain_alpha)
+    regularizer.scale.requires_grad_(hyper_params.pretrain_scale)
     (
         regularizer,
         loss_train,
@@ -280,14 +267,13 @@ else:
         p.requires_grad_(False)
     regularizer.alpha.requires_grad_(True)
     regularizer.scale.requires_grad_(True)
-    if problem == "CT" and not regularizer_name=="ICNN":
-        regularizer.alpha.data = regularizer.alpha.data + np.log(1200.0)
-        if regularizer_name in ["TDV", "LSR"]:
-            regularizer.scale.requires_grad_(False)
+    regularizer.alpha.data = regularizer.alpha.data + np.log(
+        hyper_params.parameter_fitting_init
+    )
 
     if (
         regularizer_name == "WCRR" and problem == "Denoising"
-    ):  # don't tune the regularization parameter for the WCRR to ensure 1-weak convexity
+    ):  # don't tune the regularization parameter for the WCRR to ensure 1-weak convexity, use beta instead
         regularizer.alpha.requires_grad_(False)
         regularizer.regularizer.beta.requires_grad_(True)
     if hyper_params.do_parameter_fitting:
