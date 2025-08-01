@@ -174,9 +174,7 @@ if problem == "Denoising":
     train_len = len(train_dataset) - test_len
     train_set = torch.utils.data.Subset(train_dataset, range(train_len))
     pretrain_dataset = train_set
-    val_set = get_dataset(
-        "BSD68"
-    )  # torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
+    val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
 
     train_dataloader = torch.utils.data.DataLoader(
         train_set, batch_size=8, shuffle=True, drop_last=True, num_workers=8
@@ -193,8 +191,7 @@ elif problem == "CT":
     test_len = int(len(train_dataset) * 0.1)
     train_len = len(train_dataset) - test_len
     train_set = torch.utils.data.Subset(train_dataset, range(train_len))
-    # val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
-    val_set = get_dataset("LoDoPaB", test=True)
+    val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
     train_dataloader = torch.utils.data.DataLoader(
         train_set, batch_size=8, shuffle=True, drop_last=True, num_workers=8
     )
@@ -222,22 +219,12 @@ elif not load_parameter_fitting and not hyper_params.pretrain_epochs == 0:
     for p in regularizer.parameters():
         p.requires_grad_(True)
     if (
-        regularizer_name == "WCRR"
-    ):  # for the WCRR a regularization parameter >1 would destroy the 1-weak convexity
-        regularizer.alpha.requires_grad_(False)
-    if (
-        regularizer_name == "IDCNN"
-    ):  # for the sake of stability, we do not train the regularization and scale parameter
-        regularizer.alpha.requires_grad_(False)
-        regularizer.scale.requires_grad_(False)
-        if (
-            problem == "CT"
-        ):  # to ensure that the variational problem has a solution after pretraining, we enforce convexity of the IDCNN in the pretraining
-            regularizer.alpha.requires_grad_(True)
-            regularizer.regularizer.icnn2.wz.weight.data.fill_(0)
-            regularizer.regularizer.icnn2.wz.weight.requires_grad_(False)
-    if regularizer_name == "TDV" and problem == "CT":
-        regularizer.scale.requires_grad_(False)
+        regularizer_name == "IDCNN" and problem == "CT"
+    ):  # to ensure that the variational problem has a solution after pretraining, we enforce convexity of the IDCNN in the pretraining
+        regularizer.regularizer.icnn2.wz.weight.data.fill_(0)
+        regularizer.regularizer.icnn2.wz.weight.requires_grad_(False)
+    regularizer.alpha.requires_grad_(hyper_params.pretrain_alpha)
+    regularizer.scale.requires_grad_(hyper_params.pretrain_scale)
     (
         regularizer,
         loss_train,
@@ -277,17 +264,13 @@ else:
         p.requires_grad_(False)
     regularizer.alpha.requires_grad_(True)
     regularizer.scale.requires_grad_(True)
-    if problem == "CT":
-        regularizer.alpha.data = regularizer.alpha.data + np.log(60.0)
-        if regularizer_name in ["TDV", "LSR"]:
-            regularizer.alpha.datatraining_bilevel_generic.py = (
-                regularizer.alpha.data + np.log(20.0)
-            )
-            regularizer.scale.requires_grad_(False)
+    regularizer.alpha.data = regularizer.alpha.data + np.log(
+        hyper_params.parameter_fitting_init
+    )
 
     if (
         regularizer_name == "WCRR" and problem == "Denoising"
-    ):  # don't tune the regularization parameter for the WCRR to ensure 1-weak convexity
+    ):  # don't tune the regularization parameter for the WCRR to ensure 1-weak convexity, use beta instead
         regularizer.alpha.requires_grad_(False)
         regularizer.regularizer.beta.requires_grad_(True)
     if hyper_params.do_parameter_fitting:
@@ -320,7 +303,6 @@ else:
         regularizer.state_dict(),
         f"weights/score_parameter_fitting_for_{problem}/{regularizer_name}_fitted_parameters_with_{hypergradient_computation}_for_{problem}.pt",
     )
-
 
 # bilevel training
 

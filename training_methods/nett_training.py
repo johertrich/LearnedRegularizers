@@ -11,7 +11,7 @@ import torch.optim as optim
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-def simple_NETT_training(model, train_dataloader, val_dataloader, device, optimizer, lr, num_epochs, save_best = False, weight_dir = None):
+def NETT_training(model, train_dataloader, val_dataloader, device, optimizer, lr, num_epochs, save_best = False, weight_dir = None):
     criterion = nn.MSELoss()
     if optimizer == 'Adam':
         optimizer = optim.Adam(model.parameters(), lr=lr)
