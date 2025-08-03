@@ -6,6 +6,9 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
+import torch
+import argparse
+from dataset import get_dataset
 from priors import (
 	LSR, 
 	WCRR, 
@@ -15,25 +18,9 @@ from priors import (
 	ParameterLearningWrapper,
 	LocalAR,
 )
-import torch
-from deepinv.physics import Denoising, GaussianNoise
-from deepinv.optim import L2
-from dataset import get_dataset
 from operators import get_operator, get_evaluation_setting
-from torchvision.transforms import RandomCrop, CenterCrop, Compose
-from torchvision.transforms import (
-    RandomCrop,
-    RandomVerticalFlip,
-    Compose,
-    RandomHorizontalFlip,
-    CenterCrop,
-    RandomApply,
-    RandomRotation,
-)
-from training_methods.simple_ar_training import estimate_lmbd, estimate_lip
-from deepinv.utils.plotting import plot
 from evaluation import evaluate
-import argparse
+from deepinv.utils.plotting import plot
 
 if torch.backends.mps.is_available():
     # mps backend is used in Apple Silicon chips
@@ -48,7 +35,7 @@ torch.random.manual_seed(0)  # make results deterministic
 parser = argparse.ArgumentParser(description="Choosing evaluation setting")
 parser.add_argument("--evaluation_mode", type=str, default="IFT")
 parser.add_argument("--problem", type=str, default="Denoising")
-parser.add_argument("--regularizer_name", type=str, default="TDV")
+parser.add_argument("--regularizer_name", type=str, default="CRR")
 parser.add_argument("--only_first", type=bool, default=False)
 inp=parser.parse_args()
 
