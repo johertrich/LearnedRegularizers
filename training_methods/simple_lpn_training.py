@@ -8,15 +8,16 @@ Train LPN by proximal matching.
 Source: https://github.com/ZhenghanFang/learned-proximal-networks
 """
 
+import argparse
 import os
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from tqdm import tqdm
-import numpy as np
-import argparse
 from skimage.metrics import peak_signal_noise_ratio as skimage_psnr
 from skimage.metrics import structural_similarity as skimage_ssim
+from tqdm import tqdm
 
 from priors.lpn.lpn import LPNPrior
 
@@ -129,9 +130,7 @@ def simple_lpn_training(
             if global_step == num_steps_pretrain:
                 print("Pretraining done.")
                 os.makedirs(ckpt_dir, exist_ok=True)
-                torch.save(
-                    regularizer.state_dict(), f"{ckpt_dir}/simple_LPN_pretrained.pt"
-                )
+                torch.save(regularizer.state_dict(), f"{ckpt_dir}/LPN_pretrained.pt")
 
         if global_step >= num_steps:
             break
