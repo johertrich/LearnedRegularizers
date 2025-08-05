@@ -22,7 +22,7 @@ from tqdm import tqdm
 from priors.lpn.lpn import LPNPrior
 
 
-def simple_lpn_training(
+def lpn_training(
     regularizer: LPNPrior,
     physics,
     data_fidelity,
