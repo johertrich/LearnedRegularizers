@@ -21,7 +21,7 @@ from torchvision.transforms import (
 
 from dataset import get_dataset
 from priors.lpn.lpn import LPNPrior
-from training_methods.simple_lpn_training import Validator, simple_lpn_training
+from training_methods.lpn_training import Validator, lpn_training
 
 if torch.backends.mps.is_available():
     # mps backend is used in Apple Silicon chips
@@ -128,7 +128,7 @@ print(data.shape, data.min(), data.max())
 regularizer = LPNPrior().to(device)
 
 os.makedirs(ckpt_dir, exist_ok=True)
-regularizer = simple_lpn_training(
+regularizer = lpn_training(
     regularizer=regularizer,
     physics=None,
     data_fidelity=None,
