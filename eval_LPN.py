@@ -1,5 +1,8 @@
+"""Evaluation script for LPN."""
+
 import argparse
 import os
+from typing import Callable
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -30,27 +33,54 @@ torch.random.manual_seed(0)  # make results deterministic
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    "--pretrained_source",
+    "--task",
     type=str,
-    default="lodopab",
-    help="Training data source, 'lodopab' or 'bsd500'",
+    default="denoising",
+    help="""\
+- 'denoising' for denoising on BSD
+- 'ct_trained_on_bsd' for CT with model trained on BSD
+- 'ct' for CT with model trained on LoDoPaB""",
 )
-parser.add_argument("--only_first", default=False, action="store_true")
-parser.add_argument("--save_fn", default="", help="Path to save the figure.")
+parser.add_argument("--pretrained_path", type=str, default=None)
+##############################################
+# ADMM parameters in CT reconstruction
+parser.add_argument("--stepsize", type=float, default=None)
+parser.add_argument("--beta", type=float, default=None)
+parser.add_argument("--max_iter", type=int, default=None)
+##############################################
+parser.add_argument(
+    "--gamma",
+    type=float,
+    default=None,
+    help="gamma in the Identity residual connection. gamma=1 is the original denoiser.",
+)
 args = parser.parse_args()
-
-pretrained_source = args.pretrained_source
-stepsize = {"lodopab": 0.02, "bsd500": 0.015}[pretrained_source]
-max_iter = 20
 
 
 ############################################################
+# Select default parameters
+task = args.task
+if task == "denoising":
+    problem = "Denoising"
+    pretrained_path = args.pretrained_path or "weights/lpn_64_bsd/LPN.pt"
+elif task == "ct_trained_on_bsd":
+    problem = "CT"
+    pretrained_path = args.pretrained_path or "weights/lpn_64_bsd/LPN.pt"
+    stepsize = args.stepsize or 0.015
+    beta = args.beta or 1.0
+    max_iter = args.max_iter or 20
+    gamma = args.gamma or 0.9
+elif task == "ct":
+    problem = "CT"
+    pretrained_path = args.pretrained_path or "weights/lpn_64_ct/LPN.pt"
+    stepsize = args.stepsize or 0.02
+    beta = args.beta or 1.0
+    max_iter = args.max_iter or 20
+    gamma = args.gamma or 1.0
+else:
+    raise ValueError("Unknown task. Choose 'denoising', 'ct_trained_on_bsd' or 'ct'.")
 
-# Problem selection
-problem = "CT"  # Select problem setups, which we consider.
-only_first = (
-    args.only_first
-)  # just evaluate on the first image of the dataset for test purposes
+only_first = False  # just evaluate on the first image of the dataset for test purposes
 
 ############################################################
 
@@ -62,43 +92,53 @@ only_first = (
 
 # Define forward operator
 dataset, physics, data_fidelity = get_evaluation_setting(problem, device)
-# dataset = torch.utils.data.Subset(dataset, [1])
-angles = int(physics.radon.theta.shape[0])
-noise_level_img = float(physics.noise_model.sigma.item())
-print(f"Problem: {problem} | Angles: {angles} | Noise level: {noise_level_img}")
+if problem == "CT":
+    angles = int(physics.radon.theta.shape[0])
+    noise_level_img = float(physics.noise_model.sigma.item())
+    print(f"Problem: {problem} | Angles: {angles} | Noise level: {noise_level_img}")
 
+if problem == "Denoising":
+    adaptive_range = False
+else:
+    adaptive_range = True
 
 #############################################################
 # Reconstruction algorithm
 #############################################################
 
 # Define regularizer
-pretrained_paths = {
-    "lodopab": "weights/lpn_64_ct/simple_LPN.pt",  # LoDoPaB
-    "bsd500": "weights/lpn_64_neg1_pm/simple_LPN.pt",  # BSD500 gray
-}
-pretrained = pretrained_paths[pretrained_source]
-regularizer = LPNPrior(model_name="lpn_64_neg1", pretrained=pretrained).to(device)
+regularizer = LPNPrior(pretrained=pretrained_path).to(device)
+regularizer.eval()
 
-# reconstruction hyperparameters, might be problem dependent
-iterator = "ADMM"
-params_algo = {"stepsize": stepsize, "g_param": noise_level_img}
 
-# instantiate the algorithm class to solve the IP problem.
-# initialize with the A_dagger(y)
-denoiser = regularizer.prox
-prior = PnP(denoiser=denoiser)
-model = optim_builder(
-    iteration=iterator,
-    prior=prior,
-    data_fidelity=data_fidelity,
-    early_stop=True,
-    max_iter=max_iter,
-    verbose=True,
-    params_algo=params_algo,
-    custom_init=lambda y, physics: {"est": (physics.A_dagger(y), physics.A_dagger(y))},
-)
-model.eval()
+if task in ["ct_trained_on_bsd", "ct"]:
+    # Use PnP-ADMM for CT reconstruction
+    iterator = "ADMM"
+    params_algo = {"stepsize": stepsize, "g_param": None, "beta": beta}
+
+    if gamma is None or gamma == 1.0:
+        denoiser = regularizer.prox
+    else:
+        # Apply the Identity residual connection
+        def denoiser(x, *args, **kwargs):
+            return gamma * regularizer.prox(x) + (1 - gamma) * x
+
+    model = optim_builder(
+        iteration=iterator,
+        prior=PnP(denoiser=denoiser),
+        data_fidelity=data_fidelity,
+        early_stop=True,
+        max_iter=max_iter,
+        verbose=True,
+        params_algo=params_algo,
+        custom_init=lambda y, physics: {
+            "est": (physics.A_dagger(y), physics.A_dagger(y))
+        },
+    )
+    model.eval()
+else:
+    # For denoising, call the learned proximal operator directly without iterative optimization
+    model = lambda y, physics: regularizer.prox(y)
 
 
 #############################################################
@@ -108,7 +148,7 @@ def evaluate(
     physics,
     data_fidelity,
     dataset,
-    model: nn.Module,
+    model: Callable,
     only_first=False,
     adaptive_range=False,
     device="cuda" if torch.cuda.is_available() else "cpu",
@@ -116,7 +156,7 @@ def evaluate(
     save_png=False,
 ):
     """
-    model: Reconstruction model, e.g., the return of `deepinv.optim.optimizers.optim_builder`
+    model: Callable: y, physics -> recon. Reconstruction algorithm.
     """
 
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
@@ -124,10 +164,6 @@ def evaluate(
         psnr = PSNR(max_pixel=None)
     else:
         psnr = PSNR()
-
-    model.eval()
-    for p in regularizer.parameters():
-        p.requires_grad_(False)
 
     ## Evaluate on the test set
     psnrs = []
@@ -143,9 +179,7 @@ def evaluate(
 
         # run the model on the problem.
         with torch.no_grad():
-            recon, metrics = model(
-                y, physics, x_gt=x, compute_metrics=True
-            )  # reconstruction with PnP algorithm
+            recon = model(y, physics)
 
         psnrs.append(psnr(recon, x).squeeze().item())
         print(f"Image {i:03d} | PSNR: {psnrs[-1]:.2f}")
@@ -202,9 +236,9 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
     dataset=dataset,
     model=model,
     only_first=only_first,
-    adaptive_range=True,
+    adaptive_range=adaptive_range,
     device=device,
 )
 
 # plot ground truth, observation and reconstruction for the first image from the test dataset
-plot([x_out, y_out, recon_out], save_fn=args.save_fn)
+plot([x_out, y_out, recon_out])

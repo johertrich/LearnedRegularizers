@@ -142,7 +142,7 @@ class LoDoPaB(Dataset):
         if self.test:
             fname = "ground_truth_test_000.hdf5"
         else:
-            idx_str = str(batch_idx)
+            idx_str = f"{batch_idx}"
             while len(idx_str) < 3:
                 idx_str = "0" + idx_str
             fname = "ground_truth_validation_" + idx_str + ".hdf5"

@@ -69,7 +69,7 @@ def simple_ar_training(
     device="cuda" if torch.cuda.is_available() else "cpu",
     mu=10.0,
     patch_size=None,
-    patches_per_img=4,
+    patches_per_img=8,
     LAR_eval = False,
     dynamic_range_psnr=False,
     savestr=None,

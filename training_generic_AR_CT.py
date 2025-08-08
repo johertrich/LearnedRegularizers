@@ -111,26 +111,27 @@ elif reg_name == "TDV":
         )
     regularizer = TDV(**config).to(device)
     batch_size = 8
-    lr = 1e-4
-    lr_decay = 0.99
+    lr = 2e-4
+    lr_decay = 0.995
     fitting_lr = 1e-2
-    epochs = 250
-    val_epochs = 10
+    epochs = 500
+    val_epochs = 15
     mu = 10
-    patch_size = 40
-    patch_per_img = 16
+    patch_size = 25
+    patch_per_img = 36
 elif reg_name == "LSR":
     regularizer = LSR(
         nc=[32, 64, 128, 256], pretrained_denoiser=False,
     ).to(device)
-    batch_size = 16
+    batch_size = 8
     lr = 1e-4
-    lr_decay = 0.99
+    lr_decay = 0.995
     fitting_lr = 1e-2
     epochs = 500
-    val_epochs = 10
-    mu = 15
-    patch_size = 64
+    val_epochs = 15
+    mu = 10
+    patch_size = 25
+    patch_per_img = 36
 else:
     raise ValueError("Unknown model!")
 
