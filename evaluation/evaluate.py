@@ -9,6 +9,7 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 import os
 from PIL import Image
+import time
 
 
 def evaluate(
@@ -26,9 +27,12 @@ def evaluate(
     verbose=False,
     save_path=None,
     save_png=False,
+    logger=None,
 ):
 
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
+    if logger is not None:
+        logger.info(f"Number of test images: {len(dataloader)}.")
     if adaptive_range:
         psnr = PSNR(max_pixel=None)
     else:
@@ -42,6 +46,7 @@ def evaluate(
     psnrs = []
     iters = []
     Lip = []
+    times = [] # List of recon durations for each test image
     x_out = None
     y_out = None
     recon_out = None
@@ -53,7 +58,8 @@ def evaluate(
         else:
             x = x.to(device).to(torch.float32)
         y = physics(x)
-
+        
+        t_start = time.time()
         recon, stats = reconstruct_nmAPG(
             y,
             physics,
@@ -66,11 +72,16 @@ def evaluate(
             return_stats=True,
             verbose=False,
         )
+        t_end = time.time()
+        times.append(t_end - t_start)
         iters.append(stats["steps"])
         Lip.append(stats["L"].cpu())
         psnrs.append(psnr(recon, x).squeeze().item())
+        
+        if logger is not None:
+            logger.info(f"Image {i} reconstructed, PSNR: {psnrs[-1]:.2f}")
 
-        if save_path is not None:
+        if save_path is not None and (i < 10):
             fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(13, 6))
 
             ax1.imshow(x[0, 0].cpu().numpy(), cmap="gray")
@@ -89,7 +100,7 @@ def evaluate(
             plt.savefig(os.path.join(save_path, f"imgs_{i}.png"))
             plt.close()
 
-        if save_png and save_path is not None:
+        if save_png and save_path is not None and (i < 10):
 
             # Scale to [0, 255] and convert to uint8
             image_uint8 = (recon[0, 0].cpu().numpy().clip(0, 1) * 255).astype(np.uint8)
@@ -111,11 +122,24 @@ def evaluate(
         if only_first:
             break
     mean_psnr = np.mean(psnrs)
-    print("Mean PSNR over the test set: {0:.2f}".format(mean_psnr))
+    print_psnr = "Mean PSNR over the test set: {0:.2f}".format(mean_psnr)
+    print(print_psnr)
     mean_iters = np.mean(iters)
-    print("Mean iterations over the test set: {0:.2f}".format(mean_iters))
+    print_iters = "Mean iterations over the test set: {0:.2f}".format(mean_iters)
+    print(print_iters)
     mean_Lip = np.mean(Lip)
-    print("Mean L over the test set: {0:.2f}".format(mean_Lip))
+    print_Lip = "Mean L over the test set: {0:.2f}".format(mean_Lip)
+    print(print_Lip)
+    mean_time = np.mean(times)
+    print_time = "Mean reconstruction time over the test set: {0:.2f} seconds".format(mean_time)
+    print(print_time)
+    
+    if logger is not None:
+        logger.info(print_psnr)
+        logger.info(print_iters)
+        logger.info(print_Lip)
+        logger.info(print_time)
+    
     return mean_psnr, x_out, y_out, recon_out
 
 
