@@ -6,6 +6,9 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
+import torch
+import argparse
+from dataset import get_dataset
 from priors import (
 	LSR, 
 	WCRR, 
@@ -15,25 +18,11 @@ from priors import (
 	ParameterLearningWrapper,
 	LocalAR,
 )
-import torch
-from deepinv.physics import Denoising, GaussianNoise
-from deepinv.optim import L2
-from dataset import get_dataset
 from operators import get_operator, get_evaluation_setting
-from torchvision.transforms import RandomCrop, CenterCrop, Compose
-from torchvision.transforms import (
-    RandomCrop,
-    RandomVerticalFlip,
-    Compose,
-    RandomHorizontalFlip,
-    CenterCrop,
-    RandomApply,
-    RandomRotation,
-)
-from training_methods.simple_ar_training import estimate_lmbd, estimate_lip
-from deepinv.utils.plotting import plot
 from evaluation import evaluate
-import argparse
+from deepinv.utils.plotting import plot
+import logging
+import datetime
 
 if torch.backends.mps.is_available():
     # mps backend is used in Apple Silicon chips
@@ -48,14 +37,32 @@ torch.random.manual_seed(0)  # make results deterministic
 parser = argparse.ArgumentParser(description="Choosing evaluation setting")
 parser.add_argument("--evaluation_mode", type=str, default="IFT")
 parser.add_argument("--problem", type=str, default="Denoising")
-parser.add_argument("--regularizer_name", type=str, default="TDV")
+parser.add_argument("--regularizer_name", type=str, default="CRR")
 parser.add_argument("--only_first", type=bool, default=False)
+parser.add_argument("--save_results", type=bool, default=False)
 inp=parser.parse_args()
 
 problem = inp.problem  # Denoising or CT
 evaluation_mode = inp.evaluation_mode  # AR, IFT, JFB or Score
 regularizer_name = inp.regularizer_name # CRR, WCRR, ICNN, IDCNN, TDV, LAR or LSR
 only_first = inp.only_first
+save_results = inp.save_results # If True, save the first 10 image reconstructions
+
+if save_results:
+    save_path = f"savings/{problem}/{regularizer_name}/{evaluation_mode}"
+    logging_path = save_path + "/logging"
+    os.makedirs(save_path, exist_ok=True)
+    os.makedirs(logging_path, exist_ok=True)
+    
+    logger = logging.getLogger(__name__)
+    logging.basicConfig(
+        filename=logging_path + "/log_eval_" + problem + "_"
+        + regularizer_name + "_" + evaluation_mode + "_"
+        + str(datetime.datetime.now()) + ".log",
+        level=logging.INFO,
+        format="%(asctime)s: %(message)s",
+    )
+    logger.info(f"Evaluation {regularizer_name} with {evaluation_mode} on {problem}!!!")
 
 # define regularizer
 if regularizer_name == "CRR":
@@ -153,6 +160,9 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
     adaptive_range=True,
     device=device,
     verbose=True,
+    save_path=save_path if save_results else None,
+    save_png=True if save_results else False,
+    logger=logger if save_results else None,
 )
 
 # plot ground truth, observation and reconstruction for the first image from the test dataset
