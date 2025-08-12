@@ -12,9 +12,9 @@ from torch.utils.data import DataLoader
 from deepinv.loss.metric import PSNR
 from tqdm import tqdm
 from dataset import get_dataset
+import argparse
 
 if torch.backends.mps.is_available():
-    # mps backend is used in Apple Silicon chips
     device = "mps"
 elif torch.cuda.is_available():
     device = "cuda"
@@ -26,27 +26,35 @@ torch.random.manual_seed(0)  # make results deterministic
 ############################################################
 
 # Problem selection
+parser = argparse.ArgumentParser(description="Choosing evaluation setting")
+parser.add_argument("--problem", type=str, default="Denoising")
+inp = parser.parse_args()
 
-problem = "CT"  # Select problem setups, which we consider.
+problem = inp.problem  # Select problem setups, which we consider.
 only_first = False  # just evaluate on the first image of the dataset for test purposes
 
 ############################################################
 
 # reconstruction hyperparameters, might be problem dependent
-lmbd_choices = [
-    1,
-    2,
-    3,
-    4,
-    5,
-    6,
-    7,
-    8,
-    9,
-    10,
-]  # choices to test for the regularization parameter
-step_size = 0.005  # step sizes in the PDHG
-
+if problem == "CT":
+    lmbd_choices = [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+    ]  # choices to test for the regularization parameter
+    step_size = 0.005  # step sizes in the PDHG
+    sigma_tau_factor = 1e3
+elif problem == "Denoising":
+    lmbd_choices = [1e-2, 2e-2, 3e-2, 4e-2, 5e-2, 6e-2, 7e-2, 8e-2, 9e-2, 1e-1]
+    step_size = 0.2
+    sigma_tau_factor = 1
 
 #############################################################
 ############# Problem setup and evaluation ##################
@@ -57,7 +65,12 @@ step_size = 0.005  # step sizes in the PDHG
 dataset, physics, data_fidelity = get_evaluation_setting(problem, device)
 
 # validation set for parameter fitting
-validation_dataset = get_dataset("LoDoPaB_val")
+if problem == "CT":
+    validation_dataset = get_dataset("LoDoPaB_val")
+elif problem == "Denoising":
+    validation_dataset = torch.utils.data.Subset(
+        get_dataset("BSDS500_gray", test=False), range(5)
+    )
 
 
 class ParallelPrimalDualOptimizer:
@@ -137,30 +150,38 @@ def eval_TV(lmbd, dataset, plot_example=False):
         prox_list,
         lambda_list,
         20000,
-        step_size * 1e3,
-        step_size / 1e3,
+        step_size * sigma_tau_factor,
+        step_size / sigma_tau_factor,
         stopping_criterion=1e-5,
     )
 
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
-    psnr = PSNR(max_pixel=None)
+    if problem == "CT":
+        psnr = PSNR(max_pixel=None)
+        dagger_name = "FBP"
+    elif problem == "Denoising":
+        psnr = PSNR()
+        dagger_name = "Noisy"
 
     psnrs = []
-    psnrs_FBP = []
+    psnrs_dagger = []
     for i, x in (progress_bar := tqdm(enumerate(dataloader))):
         if device == "mps":
-            # mps does not support float64
             x = x.to(torch.float32).to(device)
         else:
             x = x.to(device).to(torch.float32)
         y = physics(x)
         x_init = physics.A_dagger(y)
-        psnrs_FBP.append(psnr(x_init, x).squeeze().item())
+        psnrs_dagger.append(psnr(x_init, x).squeeze().item())
         recon = optimizer.optimize(x_init)
         psnrs.append(psnr(recon, x).squeeze().item())
         progress_bar.set_description(
-            "Mean so far: {0:.2f}, Last: {1:.2f}, FBP so far: {2:.2f}, Last {3:.2f}".format(
-                np.mean(psnrs), psnrs[-1], np.mean(psnrs_FBP), psnrs_FBP[-1]
+            "Mean so far: {0:.2f}, Last: {1:.2f}, {2} so far: {3:.2f}, Last {4:.2f}".format(
+                np.mean(psnrs),
+                psnrs[-1],
+                dagger_name,
+                np.mean(psnrs_dagger),
+                psnrs_dagger[-1],
             )
         )
         if i == 0:
@@ -170,9 +191,13 @@ def eval_TV(lmbd, dataset, plot_example=False):
         if only_first:
             break
     mean_psnr = np.mean(psnrs)
-    mean_psnr_FBP = np.mean(psnrs_FBP)
+    mean_psnr_dagger = np.mean(psnrs_dagger)
     print("Mean PSNR over the test set: {0:.2f}".format(mean_psnr))
-    print("Mean PSNR FBP over the test set: {0:.2f}".format(mean_psnr_FBP))
+    print(
+        "Mean PSNR "
+        + dagger_name
+        + " over the test set: {0:.2f}".format(mean_psnr_dagger)
+    )
 
     # plot ground truth, observation and reconstruction for the first image from the test dataset
     if plot_example:
