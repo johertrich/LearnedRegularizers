@@ -21,7 +21,7 @@ elif torch.cuda.is_available():
 else:
     device = "cpu"
 
-problem = "Tomography"
+problem = "Denoising"
 algorithm = "Adam"  # or "MAID", "Adam", "AdamW", "ISGD_Momentum"
 
 # problem dependent parameters
@@ -50,8 +50,8 @@ if problem == "Denoising":
     NT_val.val = True
     tran = transforms.Compose([RandomHorizontalFlip(),RandomVerticalFlip(),NT])
     tran_val = transforms.Compose([RandomHorizontalFlip(),RandomVerticalFlip(),NT_val])
-    dataset = get_dataset("BSDS500_gray", test=False, transform=tran)
-    dataset_val = get_dataset("BSDS500_gray", test=False, transform=tran_val)
+    dataset = get_dataset("BSDS500_gray", test=False, transform=tran,rotate  = True)
+    dataset_val = get_dataset("BSDS500_gray", test=False, transform=tran_val, rotate = True)
     lmbd = 1
 
 
@@ -88,10 +88,12 @@ regularizer = NETT_training(
     device=device,
     optimizer=algorithm,
     lr=1e-4,#1e-4
-    num_epochs = 3000,
+    num_epochs = 100,
     save_best = True,
-    weight_dir = "weights/NETT"+problem
+    weight_dir = "weights/NETT_"+problem+'.pt'
 )
+
+
 
 
 
