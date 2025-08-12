@@ -62,8 +62,13 @@ class BSDS500Dataset(Dataset):
         img = np.array(img) / 255.0
         if self.transforms is not None:
             img = self.transforms(img)
-        if self.rotate and img.shape[-1] > img.shape[-2]:
-            img = img.transpose(-2, -1)
+        if self.rotate:
+            if isinstance(img, (tuple, list)):
+                img = [
+                    i.transpose(-2, -1) if i.shape[-1] > i.shape[-2] else i for i in img
+                ]
+            else:
+                img = img.transpose(-2, -1) if img.shape[-1] > img.shape[-2] else img
         return img
 
 
