@@ -89,7 +89,6 @@ elif regularizer_name == "LAR":
         pad=True,
         use_bias=False,
         n_patches=-1,
-        normalise_grad=False,
         reduction="sum",
         output_factor=1 / 142**2,
         pretrained=None,
