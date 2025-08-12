@@ -6,7 +6,7 @@ import torch
 from deepinv.loss.metric import PSNR
 from tqdm import tqdm
 
-import matplotlib.pyplot as plt
+from torchvision.utils import save_image
 import os
 from PIL import Image
 import time
@@ -26,7 +26,6 @@ def evaluate(
     device="cuda" if torch.cuda.is_available() else "cpu",
     verbose=False,
     save_path=None,
-    save_png=False,
     logger=None,
 ):
 
@@ -82,34 +81,9 @@ def evaluate(
             logger.info(f"Image {i} reconstructed, PSNR: {psnrs[-1]:.2f}")
 
         if save_path is not None and (i < 10):
-            fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(13, 6))
-
-            ax1.imshow(x[0, 0].cpu().numpy(), cmap="gray")
-            ax1.axis("off")
-            ax1.set_title("ground truth")
-
-            ax2.imshow(recon[0, 0].cpu().numpy(), cmap="gray")
-            ax2.axis("off")
-            ax2.set_title("reconstruction")
-
-            ax3.imshow(y[0, 0].cpu().numpy(), cmap="gray")
-            ax3.axis("off")
-            ax3.set_title("measurements")
-
-            fig.suptitle(f"IDX={i} | PSNR {np.round(psnrs[-1],3)}")
-            plt.savefig(os.path.join(save_path, f"imgs_{i}.png"))
-            plt.close()
-
-        if save_png and save_path is not None and (i < 10):
-
-            # Scale to [0, 255] and convert to uint8
-            image_uint8 = (recon[0, 0].cpu().numpy().clip(0, 1) * 255).astype(np.uint8)
-
-            # Create a PIL Image object
-            image = Image.fromarray(image_uint8, mode="L")  # 'L' for grayscale
-
-            # Save as a PNG file
-            image.save(os.path.join(save_path, f"reco_{i}.png"))
+            save_image(x, os.path.join(save_path, f"ground_truth_{i}.png"), padding=0)
+            save_image(y, os.path.join(save_path, f"measurement_{i}.png"), padding=0)
+            save_image(recon, os.path.join(save_path, f"reconstruction_{i}.png"), padding=0)
 
         if i == 0:
             y_out = y
