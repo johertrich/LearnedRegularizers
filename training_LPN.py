@@ -3,17 +3,12 @@
 import argparse
 import os
 
-import matplotlib.pyplot as plt
-import numpy as np
 import torch
-from deepinv.optim import L2
-from deepinv.physics import Denoising, GaussianNoise
-from PIL import Image
 from torchvision.transforms import (
     CenterCrop,
     Compose,
     RandomApply,
-    RandomCrop,
+    CenterCrop,
     RandomHorizontalFlip,
     RandomRotation,
     RandomVerticalFlip,
@@ -68,7 +63,7 @@ data_fidelity = None
 # Create dataset and dataloaders
 transform = Compose(
     [
-        RandomCrop(crop_size),
+        CenterCrop(crop_size),
         RandomHorizontalFlip(p=0.5),
         RandomVerticalFlip(p=0.5),
         RandomApply([RandomRotation((90, 90))], p=0.5),
@@ -77,11 +72,9 @@ transform = Compose(
 
 if args.dataset == "BSD":
     train_dataset = get_dataset("BSDS500_gray", test=False, transform=transform)
-    test_transform = None  # CenterCrop(crop_size)
     val_dataset = get_dataset(
         "BSDS500_gray",
         test=False,
-        transform=test_transform,
     )
     # split train and val
     test_ratio = 0.1
@@ -90,16 +83,12 @@ if args.dataset == "BSD":
     train_set = torch.utils.data.Subset(train_dataset, range(train_len))
     val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
 
-    # val_set = get_dataset("BSD68", transform=test_transform)  # test on BSD68
-    # val_set = torch.utils.data.Subset(
-    #     get_dataset("BSDS500_gray", test=False, transform=test_transform), range(68)
-    # )  # test on train
+    # val_set = get_dataset("BSD68", transform=CenterCrop(crop_size))  # test on BSD68
 
 elif args.dataset == "LoDoPaB":
 
     train_dataset = get_dataset("LoDoPaB", test=False, transform=transform)
-    test_transform = None  # CenterCrop(crop_size)
-    val_dataset = get_dataset("LoDoPaB", test=False, transform=test_transform)
+    val_dataset = get_dataset("LoDoPaB", test=False)
     # split train and val
     val_ratio = 0.1
     val_len = int(len(train_dataset) * val_ratio)

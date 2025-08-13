@@ -163,7 +163,7 @@ test_dataloader = torch.utils.data.DataLoader(
     )
 NAG_step_size = 1e-1 # step size in NAG    
 NAG_max_iter = 1000  # maximum number of iterations in NAG
-NAG_tol = 1e-4  # tolerance for the relative error (stopping criterion)
+NAG_tol = 1e-6 if regularizer_name == "NETT" else 1e-4  # tolerance for the relative error (stopping criterion)
 
 # Call unified evaluation routine
 mean_psnr, x_out, y_out, recon_out = evaluate(

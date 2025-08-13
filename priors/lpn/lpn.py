@@ -10,6 +10,7 @@ from deepinv.optim import Prior
 
 from .prior import evaluate_prior
 from .invert_model import invert
+from .lpn_64_neg1 import LPN
 
 
 class LPNPrior(Prior):
@@ -20,7 +21,6 @@ class LPNPrior(Prior):
         beta=100.0,
         alpha=1e-6,
         pretrained=None,
-        model_name="lpn_64_neg1",
     ):
         """
         Args:
@@ -31,10 +31,6 @@ class LPNPrior(Prior):
             model_name: str, select lpn model
         """
         super().__init__()
-        if model_name == "lpn_64_neg1":
-            from .lpn_64_neg1 import LPN
-        else:
-            raise ValueError(f"Unknown model name: {model_name}")
         self.lpn = LPN(in_dim, hidden, beta, alpha)
         if pretrained is not None:
             self.load_state_dict(torch.load(pretrained, map_location="cpu"))
@@ -67,24 +63,21 @@ class LPNPrior(Prior):
         y = torch.tensor(y, device=x.device)
         return y - x
 
-    def _prox(self, x):
-        return self.lpn(x)
-
-    def _prox_by_patches(self, x):
-        """
-        Compute prox by patches.
-        x: (B, C, H, W)
-        """
-        patch_size = self.lpn.img_size
-        stride_size = self.lpn.img_size // 2
-        return apply_func_to_patches(x, self.lpn, patch_size, stride_size)
-
     def prox(self, x, *args, **kwargs):
         if x.shape[-1] == x.shape[-2] == self.lpn.img_size:
-            return self._prox(x)
+            """
+            Compute prox directly via LPN.
+            x: (B, C, H, W)
+            """
+            return self.lpn(x)
         else:
-            # print("Prox by patches")
-            return self._prox_by_patches(x)
+            """
+            Compute prox by patches.
+            x: (B, C, H, W)
+            """
+            patch_size = self.lpn.img_size
+            stride_size = self.lpn.img_size // 2
+            return apply_func_to_patches(x, self.lpn, patch_size, stride_size)
 
     def forward(self, x):
         return self.prox(x)
