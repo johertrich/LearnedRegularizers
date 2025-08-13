@@ -7,7 +7,6 @@ from typing import Callable
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import torch.nn as nn
 from deepinv.loss.metric import PSNR
 from deepinv.optim.optimizers import optim_builder
 from deepinv.optim.prior import PnP
@@ -16,7 +15,6 @@ from PIL import Image
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from evaluation import evaluate
 from operators import get_evaluation_setting
 from priors.lpn.lpn import LPNPrior
 
@@ -68,14 +66,14 @@ elif task == "ct_trained_on_bsd":
     pretrained_path = args.pretrained_path or "weights/lpn_64_bsd/LPN.pt"
     stepsize = args.stepsize or 0.015
     beta = args.beta or 1.0
-    max_iter = args.max_iter or 20
+    max_iter = args.max_iter or 100 #20 previous
     gamma = args.gamma or 0.9
 elif task == "ct":
     problem = "CT"
     pretrained_path = args.pretrained_path or "weights/lpn_64_ct/LPN.pt"
     stepsize = args.stepsize or 0.02
     beta = args.beta or 1.0
-    max_iter = args.max_iter or 20
+    max_iter = args.max_iter or 100 #20 previous
     gamma = args.gamma or 1.0
 else:
     raise ValueError("Unknown task. Choose 'denoising', 'ct_trained_on_bsd' or 'ct'.")
@@ -113,7 +111,6 @@ regularizer.eval()
 
 if task in ["ct_trained_on_bsd", "ct"]:
     # Use PnP-ADMM for CT reconstruction
-    iterator = "ADMM"
     params_algo = {"stepsize": stepsize, "g_param": None, "beta": beta}
 
     if gamma is None or gamma == 1.0:
@@ -124,7 +121,7 @@ if task in ["ct_trained_on_bsd", "ct"]:
             return gamma * regularizer.prox(x) + (1 - gamma) * x
 
     model = optim_builder(
-        iteration=iterator,
+        iteration="ADMM",
         prior=PnP(denoiser=denoiser),
         data_fidelity=data_fidelity,
         early_stop=True,
@@ -222,10 +219,6 @@ def evaluate(
             break
     mean_psnr = np.mean(psnrs)
     print("Mean PSNR over the test set: {0:.2f}".format(mean_psnr))
-    # mean_iters = np.mean(iters)
-    # print("Mean iterations over the test set: {0:.2f}".format(mean_iters))
-    # mean_Lip = np.mean(Lip)
-    # print("Mean L over the test set: {0:.2f}".format(mean_Lip))
     return mean_psnr, x_out, y_out, recon_out
 
 
