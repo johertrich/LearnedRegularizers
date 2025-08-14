@@ -2,6 +2,7 @@
 
 import os
 import sys
+
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
@@ -10,14 +11,14 @@ import torch
 import argparse
 from dataset import get_dataset
 from priors import (
-	NETT,
-	LSR, 
-	WCRR, 
-	simple_ICNNPrior, 
-	simple_IDCNNPrior, 
-	TDV, 
-	ParameterLearningWrapper,
-	LocalAR,
+    NETT,
+    LSR,
+    WCRR,
+    simple_ICNNPrior,
+    simple_IDCNNPrior,
+    TDV,
+    ParameterLearningWrapper,
+    LocalAR,
 )
 from operators import get_operator, get_evaluation_setting
 from evaluation import evaluate
@@ -41,13 +42,15 @@ parser.add_argument("--problem", type=str, default="Denoising")
 parser.add_argument("--regularizer_name", type=str, default="CRR")
 parser.add_argument("--only_first", type=bool, default=False)
 parser.add_argument("--save_results", type=bool, default=False)
-inp=parser.parse_args()
+inp = parser.parse_args()
 
 problem = inp.problem  # Denoising or CT
 evaluation_mode = inp.evaluation_mode  # AR, IFT, JFB or Score
-regularizer_name = inp.regularizer_name # CRR, WCRR, ICNN, IDCNN, TDV, LAR, LSR and NETT
+regularizer_name = (
+    inp.regularizer_name
+)  # CRR, WCRR, ICNN, IDCNN, TDV, LAR, LSR and NETT
 only_first = inp.only_first
-save_results = inp.save_results # If True, save the first 10 image reconstructions
+save_results = inp.save_results  # If True, save the first 10 image reconstructions
 
 if save_results:
     save_path = f"savings/{problem}/{regularizer_name}/{evaluation_mode}"
@@ -58,12 +61,19 @@ if save_results:
     logging_path = save_path + "/logging"
     os.makedirs(save_path, exist_ok=True)
     os.makedirs(logging_path, exist_ok=True)
-    
+
     logger = logging.getLogger(__name__)
     logging.basicConfig(
-        filename=logging_path + "/log_eval_" + problem + "_"
-        + regularizer_name + "_" + space + "_"
-        + str(datetime.datetime.now()) + ".log",
+        filename=logging_path
+        + "/log_eval_"
+        + problem
+        + "_"
+        + regularizer_name
+        + "_"
+        + space
+        + "_"
+        + str(datetime.datetime.now())
+        + ".log",
         level=logging.INFO,
         format="%(asctime)s: %(message)s",
     )
@@ -116,15 +126,14 @@ elif regularizer_name == "LSR":
         nc=[32, 64, 128, 256], pretrained_denoiser=False, alpha=1.0, sigma=3e-2
     ).to(device)
 elif regularizer_name == "NETT":
-    pass # is defined further down
+    pass  # is defined further down
 else:
     raise ValueError("Unknown model!")
 
 
-
 if evaluation_mode == "AR" and regularizer_name != "NETT":
     weights = torch.load(
-    	f"weights/adversarial_{problem}/{regularizer_name}_adversarial_for_{problem}_fitted.pt",
+        f"weights/adversarial_{problem}/{regularizer_name}_adversarial_for_{problem}_fitted.pt",
         map_location=device,
         weights_only=True,
     )
@@ -140,15 +149,15 @@ elif regularizer_name != "NETT":
         map_location=device,
         weights_only=True,
     )
-else: # regularizer_name == "NETT"
-    regularizer = NETT(in_channels = 1, out_channels = 1).to(device)
+else:  # regularizer_name == "NETT"
+    regularizer = NETT(in_channels=1, out_channels=1).to(device)
     weights = torch.load(
-    	f"weights/NETT_weights_{problem}.pt",
+        f"weights/NETT_weights_{problem}.pt",
         map_location=device,
         weights_only=True,
     )
     regularizer.load_state_dict(weights)
-    lmbd = 6.0 if problem=="Denoising" else 500.0
+    lmbd = 6.0 if problem == "Denoising" else 500.0
 
 
 if regularizer_name != "NETT":
@@ -160,10 +169,12 @@ if regularizer_name != "NETT":
 dataset, physics, data_fidelity = get_evaluation_setting(problem, device)
 test_dataloader = torch.utils.data.DataLoader(
     dataset, batch_size=1, shuffle=False, drop_last=False
-    )
-NAG_step_size = 1e-1 # step size in NAG    
+)
+NAG_step_size = 1e-1  # step size in NAG
 NAG_max_iter = 1000  # maximum number of iterations in NAG
-NAG_tol = 1e-6 if regularizer_name == "NETT" else 1e-4  # tolerance for the relative error (stopping criterion)
+NAG_tol = (
+    1e-6 if regularizer_name == "NETT" else 1e-4
+)  # tolerance for the relative error (stopping criterion)
 
 # Call unified evaluation routine
 mean_psnr, x_out, y_out, recon_out = evaluate(
@@ -176,7 +187,7 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
     NAG_max_iter=NAG_max_iter,
     NAG_tol=NAG_tol,
     only_first=only_first,
-    adaptive_range=True,
+    adaptive_range=problem == "CT",
     device=device,
     verbose=True,
     save_path=save_path if save_results else None,
