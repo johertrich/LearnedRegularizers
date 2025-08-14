@@ -5,7 +5,6 @@ from training_methods import NETT_training
 from deepinv.optim import L2, L1
 from dataset import get_dataset
 from operators import get_operator
-from dataset.utils import NETT_transform
 from torchvision.transforms import (
     RandomCrop,
     RandomAutocontrast,
@@ -141,7 +140,7 @@ bilevel_training(
     fit_dataloader,
     val_dataloader,
     epochs=100,
-    mode='JFB',
+    mode="JFB",
     NAG_step_size=1e-1,
     NAG_max_iter=1000,
     NAG_tol_train=1e-4,
@@ -151,7 +150,7 @@ bilevel_training(
     device=device,
     verbose=False,
     validation_epochs=10,
-    dynamic_range_psnr=problem=="CT",
+    dynamic_range_psnr=problem == "CT",
     adabelief=True,
     reg=False,
     logger=logger,
