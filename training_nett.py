@@ -1,6 +1,4 @@
-
-
-from priors import NETT
+from priors import NETT, ParameterLearningWrapper, LSR
 import torch
 from deepinv.physics import Denoising, GaussianNoise, Tomography
 from training_methods import NETT_training
@@ -8,10 +6,21 @@ from deepinv.optim import L2, L1
 from dataset import get_dataset
 from operators import get_operator
 from dataset.utils import NETT_transform
-from torchvision.transforms import RandomCrop, RandomAutocontrast,CenterCrop, Resize, RandomHorizontalFlip, RandomVerticalFlip,RandomRotation
-from torchvision.transforms.v2 import GaussianNoise, RandomApply
+from torchvision.transforms import (
+    RandomCrop,
+    RandomAutocontrast,
+    CenterCrop,
+    Resize,
+    RandomHorizontalFlip,
+    RandomVerticalFlip,
+    RandomRotation,
+)
 from torch.utils.data import Subset as subset
 from torchvision import transforms
+import logging
+import datetime
+import numpy as np
+import argparse
 
 if torch.backends.mps.is_available():
     # mps backend is used in Apple Silicon chips
@@ -21,81 +30,131 @@ elif torch.cuda.is_available():
 else:
     device = "cpu"
 
-problem = "Denoising"
+parser = argparse.ArgumentParser(description="Choosing evaluation setting")
+parser.add_argument("--problem", type=str, default="Denoising")
+inp = parser.parse_args()
+
+problem = inp.problem
 algorithm = "Adam"  # or "MAID", "Adam", "AdamW", "ISGD_Momentum"
 
-# problem dependent parameters
-if problem == "Tomography":
-    dataset = get_dataset("LoDoPaB", test=False)
-    physics, data_fidelity = get_operator("CT", device = device)
-    # Set the transform to a deterministic one like CenterCrop or Resize for MAID
-    NT = NETT_transform(0.5,physics)
-    NT_val = NETT_transform(1,physics)
-    NT_val.val = True
-    #resize_trans = Resize((128,128))
-    tran = transforms.Compose([RandomHorizontalFlip(),RandomVerticalFlip(),NT])
-    tran_val = transforms.Compose([NT_val])
-    dataset = get_dataset("LoDoPaB", test=False, transform = tran)
-    dataset_val = get_dataset("LoDoPaB", test=False, transform = tran_val)
-    lmbd = 1.0
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    filename="log_training_NETT_"
+    + str(problem)
+    + "_"
+    + str(datetime.datetime.now())
+    + ".log",
+    level=logging.INFO,
+    format="%(asctime)s: %(message)s",
+)
 
+flip_transform = transforms.Compose([RandomHorizontalFlip(), RandomVerticalFlip()])
 
 if problem == "Denoising":
-    noise_level = 0.1
-    physics, data_fidelity = get_operator('Denoising',device = device)
-    physics.device = device
-    data_fidelity = L2(sigma=1.0)
-    NT = NETT_transform(0.5,physics)
-    NT_val = NETT_transform(1,physics)
-    NT_val.val = True
-    tran = transforms.Compose([RandomHorizontalFlip(),RandomVerticalFlip(),NT])
-    tran_val = transforms.Compose([RandomHorizontalFlip(),RandomVerticalFlip(),NT_val])
-    dataset = get_dataset("BSDS500_gray", test=False, transform=tran,rotate  = True)
-    dataset_val = get_dataset("BSDS500_gray", test=False, transform=tran_val, rotate = True)
-    lmbd = 1
+    train_dataset = get_dataset(
+        "BSDS500_gray", test=False, transform=flip_transform, rotate=True
+    )
+    val_dataset = get_dataset("BSDS500_gray", test=False)
+    # splitting in training and validation set
+    test_ratio = 0.1
+    test_len = int(len(train_dataset) * 0.1)
+    train_len = len(train_dataset) - test_len
+    train_set = torch.utils.data.Subset(train_dataset, range(train_len))
+    val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
+    fit_set = torch.utils.data.Subset(val_dataset, range(0, 5))
+    train_dataloader = torch.utils.data.DataLoader(
+        train_set, batch_size=4, shuffle=True, drop_last=True, num_workers=8
+    )
+    lmbd = 5
+    num_epochs = 200
+    validation_epochs = 10
+    fit_set = torch.utils.data.Subset(
+        get_dataset("BSDS500_gray", test=False, rotate=True), range(5)
+    )
+elif problem == "CT":
+    train_dataset = get_dataset("LoDoPaB", test=False, transform=flip_transform)
+    val_dataset = get_dataset("LoDoPaB", test=False)
+    # splitting in training and validation set
+    test_ratio = 0.1
+    test_len = int(len(train_dataset) * 0.1)
+    train_len = len(train_dataset) - test_len
+    train_set = torch.utils.data.Subset(train_dataset, range(train_len))
+    val_set = torch.utils.data.Subset(
+        val_dataset, range(len(train_dataset) - 40, len(train_dataset))
+    )
+    fit_set = get_dataset("LoDoPaB_val")
+    train_dataloader = torch.utils.data.DataLoader(
+        train_set, batch_size=4, shuffle=True, drop_last=True, num_workers=8
+    )
+    lmbd = 600
+    num_epochs = 100
+    validation_epochs = 5
 
-
-
-# splitting in training and validation set
-test_ratio = 0.1
-test_len = int(len(dataset) * 0.1)
-train_len = len(dataset) - test_len
-
-indices = torch.randperm(len(dataset))
-train_indices = indices[:train_len]
-val_indices = indices[test_len:]
-train_set = torch.utils.data.Subset(dataset, train_indices)
-val_set = torch.utils.data.Subset(dataset, val_indices)
-batch_size = 4
-shuffle = True
-
-# create dataloaders
-train_dataloader = torch.utils.data.DataLoader(
-    train_set, batch_size=batch_size, shuffle=shuffle, drop_last=True
-)
 val_dataloader = torch.utils.data.DataLoader(
-    val_set, batch_size=batch_size, shuffle=True, drop_last=True
+    val_set, batch_size=1, shuffle=False, drop_last=True, num_workers=8
 )
+physics, data_fidelity = get_operator(problem, device=device)
+
 
 # define regularizer
-regularizer = NETT(in_channels = 1, out_channels = 1).to(device)#DRUNet(in_channels=1,out_channels = 1,device = device)
-#regularizer.compute_padding((dataset[torch.tensor(0)][0].shape[-2],dataset[torch.tensor(0)][0].shape[-1]))
+regularizer = NETT(
+    in_channels=1, out_channels=1, hidden_channels=64, padding_mode="zeros"
+).to(device)
 
 regularizer = NETT_training(
     regularizer,
+    physics,
+    data_fidelity,
+    lmbd,
     train_dataloader,
     val_dataloader,
     device=device,
-    optimizer=algorithm,
-    lr=1e-4,#1e-4
-    num_epochs = 100,
-    save_best = True,
-    weight_dir = "weights/NETT_"+problem+'.pt'
+    lr=1e-4,  # 1e-4
+    num_epochs=num_epochs,
+    lr_decay=0.1 ** (1 / num_epochs),
+    save_best=True,
+    logger=logger,
+    p=0.5,
+    weight_dir="weights/NETT_" + problem + ".pt",
+    dynamic_range_psnr=problem == "CT",
+    validation_epochs=validation_epochs,
 )
 
+wrapped_regularizer = ParameterLearningWrapper(regularizer, device=device)
+wrapped_regularizer.alpha.data += np.log(lmbd)
 
+torch.save(wrapped_regularizer.state_dict(), f"weights/NETT_{problem}.pt")
 
+for p in wrapped_regularizer.parameters():
+    p.requires_grad_(False)
+wrapped_regularizer.alpha.requires_grad_(True)
 
+fit_dataloader = torch.utils.data.DataLoader(
+    fit_set, batch_size=5, shuffle=True, drop_last=True
+)
 
+bilevel_training(
+    wrapped_regularizer,
+    physics,
+    data_fidelity,
+    1,
+    fit_dataloader,
+    val_dataloader,
+    epochs=100,
+    mode='JFB',
+    NAG_step_size=1e-1,
+    NAG_max_iter=1000,
+    NAG_tol_train=1e-4,
+    NAG_tol_val=1e-4,
+    lr=0.01,
+    lr_decay=0.98,
+    device=device,
+    verbose=False,
+    validation_epochs=10,
+    dynamic_range_psnr=problem=="CT",
+    adabelief=True,
+    reg=False,
+    logger=logger,
+)
 
-
+torch.save(wrapped_regularizer.state_dict(), f"weights/NETT_{problem}_fitted.pt")
