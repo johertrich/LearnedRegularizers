@@ -86,7 +86,7 @@ elif problem == "CT":
         train_set, batch_size=4, shuffle=True, drop_last=True, num_workers=8
     )
     lmbd = 600
-    num_epochs = 100
+    num_epochs = 60
     validation_epochs = 5
 
 val_dataloader = torch.utils.data.DataLoader(
