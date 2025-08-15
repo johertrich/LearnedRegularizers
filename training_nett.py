@@ -1,7 +1,7 @@
 from priors import NETT, ParameterLearningWrapper, LSR
 import torch
 from deepinv.physics import Denoising, GaussianNoise, Tomography
-from training_methods import NETT_training
+from training_methods import NETT_training, bilevel_training
 from deepinv.optim import L2, L1
 from dataset import get_dataset
 from operators import get_operator
