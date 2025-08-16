@@ -126,6 +126,9 @@ print(data.shape, data.min(), data.max())
 ###############################################################################
 # define regularizer
 regularizer = LPNPrior().to(device)
+print(
+    f"Number of parameters: {sum(p.numel() for p in regularizer.parameters() if p.requires_grad):,}"
+)
 
 os.makedirs(ckpt_dir, exist_ok=True)
 regularizer = simple_lpn_training(

@@ -2,7 +2,7 @@ import torch
 
 
 def invert_ls(x, model):
-    """Invert the LPN model at x by least squares min_y\|f_\theta(y) - x\|_2^2.
+    """Invert the LPN model at x by least squares min_y||f_theta(y) - x||_2^2.
     Inputs:
         x: (n, *), numpy.ndarray, n points
         model: LPN model.
