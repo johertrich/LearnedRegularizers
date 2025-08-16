@@ -106,11 +106,11 @@ def get_bilevel_hyperparameters(regularizer_name, problem):
         if problem == "Denoising":
             args.pretrain_weight_decay = 0  # weight decay in pretraining
             args.pretrain_lr = 1e-3  # learning rate in pretraining
-            args.fitting_lr = 0.01  # learning rate in the parameter fitting phase
-            args.lr = 1e-3  # learning rate in the bilevel phase
+            args.fitting_lr = 0.003  # learning rate in the parameter fitting phase
+            args.lr = 2e-4  # learning rate in the bilevel phase
             args.pretrain_epochs = 300  # number of epochs in pretraining
             args.jacobian_regularization_parameter = (
-                1e-5  # Jacobian regularization parameter
+                1e-6  # Jacobian regularization parameter
             )
             args.epochs = 200  # number of epochs in the bilevel phase
             args.do_parameter_fitting = True

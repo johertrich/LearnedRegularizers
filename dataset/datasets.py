@@ -62,8 +62,13 @@ class BSDS500Dataset(Dataset):
         img = np.array(img) / 255.0
         if self.transforms is not None:
             img = self.transforms(img)
-        if self.rotate and img.shape[-1] > img.shape[-2]:
-            img = img.transpose(-2, -1)
+        if self.rotate:
+            if isinstance(img, (tuple, list)):
+                img = [
+                    i.transpose(-2, -1) if i.shape[-1] > i.shape[-2] else i for i in img
+                ]
+            else:
+                img = img.transpose(-2, -1) if img.shape[-1] > img.shape[-2] else img
         return img
 
 
@@ -142,7 +147,7 @@ class LoDoPaB(Dataset):
         if self.test:
             fname = "ground_truth_test_000.hdf5"
         else:
-            idx_str = str(batch_idx)
+            idx_str = f"{batch_idx}"
             while len(idx_str) < 3:
                 idx_str = "0" + idx_str
             fname = "ground_truth_validation_" + idx_str + ".hdf5"
