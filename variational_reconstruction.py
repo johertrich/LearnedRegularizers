@@ -34,7 +34,7 @@ elif torch.cuda.is_available():
 else:
     device = "cpu"
 
-torch.random.manual_seed(0)  # make results deterministic
+torch.random.manual_seed(1)  # make results deterministic
 
 parser = argparse.ArgumentParser(description="Choosing evaluation setting")
 parser.add_argument("--evaluation_mode", type=str, default="IFT")
@@ -126,7 +126,9 @@ elif regularizer_name == "LSR":
         nc=[32, 64, 128, 256], pretrained_denoiser=False, alpha=1.0, sigma=3e-2
     ).to(device)
 elif regularizer_name == "NETT":
-    pass  # is defined further down
+    reg = NETT(
+        in_channels=1, out_channels=1, hidden_channels=64, padding_mode="zeros"
+    ).to(device)
 else:
     raise ValueError("Unknown model!")
 
@@ -150,31 +152,22 @@ elif regularizer_name != "NETT":
         weights_only=True,
     )
 else:  # regularizer_name == "NETT"
-    regularizer = NETT(in_channels=1, out_channels=1).to(device)
     weights = torch.load(
-        f"weights/NETT_weights_{problem}.pt",
+        f"weights/NETT_{problem}_fitted.pt",
         map_location=device,
         weights_only=True,
     )
-    regularizer.load_state_dict(weights)
-    lmbd = 6.0 if problem == "Denoising" else 500.0
 
 
-if regularizer_name != "NETT":
-    regularizer = ParameterLearningWrapper(reg, device=device)
-    regularizer.load_state_dict(weights)
-    lmbd = 1.0
+regularizer = ParameterLearningWrapper(reg, device=device)
+regularizer.load_state_dict(weights)
+lmbd = 1.0
 
 # Define forward operator
 dataset, physics, data_fidelity = get_evaluation_setting(problem, device)
-test_dataloader = torch.utils.data.DataLoader(
-    dataset, batch_size=1, shuffle=False, drop_last=False
-)
 NAG_step_size = 1e-1  # step size in NAG
 NAG_max_iter = 1000  # maximum number of iterations in NAG
-NAG_tol = (
-    1e-6 if regularizer_name == "NETT" else 1e-4
-)  # tolerance for the relative error (stopping criterion)
+NAG_tol = 1e-4  # tolerance for the relative error (stopping criterion)
 
 # Call unified evaluation routine
 mean_psnr, x_out, y_out, recon_out = evaluate(
