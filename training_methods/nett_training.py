@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Jan 31 13:27:50 2025
-
-@author: JohannesSchwab
-"""
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -15,22 +8,22 @@ from deepinv.loss.metric import PSNR
 
 
 def NETT_training(
-    regularizer,
-    physics,
-    data_fidelity,
-    lmbd,
-    train_dataloader,
-    val_dataloader,
-    device,
-    lr,
-    num_epochs,
-    lr_decay=0.99,
-    p=0.5,
-    save_best=False,
-    weight_dir=None,
-    logger=None,
-    validation_epochs=10,
-    dynamic_range_psnr=False,
+    regularizer,  # regularizer to be trained
+    physics,  # Forward operator to determine degraded images
+    data_fidelity,  # data fidelity term (just required for validation)
+    lmbd,  # regularization parameter (just required for validation)
+    train_dataloader,  # loads clean training images
+    val_dataloader,  # loads clean validation images
+    device,  # device
+    lr,  # learning rate
+    num_epochs,  # number of epochs to train
+    lr_decay=0.99,  # learning rate decay (exponential schedule)
+    p=0.5,  # percentage of degraded images
+    save_best=False,  # the training routine will save the best weights if save_best is True in the directory weight_dir
+    weight_dir=None,  # directory to save the best weights
+    logger=None,  # can take a logging.logger for creating nice logs
+    validation_epochs=10,  # validate every valdiation_epochs epochs
+    dynamic_range_psnr=False,  # whether to use a dynamic range in the validation PSNR (should be set to problem == "CT")
 ):
     optimizer = optim.Adam(regularizer.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=lr_decay)
