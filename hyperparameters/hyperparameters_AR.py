@@ -43,10 +43,11 @@ def get_AR_hyperparameters(regularizer_name, problem):
         args.mu = 10  
         if problem == "Denoising":
             args.patch_size = 64
-            args.batch_size = 8
+            args.batch_size = 32
+            args.fitting_lr = 1e-2
             args.lr_decay = 0.998
             args.epochs = 500
-            args.val_epochs = 25
+            args.val_epochs = 5
         if problem == "CT":
             args.patch_size = 76
             args.batch_size = 32
