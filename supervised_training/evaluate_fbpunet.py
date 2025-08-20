@@ -11,14 +11,10 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from operators import get_evaluation_setting
 
 import torch
-from tqdm import tqdm 
-import numpy as np 
-import matplotlib.pyplot as plt 
-
-import yaml 
 from deepinv.loss.metric import PSNR
 
-from supervised_training.unet import get_unet_model
+import deepinv as dinv 
+from torch.utils.data import Dataset
 
 problem = "CT"
 
@@ -34,23 +30,44 @@ torch.random.manual_seed(0)  # make results deterministic
 
 dataset, physics, data_fidelity = get_evaluation_setting(problem, device)
 
-with open('supervised_training/fbpunet_config.yaml', 'r') as file:
-    cfg = yaml.load(file, Loader=yaml.FullLoader)
+class FBPDataset(Dataset):
+    def __init__(self, dataset, physics, device):
+        self.dataset = dataset 
+        self.physics = physics
+        self.device = device 
 
-print(cfg)
+    def __len__(self):
+        return len(self.dataset)
+    
+    def __getitem__(self, idx):
+        x = self.dataset[idx].unsqueeze(0).to(self.device)
+        y = self.physics(x)
 
-model = get_unet_model(use_norm=cfg["model_params"]["use_norm"], 
-                        scales=cfg["model_params"]["scales"],
-                        use_sigmoid=cfg["model_params"]["use_sigmoid"], 
-                        skip=cfg["model_params"]["skip"],
-                        channels=cfg["model_params"]["channels"])
-model.load_state_dict(torch.load("supervised_training/fbpunet.pt"))
-model.eval()
+        return x.squeeze(0), y.squeeze(0)
+
+fbp_dataset = FBPDataset(dataset, physics, device)
+
+fbp_dataloader = torch.utils.data.DataLoader(fbp_dataset, batch_size=1, shuffle=False)
+
+
+
+model = dinv.models.ArtifactRemoval(
+    dinv.models.UNet(1, 1, scales=5, batch_norm=True).to(device),
+    mode="pinv"
+)
+
+print("Number of parameters: ", sum([p.numel() for p in model.parameters()]))
+
+model.load_state_dict(torch.load("supervised_training/fbpunet/ckp_best.pth.tar", map_location=device)["state_dict"])
+model.eval() 
 model.to(device)
 
 dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False)
 psnr = PSNR(max_pixel=None)
 
+dinv.test(model, fbp_dataloader, physics,metrics=psnr,show_progress_bar=True,device=device)
+
+"""
 with torch.no_grad():
     ## Evaluate on the test set
     psnrs = []
@@ -58,9 +75,8 @@ with torch.no_grad():
 
         x = x.to(device)
         y = physics(x)
-        x_fbp = physics.A_dagger(y)
 
-        x_pred = model(x_fbp)
+        x_pred = model(y, physics)
         
         #fig, (ax1, ax2, ax3) = plt.subplots(1,3)
         #ax1.imshow(x[0,0].cpu().numpy(), cmap="gray")
@@ -72,3 +88,4 @@ with torch.no_grad():
 
 
 print("PSNR: ", np.mean(psnrs))
+"""

@@ -10,13 +10,15 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import torch
+from torch.utils.data import Dataset
 from dataset import get_dataset
 from tqdm import tqdm 
 import numpy as np 
 import yaml 
 
 from operators import get_operator
-from supervised_training.unet import get_unet_model
+
+import deepinv as dinv 
 
 if torch.backends.mps.is_available():
     # mps backend is used in Apple Silicon chips
@@ -29,7 +31,25 @@ else:
 problem = "CT"
 dataset = get_dataset("LoDoPaB", test=False, transform=None)
 physics , data_fidelity = get_operator(problem, device)
-lmbd = 1.0
+
+class FBPDataset(Dataset):
+    def __init__(self, dataset, physics, device):
+        self.dataset = dataset 
+        self.physics = physics
+        self.device = device 
+
+    def __len__(self):
+        return len(self.dataset)
+    
+    def __getitem__(self, idx):
+        x = self.dataset[idx].unsqueeze(0).to(self.device)
+        y = self.physics(x)
+
+        return x.squeeze(0), y.squeeze(0)
+
+dataset = FBPDataset(dataset, physics, device)
+x, y = dataset[0]
+
 test_ratio = 0.01
 
 # splitting in training and validation set
@@ -40,83 +60,29 @@ train_set, val_set = torch.utils.data.random_split(dataset, [train_len, test_len
 batch_size = 16
 shuffle = True
 
-cfg = {
-    "lr": 1e-4,
-    "num_epochs": 1000,
-    "model_params": {
-        "use_norm": False,
-        "scales": 5,
-        "use_sigmoid": False,
-        "skip": 16,
-        "channels": (16, 32, 64, 64, 128, 128)
-    },
-}
-
-
-model = get_unet_model(use_norm=cfg["model_params"]["use_norm"], 
-                        scales=cfg["model_params"]["scales"],
-                        use_sigmoid=cfg["model_params"]["use_sigmoid"], 
-                        skip=cfg["model_params"]["skip"],
-                        channels=cfg["model_params"]["channels"])
-model.train()
-model.to(device)
-
-train_dl = torch.utils.data.DataLoader(train_set, batch_size=16)
+train_dl = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=shuffle)
 val_dl = torch.utils.data.DataLoader(val_set, batch_size=1)
 
-print("Length of training set: ", len(train_set))
-print("Length of val set: ", len(val_set))
+model = dinv.models.ArtifactRemoval(
+    dinv.models.UNet(1, 1, scales=5, batch_norm=True).to(device),
+    mode="pinv"
+)
 
-optimiser = torch.optim.Adam(model.parameters(), lr=1e-3)
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimiser, T_max=cfg["num_epochs"], eta_min=1e-3/100)
+trainer = dinv.Trainer(
+    model=model,
+    physics=physics,
+    optimizer=torch.optim.Adam(model.parameters(), lr=1e-3),
+    train_dataloader=train_dl,
+    eval_dataloader=val_dl,
+    epochs=100,
+    losses=dinv.loss.SupLoss(metric=dinv.metric.MSE()),
+    metrics=dinv.metric.PSNR(),
+    device=device,
+    plot_images=False,
+    show_progress_bar=True,
+    save_path="supervised_training/fbpunet",
+    plot_measurements=False,
+    ckp_interval=10
+)
 
-min_loss = 100
-
-for epoch in range(cfg["num_epochs"]):
-
-    model.train()
-    for idx, batch in (progress_bar := tqdm(enumerate(train_dl), total=len(train_dl))):
-        optimiser.zero_grad()
-        x = batch.to(device)
-        y = physics(x)
-        x_fbp = physics.A_dagger(y)
-
-        x_pred = model(x_fbp)
-
-
-        loss = torch.mean((x_pred - x)**2)
-        loss.backward()
-
-        optimiser.step()
-
-
-        progress_bar.set_description(
-                "Epoch {} || Step {} || Loss {:.7f} ".format(epoch+1,
-                    idx + 1, loss.item()
-                )
-            )
-
-    model.eval() 
-    scheduler.step() 
-    with torch.no_grad():
-        mean_loss = [] 
-        for batch in val_dl:
-            x = batch.to(device)
-            y = physics(x)
-            x_fbp = physics.A_dagger(y)
-
-            x_pred = model(x_fbp)
-
-
-            loss = torch.mean((x_pred - x)**2)
-
-            mean_loss.append(loss.item())
-
-    print("Validation Loss: ", np.mean(mean_loss))
-
-    if np.mean(mean_loss) < min_loss:
-        min_loss = np.mean(mean_loss)
-        print("new min loss: save model")
-        with open("supervised_training/fbpunet_config.yaml", "w") as f:
-            yaml.dump(cfg, f)
-        torch.save(model.state_dict(), "supervised_training/fbpunet.pt")
+_ = trainer.train()
