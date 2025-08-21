@@ -6,6 +6,7 @@ import os.path
 from PIL import Image
 import numpy as np
 import h5py
+import torchvision.transforms as transforms
 
 
 class BSDS500Dataset(Dataset):
@@ -156,3 +157,107 @@ class LoDoPaB(Dataset):
         if self.transforms is not None:
             img = self.transforms(img)
         return img
+
+
+
+
+# --- Helper Function to Extract Patches Deterministically ---
+def extract_patches(image_tensor, patch_size, stride):
+    """
+    Extracts patches from a single image tensor deterministically.
+
+    Args:
+        image_tensor (torch.Tensor): Input image tensor (C, H, W).
+        patch_size (int): The height and width of the patches.
+        stride (int): The step size between patches.
+
+    Returns:
+        list[torch.Tensor]: A list of patch tensors.
+    """
+    patches = []
+    _, h, w = image_tensor.shape
+    # Iterate over the image grid with the specified stride
+    for i in range(0, h - patch_size + 1, stride):
+        for j in range(0, w - patch_size + 1, stride):
+            patch = image_tensor[:, i : i + patch_size, j : j + patch_size]
+            patches.append(patch)
+    return patches
+
+
+# --- Custom Dataset for Patches (Patching Augmentation for MAID) ---
+class PatchesDataset(Dataset):
+    """
+    A dataset that holds deterministic patches extracted from an original dataset.
+    """
+
+    def __init__(self, original_dataset, patch_size, stride, transform=None):
+        """
+        Args:
+            original_dataset (Dataset): The original dataset (e.g., BSDS500).
+            patch_size (int): The size of the patches to extract.
+            stride (int): The stride for patch extraction.
+            transform (callable, optional): Optional transform to be applied
+                                             *after* patch extraction.
+        """
+        self.patch_size = patch_size
+        self.stride = stride
+        self.transform =  transform
+        self.all_patches = []
+        self.original_image_indices = []  # Optional: track origin
+
+        print(f"Processing original dataset to extract patches...")
+        pre_transform = transforms.Compose(
+            [
+                transforms.Grayscale(num_output_channels=1),  # Ensure grayscale
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.RandomVerticalFlip(p=0.5),
+                transforms.RandomApply([transforms.RandomRotation(90)], p=0.5),
+                transforms.ToTensor(),  # Convert PIL Image to [C, H, W] tensor [0,1]
+            ]
+        )
+
+        num_original_images = len(original_dataset)
+        for idx in range(num_original_images):
+            original_image = original_dataset[idx]  # Get image, ignore label if any
+
+            # Ensure it's a PIL image before applying pre_transform if needed
+            if isinstance(original_image, Image.Image):
+                image_tensor = pre_transform(original_image)
+            else:
+                image_tensor = original_image
+            # Check if image is large enough for at least one patch
+            c, h, w = image_tensor.shape
+            if h < patch_size or w < patch_size:
+                print(
+                    f"Warning: Image {idx} (size {h}x{w}) is smaller than patch size {patch_size}x{patch_size}. Skipping."
+                )
+                continue
+
+            # Extract patches for the current image
+            patches = extract_patches(image_tensor, self.patch_size, self.stride)
+            self.all_patches.extend(patches)
+
+            # Optional: Store which original image each patch came from
+            self.original_image_indices.extend([idx] * len(patches))
+
+            if (idx + 1) % 50 == 0 or (idx + 1) == num_original_images:
+                print(f"  Processed {idx + 1}/{num_original_images} original images...")
+
+        print(f"Finished extracting patches. Total patches: {len(self.all_patches)}")
+
+    def __len__(self):
+        """Returns the total number of patches."""
+        return len(self.all_patches)
+
+    def __getitem__(self, idx):
+        """Returns the patch at the given index."""
+        patch = self.all_patches[idx]
+        # Optional: get original image index: original_idx = self.original_image_indices[idx]
+
+        if self.transform:
+            patch = self.transform(patch)  # Apply any post-patching transforms
+
+        # Return patch (and optionally original_idx if needed later)
+        return patch  # , original_idx
+    
+    
