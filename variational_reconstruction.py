@@ -14,8 +14,8 @@ from priors import (
     NETT,
     LSR,
     WCRR,
-    simple_ICNNPrior,
-    simple_IDCNNPrior,
+    ICNNPrior,
+    IDCNNPrior,
     TDV,
     ParameterLearningWrapper,
     LocalAR,
@@ -91,11 +91,11 @@ elif regularizer_name == "WCRR":
         weak_convexity=1.0,
     ).to(device)
 elif regularizer_name == "ICNN":
-    reg = simple_ICNNPrior(in_channels=1, channels=32, device=device, kernel_size=5).to(
+    reg = ICNNPrior(in_channels=1, channels=32, device=device, kernel_size=5).to(
         device
     )
 elif regularizer_name == "IDCNN":
-    reg = simple_IDCNNPrior(
+    reg = IDCNNPrior(
         in_channels=1, channels=32, device=device, kernel_size=5
     ).to(device)
 elif regularizer_name == "LAR":

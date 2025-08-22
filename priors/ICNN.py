@@ -59,7 +59,7 @@ class ICNN_2l(nn.Module):
         return self
 
 
-class simple_ICNNPrior(Prior):
+class ICNNPrior(Prior):
     def __init__(self, in_channels, channels, device, kernel_size=5, smoothing=0.01):
         super().__init__()
         self.icnn = ICNN_2l(in_channels, channels, kernel_size, smoothing).to(device)
