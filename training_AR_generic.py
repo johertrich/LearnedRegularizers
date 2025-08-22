@@ -7,10 +7,10 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from priors import LSR, WCRR, simple_ICNNPrior, simple_IDCNNPrior, TDV, ParameterLearningWrapper
+from priors import LSR, WCRR, ICNNPrior, IDCNNPrior, TDV, ParameterLearningWrapper
 import torch
-from training_methods import simple_ar_training, bilevel_training
-from training_methods.simple_ar_training import estimate_lmbd, estimate_lip
+from training_methods import ar_training, bilevel_training
+from training_methods.ar_training import estimate_lmbd, estimate_lip
 from dataset import get_dataset
 from operators.settings import get_operator
 from torch.utils.data import Subset as subset
@@ -60,9 +60,9 @@ elif regularizer_name == "WCRR":
         weak_convexity=1.0,
         ).to(device)
 elif regularizer_name == "ICNN":
-    regularizer = simple_ICNNPrior(in_channels=1,channels=32,device=device)
+    regularizer = ICNNPrior(in_channels=1,channels=32,device=device)
 elif regularizer_name == "IDCNN":
-    regularizer = simple_IDCNNPrior(in_channels=1,channels=32,kernel_size=5,device=device)
+    regularizer = IDCNNPrior(in_channels=1,channels=32,kernel_size=5,device=device)
 elif regularizer_name == "TDV":
     config = dict(
         in_channels=1,
@@ -152,7 +152,7 @@ if only_fitting:
     ckp = torch.load(f"weights/adversarial_{problem}/{regularizer_name}_adversarial_for_{problem}.pt")
     regularizer.load_state_dict(ckp)
 else:
-    regulalrizer = simple_ar_training(
+    regulalrizer = ar_training(
         regularizer,
         physics,
         data_fidelity,
