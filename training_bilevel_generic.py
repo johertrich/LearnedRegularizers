@@ -6,7 +6,7 @@ from dataset import get_dataset
 from priors import (
     ParameterLearningWrapper,
     WCRR,
-    simple_ICNNPrior,
+    ICNNPrior,
     IDCNNPrior,
     LSR,
     TDV,
@@ -68,7 +68,7 @@ elif regularizer_name == "WCRR":
         weak_convexity=1.0,
     ).to(device)
 elif regularizer_name == "ICNN":
-    reg = simple_ICNNPrior(in_channels=1, channels=32, device=device, kernel_size=5).to(
+    reg = ICNNPrior(in_channels=1, channels=32, device=device, kernel_size=5).to(
         device
     )
 elif regularizer_name == "IDCNN":

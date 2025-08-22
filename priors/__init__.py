@@ -5,7 +5,7 @@ from .NETT_prior import NETT
 from .tdv import TDV
 from .lpn.lpn import LPNPrior
 from .local_ar import LocalAR
-from .simple_ICNN import simple_ICNNPrior
+from .ICNN import ICNNPrior
 from .LSR import LSR
 from .parameter_learning_wrapper import ParameterLearningWrapper
 from .IDCNN_prior import IDCNNPrior
