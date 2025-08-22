@@ -1,4 +1,4 @@
-from .datasets import BSDS500Dataset, BSD68, LoDoPaB, PatchesDataset
+from .datasets import BSDS500Dataset, BSD68, LoDoPaB
 from torchvision.transforms.v2 import ToImage, Compose, Grayscale, ToDtype
 import torch
 import os
