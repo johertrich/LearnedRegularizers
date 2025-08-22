@@ -8,7 +8,7 @@ Training of Local (patch-based) adversarial regulariser.
 from priors import LocalAR
 import torch
 from deepinv.physics import Denoising, GaussianNoise
-from training_methods.simple_ar_training import simple_ar_training, estimate_lmbd
+from training_methods.ar_training import ar_training, estimate_lmbd
 from deepinv.optim import L2
 from dataset import get_dataset
 from deepinv.datasets import PatchDataset
@@ -63,7 +63,7 @@ print("estimated : ", lmbd)
 dataset_name = "BSD500" if problem == "Denoising" else "LoDoPab"
 
 mu = 5.0
-simple_ar_training(
+ar_training(
     regularizer=regularizer,
     physics=physics,
     data_fidelity=data_fidelity,

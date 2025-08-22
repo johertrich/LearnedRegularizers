@@ -55,7 +55,7 @@ def estimate_lip (regularizer,dataset,device):
         print('Lipschitz constant: Max ' + str(lip_max.item()) +  ' Avg ' + str(lip_avg.item()))
     return lip_max
 
-def simple_ar_training(
+def ar_training(
     regularizer,
     physics,
     data_fidelity,

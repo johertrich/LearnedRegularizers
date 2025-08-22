@@ -9,8 +9,8 @@ if parent_dir not in sys.path:
 
 from priors import LSR, WCRR, ICNNPrior, IDCNNPrior, TDV, ParameterLearningWrapper
 import torch
-from training_methods import simple_ar_training, bilevel_training
-from training_methods.simple_ar_training import estimate_lmbd, estimate_lip
+from training_methods import ar_training, bilevel_training
+from training_methods.ar_training import estimate_lmbd, estimate_lip
 from dataset import get_dataset
 from operators.settings import get_operator
 from torch.utils.data import Subset as subset
@@ -152,7 +152,7 @@ if only_fitting:
     ckp = torch.load(f"weights/adversarial_{problem}/{regularizer_name}_adversarial_for_{problem}.pt")
     regularizer.load_state_dict(ckp)
 else:
-    regulalrizer = simple_ar_training(
+    regulalrizer = ar_training(
         regularizer,
         physics,
         data_fidelity,
