@@ -3,14 +3,149 @@ import numpy as np
 from tqdm import tqdm
 from deepinv.loss.metric import PSNR
 from torchvision.transforms import RandomCrop, Compose
-from torch.utils.data import RandomSampler
+from torch.utils.data import RandomSampler, Dataset, Subset
 from deepinv.optim.utils import conjugate_gradient, minres
 from evaluation import reconstruct_nmAPG
+from PIL import Image
 import random
 from collections import deque
 from torch.optim import Optimizer
 import torch.nn as nn
+import torchvision.transforms as transforms
 
+# torch.manual_seed(0)
+# torch.backends.cudnn.deterministic = True
+# np.random.seed(0)
+# random.seed(0)
+
+class GaussianNoise_MAID(torch.nn.Module):
+    def __init__(self, sigma=0.1, rng: torch.Generator = torch.default_generator):
+        super().__init__()
+        self.sigma = sigma
+        self.rng = rng
+        self.noise = None
+        self.noise_validation = None
+    def forward(self, x):
+        """
+        Adds Gaussian noise to the input tensor.
+
+        Args:
+            x (torch.Tensor): Input tensor.
+
+        Returns:
+            torch.Tensor: Noisy tensor.
+        """
+        if self.noise == None:
+            self.noise = torch.randn_like(x) * self.sigma
+            self.noise = self.noise.cpu().detach()
+            noise = self.noise.to(x.device)
+        elif self.noise.shape != x.shape:
+            if self.noise_validation == None:
+                self.noise_validation = torch.randn_like(x) * self.sigma
+                self.noise_validation = self.noise_validation.cpu().detach()
+            noise = self.noise_validation.to(x.device)
+        else:
+            noise = self.noise.to(x.device)
+        return x + noise
+
+# --- Helper Function to Extract Patches Deterministically ---
+def extract_patches(image_tensor, patch_size, stride):
+    """
+    Extracts patches from a single image tensor deterministically.
+
+    Args:
+        image_tensor (torch.Tensor): Input image tensor (C, H, W).
+        patch_size (int): The height and width of the patches.
+        stride (int): The step size between patches.
+
+    Returns:
+        list[torch.Tensor]: A list of patch tensors.
+    """
+    patches = []
+    _, h, w = image_tensor.shape
+    # Iterate over the image grid with the specified stride
+    for i in range(0, h - patch_size + 1, stride):
+        for j in range(0, w - patch_size + 1, stride):
+            patch = image_tensor[:, i : i + patch_size, j : j + patch_size]
+            patches.append(patch)
+    return patches
+
+# --- Custom Dataset for Patches (Patching Augmentation for MAID) ---
+class PatchesDataset(Dataset):
+    """
+    A dataset that holds deterministic patches extracted from an original dataset.
+    """
+
+    def __init__(self, original_dataset, patch_size, stride, transform=None):
+        """
+        Args:
+            original_dataset (Dataset): The original dataset (e.g., BSDS500).
+            patch_size (int): The size of the patches to extract.
+            stride (int): The stride for patch extraction.
+            transform (callable, optional): Optional transform to be applied
+                                             *after* patch extraction.
+        """
+        self.patch_size = patch_size
+        self.stride = stride
+        self.transform =  transform
+        self.all_patches = []
+        self.original_image_indices = []  # Optional: track origin
+
+        print(f"Processing original dataset to extract patches...")
+        pre_transform = transforms.Compose(
+            [
+                transforms.Grayscale(num_output_channels=1),  # Ensure grayscale
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.RandomVerticalFlip(p=0.5),
+                transforms.RandomApply([transforms.RandomRotation(90)], p=0.5),
+                transforms.ToTensor(),  # Convert PIL Image to [C, H, W] tensor [0,1]
+            ]
+        )
+
+        num_original_images = len(original_dataset)
+        for idx in range(num_original_images):
+            original_image = original_dataset[idx]  # Get image, ignore label if any
+
+            # Ensure it's a PIL image before applying pre_transform if needed
+            if isinstance(original_image, Image.Image):
+                image_tensor = pre_transform(original_image)
+            else:
+                image_tensor = original_image
+            # Check if image is large enough for at least one patch
+            c, h, w = image_tensor.shape
+            if h < patch_size or w < patch_size:
+                print(
+                    f"Warning: Image {idx} (size {h}x{w}) is smaller than patch size {patch_size}x{patch_size}. Skipping."
+                )
+                continue
+
+            # Extract patches for the current image
+            patches = extract_patches(image_tensor, self.patch_size, self.stride)
+            self.all_patches.extend(patches)
+
+            # Optional: Store which original image each patch came from
+            self.original_image_indices.extend([idx] * len(patches))
+
+            if (idx + 1) % 50 == 0 or (idx + 1) == num_original_images:
+                print(f"  Processed {idx + 1}/{num_original_images} original images...")
+
+        print(f"Finished extracting patches. Total patches: {len(self.all_patches)}")
+
+    def __len__(self):
+        """Returns the total number of patches."""
+        return len(self.all_patches)
+
+    def __getitem__(self, idx):
+        """Returns the patch at the given index."""
+        patch = self.all_patches[idx]
+        # Optional: get original image index: original_idx = self.original_image_indices[idx]
+
+        if self.transform:
+            patch = self.transform(patch)  # Apply any post-patching transforms
+
+        # Return patch (and optionally original_idx if needed later)
+        return patch  # , original_idx
+    
 class GradientDescent(nn.Module):
     """
     Simple gradient descent module for upper-level problem in the bilevel optimization.
@@ -88,7 +223,10 @@ def bilevel_training_maid(
     physics,
     data_fidelity,
     lmbd,
-    train_dataloader,
+    train_dataset,
+    PATCH_SIZE,
+    STRIDE,
+    SUBSET,
     val_dataloader,
     epochs=50,
     NAG_step_size=1e-2,
@@ -156,6 +294,27 @@ def bilevel_training_maid(
             )
     success = False # Flag for backtracking line search success
     psnr = PSNR() # PSNR metric definition
+    patch_dataset = PatchesDataset(
+    original_dataset=train_dataset,
+    patch_size=PATCH_SIZE,
+    stride=STRIDE,
+    transform=None,  # Add post-patch transforms here if needed
+    )
+    num_patches_total = len(patch_dataset)
+    num_subset_patches = SUBSET
+    # Use a fixed range for deterministic subset selection
+    subset_indices = torch.randint(0, num_patches_total, (num_subset_patches,))
+    train_subset = Subset(patch_dataset, subset_indices)
+    train_dataloader = torch.utils.data.DataLoader(
+        train_subset,
+        batch_size=num_subset_patches,
+        shuffle=False,
+        drop_last=True,
+        num_workers=8,
+    )
+    # Setting the Noise Model of Physics to be deterministic (not redrawn at each call)
+    noise_level = physics.noise_model.sigma
+    physics.noise_model = GaussianNoise_MAID(sigma=noise_level)
     # logging lists and dictionaries
     loss_vals = []
     psnr_vals = []

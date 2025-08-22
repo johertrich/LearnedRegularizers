@@ -3,7 +3,7 @@
 import torch
 from torch.utils.data import Subset
 from training_methods import bilevel_training, score_training, bilevel_training_maid
-from dataset import get_dataset, PatchesDataset
+from dataset import get_dataset
 from priors import (
     ParameterLearningWrapper,
     WCRR,
@@ -41,7 +41,6 @@ else:
 parser = argparse.ArgumentParser(description="Choosing evaluation setting")
 parser.add_argument("--problem", type=str, default="Denoising")
 parser.add_argument("--hypergradient", type=str, default="IFT")
-parser.add_argument("--MAID", type=bool, default=False)
 parser.add_argument("--regularizer_name", type=str, default="CRR")
 parser.add_argument("--load_pretrain", type=bool, default=False)
 parser.add_argument("--load_parameter_fitting", type=bool, default=False)
@@ -49,7 +48,6 @@ inp = parser.parse_args()
 
 problem = inp.problem  # Denoising or CT
 hypergradient_computation = inp.hypergradient  # IFT or JFB
-MAID = inp.MAID # Using MAID training or not
 regularizer_name = inp.regularizer_name  # CRR, WCRR, ICNN, IDCNN, LAR, TDV or LSR
 load_pretrain = inp.load_pretrain  # load pretrained weights given that they exist
 load_parameter_fitting = (
@@ -117,7 +115,7 @@ logging.basicConfig(
     + problem
     + "_"
     + regularizer_name
-    + "_bilevel_" if not MAID else "_bilevel_MAID_"
+    + "_bilevel_"
     + hypergradient_computation
     + "_"
     + str(datetime.datetime.now())
@@ -133,16 +131,12 @@ if not os.path.isdir(f"weights/score_parameter_fitting_for_{problem}"):
     os.mkdir(f"weights/score_parameter_fitting_for_{problem}")
 if not os.path.isdir(f"weights/bilevel_{problem}"):
     os.mkdir(f"weights/bilevel_{problem}")
-if not os.path.isdir(f"weights/bilevel_MAID_{problem}"):
-    os.mkdir(f"weights/bilevel_MAID_{problem}")
 params = 0
 for p in regularizer.parameters():
     params += p.numel()
 print(params)
-if not MAID:
-    logger.info(f"Train {regularizer_name} with {hypergradient_computation} on {problem}")
-else:
-    logger.info(f"Train {regularizer_name} with {hypergradient_computation} MAID on {problem}")
+
+logger.info(f"Train {regularizer_name} with {hypergradient_computation} on {problem}")
 logger.info(f"The model has {params} parameters")
 logger.info("Parameters:")
 logger.info(
@@ -158,8 +152,7 @@ logger.info(
     f"jacobian_regularization: {hyper_params.jacobian_regularization}, jacobian_regularization_parameter: {hyper_params.jacobian_regularization_parameter}, lmbd: {lmbd}"
 )
 
-# The noise model in MAID should be deterministic not changing at each call
-physics, data_fidelity = get_operator(problem, device, MAID=MAID)
+physics, data_fidelity = get_operator(problem, device)
 
 rotation_flip_transform = Compose(
     [
@@ -186,29 +179,7 @@ if problem == "Denoising":
     train_set, batch_size=8, shuffle=True, drop_last=True, num_workers=8
     )
     fitting_dataloader = train_dataloader
-    if MAID:
-        # Define patch parameters
-        PATCH_SIZE = 64
-        STRIDE = 64  # Use PATCH_SIZE for non-overlapping patches
-        SUBSET = 32
-        patch_dataset = PatchesDataset(
-        original_dataset=train_dataset,
-        patch_size=PATCH_SIZE,
-        stride=STRIDE,
-        transform=None,  # Add post-patch transforms here if needed
-        )
-        num_patches_total = len(patch_dataset)
-        num_subset_patches = SUBSET
-        # Use a fixed range for deterministic subset selection
-        subset_indices = torch.randint(0, num_patches_total, (num_subset_patches,))
-        train_subset = Subset(patch_dataset, subset_indices)
-        train_dataloader = torch.utils.data.DataLoader(
-            train_subset,
-            batch_size=num_subset_patches,
-            shuffle=False,
-            drop_last=True,
-            num_workers=8,
-        )
+        
 elif problem == "CT":
     train_dataset = get_dataset("LoDoPaB", test=False)
     pretrain_dataset = get_dataset(
@@ -339,7 +310,7 @@ for p in regularizer.parameters():
     p.requires_grad_(True)
 if regularizer_name == "WCRR":  # fix regularization parameter to ensure 1-weak convexit
     regularizer.alpha.requires_grad_(False)
-if not MAID:
+if hypergradient_computation != "IFT-MAID":
     regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
         regularizer,
         physics,
@@ -373,34 +344,40 @@ else:
     #hyperparameters of MAID
     eps = 1e-1
     alpha = 1e-1
-    regularizer, loss_train, loss_val, psnr_train, psnr_val, _, _, logs, _ = (
-        bilevel_training_maid(
-            regularizer,
-            physics,
-            data_fidelity,
-            lmbd,
-            train_dataloader,
-            val_dataloader,
-            epochs=300,
-            NAG_step_size=1e-1,
-            NAG_max_iter=1000,
-            NAG_tol_train=eps,
-            NAG_tol_val=1e-4,
-            CG_tol=eps,
-            lr=alpha,
-            lr_decay=0.25,
-            device=device,
-            precondition=True,  # Use preconditioned upper-level optimization (AdaGrad)
-            verbose=True,
-            save_dir=str(SUBSET)
-            + "_"
-            + str(eps)
-            + "_"
-            + str(alpha)
-            + "_CRR_MAID",  # Directory to save the model and logs
-            algorithm = "MAID Adagrad",  # Algorithm used for training
-        )
+    # Define patch parameters for data augmentation
+    PATCH_SIZE = 64
+    STRIDE = 64  # Use PATCH_SIZE for non-overlapping patches
+    SUBSET = 32
+    regularizer, loss_train, loss_val, psnr_train, psnr_val, _, _, logs, _ = bilevel_training_maid(
+        regularizer,
+        physics,
+        data_fidelity,
+        lmbd,
+        train_set,
+        PATCH_SIZE,
+        STRIDE,
+        SUBSET,
+        val_dataloader,
+        epochs=300,
+        NAG_step_size=1e-1,
+        NAG_max_iter=1000,
+        NAG_tol_train=eps,
+        NAG_tol_val=1e-4,
+        CG_tol=eps,
+        lr=alpha,
+        lr_decay=0.25,
+        device=device,
+        precondition=True,  # Use preconditioned upper-level optimization (AdaGrad)
+        verbose=True,
+        save_dir=str(SUBSET)
+        + "_"
+        + str(eps)
+        + "_"
+        + str(alpha)
+        + "_CRR_MAID",  # Directory to save the model and logs
+        algorithm = "MAID Adagrad",  # Algorithm used for training
     )
+    
     torch.save(
     regularizer.state_dict(),
     f"weights/bilevel_{problem}/{regularizer_name}_bilevel_MAID_{hypergradient_computation}_for_{problem}.pt",
