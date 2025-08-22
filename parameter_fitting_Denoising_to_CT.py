@@ -2,7 +2,7 @@ from priors import (
     ParameterLearningWrapper,
     WCRR,
     simple_ICNNPrior,
-    simple_IDCNNPrior,
+    IDCNNPrior,
     LSR,
     TDV,
     LocalAR,
@@ -54,7 +54,7 @@ elif regularizer_name == "ICNN":
         device
     )
 elif regularizer_name == "IDCNN":
-    reg = simple_IDCNNPrior(
+    reg = IDCNNPrior(
         in_channels=1, channels=32, device=device, kernel_size=5
     ).to(device)
 elif regularizer_name == "LAR":
