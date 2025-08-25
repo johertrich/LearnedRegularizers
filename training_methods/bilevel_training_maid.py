@@ -259,7 +259,7 @@ def bilevel_training_maid(
     device="cuda" if torch.cuda.is_available() else "cpu",
     precondition=False,
     verbose=False,
-    save_dir="",
+    logs_dir=None,
     val_checkpoint=None,
     logs=None,
     optimizer=None,
@@ -750,7 +750,8 @@ def bilevel_training_maid(
             psnr_val.append(mean_psnr_val)
             logs["val_loss"].append(mean_loss_val)
             logs["val_psnr"].append(mean_psnr_val)
-        torch.save(logs, f"weights/logs_MAID.pt")
+        if not logs_dir is None:
+            torch.save(logs, logs_dir)
 
         if NAG_tol_train < stopping_criterion or optimizer.lr < 1e-7:
             print(

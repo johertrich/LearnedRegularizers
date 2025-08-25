@@ -360,6 +360,7 @@ else:
             device=device,
             precondition=True,  # Use preconditioned upper-level optimization (AdaGrad)
             verbose=True,
+            logs_dir=f"logs_{regularizer_name}_maid.pt",
             algorithm="MAID Adagrad",  # Algorithm used for training
         )
     )
