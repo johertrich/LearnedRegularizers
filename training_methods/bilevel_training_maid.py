@@ -2,24 +2,163 @@ import torch
 import numpy as np
 from tqdm import tqdm
 from deepinv.loss.metric import PSNR
-from torchvision.transforms import RandomCrop, Compose
-from torch.utils.data import RandomSampler
-from deepinv.optim.utils import conjugate_gradient, minres
+from torch.utils.data import RandomSampler, Dataset, Subset
+from deepinv.optim.utils import minres
 from evaluation import reconstruct_nmAPG
-import random
+from PIL import Image
 from collections import deque
-from torch.optim import Optimizer
 import torch.nn as nn
+import torchvision.transforms as transforms
+
+# torch.manual_seed(0)
+# torch.backends.cudnn.deterministic = True
+# np.random.seed(0)
+# random.seed(0)
+
+
+class GaussianNoise_MAID(torch.nn.Module):
+    def __init__(self, sigma=0.1, rng: torch.Generator = torch.default_generator):
+        super().__init__()
+        self.sigma = sigma
+        self.rng = rng
+        self.noise = None
+        self.noise_validation = None
+
+    def forward(self, x):
+        """
+        Adds Gaussian noise to the input tensor.
+
+        Args:
+            x (torch.Tensor): Input tensor.
+
+        Returns:
+            torch.Tensor: Noisy tensor.
+        """
+        if self.noise == None:
+            self.noise = torch.randn_like(x) * self.sigma
+            self.noise = self.noise.cpu().detach()
+            noise = self.noise.to(x.device)
+        elif self.noise.shape != x.shape:
+            if self.noise_validation == None:
+                self.noise_validation = torch.randn_like(x) * self.sigma
+                self.noise_validation = self.noise_validation.cpu().detach()
+            noise = self.noise_validation.to(x.device)
+        else:
+            noise = self.noise.to(x.device)
+        return x + noise
+
+
+# --- Helper Function to Extract Patches Deterministically ---
+def extract_patches(image_tensor, patch_size, stride):
+    """
+    Extracts patches from a single image tensor deterministically.
+
+    Args:
+        image_tensor (torch.Tensor): Input image tensor (C, H, W).
+        patch_size (int): The height and width of the patches.
+        stride (int): The step size between patches.
+
+    Returns:
+        list[torch.Tensor]: A list of patch tensors.
+    """
+    patches = []
+    _, h, w = image_tensor.shape
+    # Iterate over the image grid with the specified stride
+    for i in range(0, h - patch_size + 1, stride):
+        for j in range(0, w - patch_size + 1, stride):
+            patch = image_tensor[:, i : i + patch_size, j : j + patch_size]
+            patches.append(patch)
+    return patches
+
+
+# --- Custom Dataset for Patches (Patching Augmentation for MAID) ---
+class PatchesDataset(Dataset):
+    """
+    A dataset that holds deterministic patches extracted from an original dataset.
+    """
+
+    def __init__(self, original_dataset, patch_size, stride, transform=None):
+        """
+        Args:
+            original_dataset (Dataset): The original dataset (e.g., BSDS500).
+            patch_size (int): The size of the patches to extract.
+            stride (int): The stride for patch extraction.
+            transform (callable, optional): Optional transform to be applied
+                                             *after* patch extraction.
+        """
+        self.patch_size = patch_size
+        self.stride = stride
+        self.transform = transform
+        self.all_patches = []
+        self.original_image_indices = []  # Optional: track origin
+
+        print(f"Processing original dataset to extract patches...")
+        pre_transform = transforms.Compose(
+            [
+                transforms.Grayscale(num_output_channels=1),  # Ensure grayscale
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.RandomVerticalFlip(p=0.5),
+                transforms.RandomApply([transforms.RandomRotation(90)], p=0.5),
+                transforms.ToTensor(),  # Convert PIL Image to [C, H, W] tensor [0,1]
+            ]
+        )
+
+        num_original_images = len(original_dataset)
+        for idx in range(num_original_images):
+            original_image = original_dataset[idx]  # Get image, ignore label if any
+
+            # Ensure it's a PIL image before applying pre_transform if needed
+            if isinstance(original_image, Image.Image):
+                image_tensor = pre_transform(original_image)
+            else:
+                image_tensor = original_image
+            # Check if image is large enough for at least one patch
+            c, h, w = image_tensor.shape
+            if h < patch_size or w < patch_size:
+                print(
+                    f"Warning: Image {idx} (size {h}x{w}) is smaller than patch size {patch_size}x{patch_size}. Skipping."
+                )
+                continue
+
+            # Extract patches for the current image
+            patches = extract_patches(image_tensor, self.patch_size, self.stride)
+            self.all_patches.extend(patches)
+
+            # Optional: Store which original image each patch came from
+            self.original_image_indices.extend([idx] * len(patches))
+
+            if (idx + 1) % 50 == 0 or (idx + 1) == num_original_images:
+                print(f"  Processed {idx + 1}/{num_original_images} original images...")
+
+        print(f"Finished extracting patches. Total patches: {len(self.all_patches)}")
+
+    def __len__(self):
+        """Returns the total number of patches."""
+        return len(self.all_patches)
+
+    def __getitem__(self, idx):
+        """Returns the patch at the given index."""
+        patch = self.all_patches[idx]
+        # Optional: get original image index: original_idx = self.original_image_indices[idx]
+
+        if self.transform:
+            patch = self.transform(patch)  # Apply any post-patching transforms
+
+        # Return patch (and optionally original_idx if needed later)
+        return patch  # , original_idx
+
 
 class GradientDescent(nn.Module):
     """
     Simple gradient descent module for upper-level problem in the bilevel optimization.
     This module applies a gradient descent step to the parameters of the regularizer.
     """
+
     def __init__(self, regularizer, lr=1e-3):
         super(GradientDescent, self).__init__()
         self.regularizer = regularizer
         self.lr = lr
+
     def zero_grad(self):
         """
         Zero out the gradients of the regularizer parameters.
@@ -27,6 +166,7 @@ class GradientDescent(nn.Module):
         for param in self.regularizer.parameters():
             if param.grad is not None:
                 param.grad.zero_()
+
     def forward(self):
         """
         Apply gradient descent step to the regularizer parameters.
@@ -36,17 +176,21 @@ class GradientDescent(nn.Module):
                 if param.grad is not None:
                     param -= self.lr * param.grad
 
+
 class AdaGrad(nn.Module):
     """
     Manual AdaGrad optimizer module for upper-level problem in the bilevel optimization.
     Applies AdaGrad update to the regularizer's parameters.
     """
+
     def __init__(self, regularizer, lr=1e-2, eps=1e-8, window_size=0):
         super(AdaGrad, self).__init__()
         self.regularizer = regularizer
         self.lr = lr
         self.eps = eps
-        self.window_size = window_size  # Optional: for truncated AdaGrad. We do not use it by default
+        self.window_size = (
+            window_size  # Optional: for truncated AdaGrad. We do not use it by default
+        )
         # Initialize state for each parameter (accumulator for squared gradients)
         self._grad_squared_accum = {}
         self._momentum_buffer = {}  # Optional momentum buffer
@@ -56,6 +200,7 @@ class AdaGrad(nn.Module):
                     self._grad_squared_accum[name] = deque(maxlen=self.window_size)
                 else:
                     self._grad_squared_accum[name] = torch.zeros_like(param.data)
+
     def zero_grad(self):
         """
         Zero out the gradients of the regularizer parameters.
@@ -63,6 +208,7 @@ class AdaGrad(nn.Module):
         for param in self.regularizer.parameters():
             if param.grad is not None:
                 param.grad.zero_()
+
     def forward(self):
         with torch.no_grad():
             for name, param in self.regularizer.named_parameters():
@@ -71,24 +217,34 @@ class AdaGrad(nn.Module):
                     if self.window_size > 0:
                         # Truncated AdaGrad: push to window
                         self._grad_squared_accum[name].append(grad.pow(2))
-                        avg_sq_grad = torch.stack(list(self._grad_squared_accum[name])).mean(dim=0)
+                        avg_sq_grad = torch.stack(
+                            list(self._grad_squared_accum[name])
+                        ).mean(dim=0)
                         adjusted_lr = self.lr / (avg_sq_grad.sqrt() + self.eps)
                     else:
                         # Standard AdaGrad
                         self._grad_squared_accum[name].add_(grad.pow(2))
-                        adjusted_lr = self.lr / (self._grad_squared_accum[name].sqrt() + self.eps)
+                        adjusted_lr = self.lr / (
+                            self._grad_squared_accum[name].sqrt() + self.eps
+                        )
 
                     param -= adjusted_lr * grad
+
+
 def preprocess(x, device):
     dtype = torch.float32 if device == "mps" else torch.float
     return x.to(dtype).to(device)
 
-def simple_bilevel_training_maid(
+
+def bilevel_training_maid(
     regularizer,
     physics,
     data_fidelity,
     lmbd,
-    train_dataloader,
+    train_dataset,
+    PATCH_SIZE,
+    STRIDE,
+    SUBSET,
     val_dataloader,
     epochs=50,
     NAG_step_size=1e-2,
@@ -103,7 +259,7 @@ def simple_bilevel_training_maid(
     device="cuda" if torch.cuda.is_available() else "cpu",
     precondition=False,
     verbose=False,
-    save_dir="",
+    logs_dir=None,
     val_checkpoint=None,
     logs=None,
     optimizer=None,
@@ -154,8 +310,29 @@ def simple_bilevel_training_maid(
                 regularizer,
                 lr=lr,
             )
-    success = False # Flag for backtracking line search success
-    psnr = PSNR() # PSNR metric definition
+    success = False  # Flag for backtracking line search success
+    psnr = PSNR()  # PSNR metric definition
+    patch_dataset = PatchesDataset(
+        original_dataset=train_dataset,
+        patch_size=PATCH_SIZE,
+        stride=STRIDE,
+        transform=None,  # Add post-patch transforms here if needed
+    )
+    num_patches_total = len(patch_dataset)
+    num_subset_patches = SUBSET
+    # Use a fixed range for deterministic subset selection
+    subset_indices = torch.randint(0, num_patches_total, (num_subset_patches,))
+    train_subset = Subset(patch_dataset, subset_indices)
+    train_dataloader = torch.utils.data.DataLoader(
+        train_subset,
+        batch_size=num_subset_patches,
+        shuffle=False,
+        drop_last=True,
+        num_workers=8,
+    )
+    # Setting the Noise Model of Physics to be deterministic (not redrawn at each call)
+    noise_level = physics.noise_model.sigma
+    physics.noise_model = GaussianNoise_MAID(sigma=noise_level)
     # logging lists and dictionaries
     loss_vals = []
     psnr_vals = []
@@ -164,7 +341,7 @@ def simple_bilevel_training_maid(
     psnr_train = []
     psnr_val = []
     first_run = False
-    if logs is None: # Initialize logs if not provided else continue with existing logs
+    if logs is None:  # Initialize logs if not provided else continue with existing logs
         logs = {
             "train_loss": [],
             "psnr": [],
@@ -253,12 +430,12 @@ def simple_bilevel_training_maid(
                 NAG_tol_train,
                 verbose=verbose,
                 x_init=x_init,
-                return_stats = True
+                return_stats=True,
             )
             optimizer.zero_grad()
             loss = lambda x_in: torch.sum(
                 ((x_in - x) ** 2).view(x.shape[0], -1), -1
-            ).mean() # Defining the upper-level loss function
+            ).mean()  # Defining the upper-level loss function
             if epoch == 0:
                 loss_vals.append(loss(x_recon).item())
                 psnr_vals.append(psnr(x_recon, x).mean().item())
@@ -326,42 +503,47 @@ def simple_bilevel_training_maid(
                 old_grads = [
                     param.grad.detach().clone()
                     for param in optimizer.regularizer.parameters()
-                ]     
+                ]
+
                 def revert(optimizer, params_before, grads_before):
                     """
-                    This function reverts the optimizer's parameters and gradients to their state before taking a gradient step. 
+                    This function reverts the optimizer's parameters and gradients to their state before taking a gradient step.
                     """
                     with torch.no_grad():
-                        for param, p_old, g_old in zip(optimizer.regularizer.parameters(), params_before, grads_before):
+                        for param, p_old, g_old in zip(
+                            optimizer.regularizer.parameters(),
+                            params_before,
+                            grads_before,
+                        ):
                             if param.grad is not None:
                                 param.data.copy_(p_old)
                                 param.grad.copy_(g_old)
                     if isinstance(optimizer, AdaGrad):
                         # pop the most recent entry from grad_sq_window when the line search fails
                         for param in optimizer.regularizer.parameters():
-                            if hasattr(optimizer, '_grad_squared_accum'):
+                            if hasattr(optimizer, "_grad_squared_accum"):
                                 if param.name in optimizer._grad_squared_accum:
                                     if optimizer.window_size == 0:
                                         optimizer._grad_squared_accum[param.name].sub_(
                                             param.grad.pow(2)
-                                    )
+                                        )
                                     else:
                                         optimizer._grad_squared_accum[param.name].pop()
                     return optimizer
 
                 old_step = optimizer.lr
                 for i in range(max_line_search):
-                    optimizer.lr  = (
+                    optimizer.lr = (
                         optimizer.lr * rho_maid**i
-                    ) # \rho_maid is the decay factor of line search
+                    )  # \rho_maid is the decay factor of line search
                     lr = optimizer.lr
                     grad_params = [
                         param.grad
                         for param in optimizer.regularizer.parameters()
                         if param.grad is not None
                     ]
-                    optimizer.forward() # \theta_{k+1} = \theta_k - lr * hypergrad
-                    norm_grad_sq = 0.0 # Used in Adagrad to compute \|hypergrad\|^2_A where A is the AdaGrad preconditioner
+                    optimizer.forward()  # \theta_{k+1} = \theta_k - lr * hypergrad
+                    norm_grad_sq = 0.0  # Used in Adagrad to compute \|hypergrad\|^2_A where A is the AdaGrad preconditioner
                     if isinstance(optimizer, AdaGrad):
                         for name, param in optimizer.regularizer.named_parameters():
                             if param.grad is None:
@@ -369,23 +551,29 @@ def simple_bilevel_training_maid(
                             grad = param.grad.detach()
 
                             if name not in optimizer._grad_squared_accum:
-                                print("AdaGrad optimizer state missing '_grad_squared_accum'.")
+                                print(
+                                    "AdaGrad optimizer state missing '_grad_squared_accum'."
+                                )
                                 continue
 
                             state = optimizer._grad_squared_accum[name]
 
                             # Handle both full and truncated AdaGrad
                             if isinstance(state, torch.Tensor):
-                                denom = (state.sqrt() + optimizer.eps)
+                                denom = state.sqrt() + optimizer.eps
                             elif isinstance(state, deque):
                                 if len(state) == 0:
                                     continue  # avoid division by zero or empty window
                                 avg_sq = torch.stack(list(state)).mean(dim=0)
-                                denom = (avg_sq.sqrt() + optimizer.eps)
+                                denom = avg_sq.sqrt() + optimizer.eps
                             else:
-                                raise TypeError(f"Unexpected type for _grad_squared_accum[{name}]: {type(state)}")
+                                raise TypeError(
+                                    f"Unexpected type for _grad_squared_accum[{name}]: {type(state)}"
+                                )
 
-                            norm_grad_sq += ((grad / denom) ** 2).sum()    # computes \|hypergrad\|^2_A where A is the AdaGrad preconditioner      
+                            norm_grad_sq += (
+                                (grad / denom) ** 2
+                            ).sum()  # computes \|hypergrad\|^2_A where A is the AdaGrad preconditioner
                     hypergrad = torch.cat([g.reshape(-1) for g in grad_params])
                     logs["grad_norm"].append(torch.norm(hypergrad).item())
                     if norm_grad_sq == 0.0:
@@ -393,11 +581,8 @@ def simple_bilevel_training_maid(
                             print("norm hypergrad: ", torch.norm(hypergrad).item())
                     else:
                         if verbose:
-                            print(
-                                "norm hypergrad: ",
-                                torch.sqrt(norm_grad_sq).item()
-                            )
-                    x_new, stats= reconstruct_nmAPG(
+                            print("norm hypergrad: ", torch.sqrt(norm_grad_sq).item())
+                    x_new, stats = reconstruct_nmAPG(
                         y,
                         physics,
                         data_fidelity,
@@ -408,7 +593,7 @@ def simple_bilevel_training_maid(
                         eps,
                         verbose=verbose,
                         x_init=x_old,
-                        return_stats = True
+                        return_stats=True,
                     )
                     if verbose:
                         print(
@@ -424,10 +609,12 @@ def simple_bilevel_training_maid(
                     if lr * eta * torch.norm(hypergrad) ** 2 is None or torch.isnan(
                         lr * eta * torch.norm(hypergrad) ** 2
                     ):
-                        line_search_RHS = 1e-7 # For numerical stability
+                        line_search_RHS = 1e-7  # For numerical stability
                     else:
                         if norm_grad_sq == 0.0:
-                            line_search_RHS = lr * eta * torch.norm(hypergrad) ** 2 # this is the case when AdaGrad is not used
+                            line_search_RHS = (
+                                lr * eta * torch.norm(hypergrad) ** 2
+                            )  # this is the case when AdaGrad is not used
                         else:
                             line_search_RHS = lr * eta * norm_grad_sq
                     line_search_LHS = (
@@ -447,7 +634,9 @@ def simple_bilevel_training_maid(
                             "eps: ",
                             eps,
                         )
-                    if line_search_LHS <= -line_search_RHS: # checking the line search condition
+                    if (
+                        line_search_LHS <= -line_search_RHS
+                    ):  # checking the line search condition
                         with torch.no_grad():
                             x_old.copy_(x_new)
                         loss_old = loss(x_new)
@@ -458,7 +647,7 @@ def simple_bilevel_training_maid(
                         success_flag = True
                         return loss(x_new), x_new.detach(), success_flag, optimizer
                     optimizer = revert(optimizer, old_params, old_grads)
-                    optimizer.lr= old_step
+                    optimizer.lr = old_step
                     loss_old = loss_vals[-1]
                 optimizer.zero_grad()
                 return loss_old, x_old.detach(), success_flag, optimizer
@@ -561,8 +750,8 @@ def simple_bilevel_training_maid(
             psnr_val.append(mean_psnr_val)
             logs["val_loss"].append(mean_loss_val)
             logs["val_psnr"].append(mean_psnr_val)
-        torch.save(logs, f"weights/logs_{save_dir}.pt")
-        torch.save(regularizer.state_dict(), f"weights/MAID_{save_dir}.pt")
+        if not logs_dir is None:
+            torch.save(logs, logs_dir)
 
         if NAG_tol_train < stopping_criterion or optimizer.lr < 1e-7:
             print(
@@ -571,4 +760,14 @@ def simple_bilevel_training_maid(
                 )
             )
             break
-    return optimizer.regularizer, loss_train, loss_val, psnr_train, psnr_val, eps, optimizer.lr, logs, optimizer
+    return (
+        optimizer.regularizer,
+        loss_train,
+        loss_val,
+        psnr_train,
+        psnr_val,
+        eps,
+        optimizer.lr,
+        logs,
+        optimizer,
+    )

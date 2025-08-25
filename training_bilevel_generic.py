@@ -1,7 +1,7 @@
 # Training script for the columns BL+IFT, BL+JFB and ML for CRR, WCRR, ICNN, IDCNN, LAR, TDV and LSR
 
 import torch
-from training_methods import bilevel_training, score_training
+from training_methods import bilevel_training, score_training, bilevel_training_maid
 from dataset import get_dataset
 from priors import (
     ParameterLearningWrapper,
@@ -68,13 +68,11 @@ elif regularizer_name == "WCRR":
         weak_convexity=1.0,
     ).to(device)
 elif regularizer_name == "ICNN":
-    reg = ICNNPrior(in_channels=1, channels=32, device=device, kernel_size=5).to(
+    reg = ICNNPrior(in_channels=1, channels=32, device=device, kernel_size=5).to(device)
+elif regularizer_name == "IDCNN":
+    reg = IDCNNPrior(in_channels=1, channels=32, device=device, kernel_size=5).to(
         device
     )
-elif regularizer_name == "IDCNN":
-    reg = IDCNNPrior(
-        in_channels=1, channels=32, device=device, kernel_size=5
-    ).to(device)
 elif regularizer_name == "LAR":
     reg = LocalAR(
         in_channels=1,
@@ -130,11 +128,11 @@ if not os.path.isdir(f"weights/score_parameter_fitting_for_{problem}"):
     os.mkdir(f"weights/score_parameter_fitting_for_{problem}")
 if not os.path.isdir(f"weights/bilevel_{problem}"):
     os.mkdir(f"weights/bilevel_{problem}")
-
 params = 0
 for p in regularizer.parameters():
     params += p.numel()
 print(params)
+
 logger.info(f"Train {regularizer_name} with {hypergradient_computation} on {problem}")
 logger.info(f"The model has {params} parameters")
 logger.info("Parameters:")
@@ -150,7 +148,6 @@ logger.info(
 logger.info(
     f"jacobian_regularization: {hyper_params.jacobian_regularization}, jacobian_regularization_parameter: {hyper_params.jacobian_regularization_parameter}, lmbd: {lmbd}"
 )
-
 
 physics, data_fidelity = get_operator(problem, device)
 
@@ -175,11 +172,11 @@ if problem == "Denoising":
     train_set = torch.utils.data.Subset(train_dataset, range(train_len))
     pretrain_dataset = train_set
     val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
-
     train_dataloader = torch.utils.data.DataLoader(
         train_set, batch_size=8, shuffle=True, drop_last=True, num_workers=8
     )
     fitting_dataloader = train_dataloader
+
 elif problem == "CT":
     train_dataset = get_dataset("LoDoPaB", test=False)
     pretrain_dataset = get_dataset(
@@ -282,7 +279,7 @@ else:
             fitting_dataloader,
             val_dataloader,
             epochs=20 if problem == "Denoising" else 100,
-            mode=hypergradient_computation,
+            mode=hypergradient_computation[:3],
             NAG_step_size=1e-1,
             NAG_max_iter=1500,
             NAG_tol_train=1e-4,
@@ -310,32 +307,63 @@ for p in regularizer.parameters():
     p.requires_grad_(True)
 if regularizer_name == "WCRR":  # fix regularization parameter to ensure 1-weak convexit
     regularizer.alpha.requires_grad_(False)
-
-regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
-    regularizer,
-    physics,
-    data_fidelity,
-    lmbd,
-    train_dataloader,
-    val_dataloader,
-    epochs=hyper_params.epochs,
-    mode=hypergradient_computation,
-    NAG_step_size=1e-1,
-    NAG_max_iter=1500,
-    NAG_tol_train=1e-4,
-    NAG_tol_val=1e-4,
-    lr=hyper_params.lr,
-    lr_decay=0.1 ** (1 / hyper_params.epochs),
-    reg=hyper_params.jacobian_regularization,
-    reg_para=hyper_params.jacobian_regularization_parameter,
-    reg_reduced=problem == "CT",
-    device=device,
-    verbose=False,
-    logger=logger,
-    adabelief=hyper_params.adabelief,
-    dynamic_range_psnr=problem == "CT",
-    validation_epochs=20 if problem == "Denoising" else 1,
-)
+if not hypergradient_computation == "IFT-MAID":
+    regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
+        regularizer,
+        physics,
+        data_fidelity,
+        lmbd,
+        train_dataloader,
+        val_dataloader,
+        epochs=hyper_params.epochs,
+        mode=hypergradient_computation,
+        NAG_step_size=1e-1,
+        NAG_max_iter=1500,
+        NAG_tol_train=1e-4,
+        NAG_tol_val=1e-4,
+        lr=hyper_params.lr,
+        lr_decay=0.1 ** (1 / hyper_params.epochs),
+        reg=hyper_params.jacobian_regularization,
+        reg_para=hyper_params.jacobian_regularization_parameter,
+        reg_reduced=problem == "CT",
+        device=device,
+        verbose=False,
+        logger=logger,
+        adabelief=hyper_params.adabelief,
+        dynamic_range_psnr=problem == "CT",
+        validation_epochs=20 if problem == "Denoising" else 1,
+    )
+else:
+    # hyperparameters of MAID
+    eps = 1e-1
+    alpha = 1e-1
+    # Define patch parameters for data augmentation
+    regularizer, loss_train, loss_val, psnr_train, psnr_val, _, _, _, _ = (
+        bilevel_training_maid(
+            regularizer,
+            physics,
+            data_fidelity,
+            lmbd,
+            train_set,
+            PATCH_SIZE=64,
+            STRIDE=64,
+            SUBSET=32,
+            val_dataloader=val_dataloader,
+            epochs=300,
+            NAG_step_size=1e-1,
+            NAG_max_iter=1500,
+            NAG_tol_train=eps,
+            NAG_tol_val=1e-4,
+            CG_tol=eps,
+            lr=alpha,
+            lr_decay=0.25,
+            device=device,
+            precondition=True,  # Use preconditioned upper-level optimization (AdaGrad)
+            verbose=True,
+            logs_dir=f"logs_{regularizer_name}_maid.pt",
+            algorithm="MAID Adagrad",  # Algorithm used for training
+        )
+    )
 
 torch.save(
     regularizer.state_dict(),
