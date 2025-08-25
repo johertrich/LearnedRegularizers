@@ -1,7 +1,6 @@
 # Training script for the columns BL+IFT, BL+JFB and ML for CRR, WCRR, ICNN, IDCNN, LAR, TDV and LSR
 
 import torch
-from torch.utils.data import Subset
 from training_methods import bilevel_training, score_training, bilevel_training_maid
 from dataset import get_dataset
 from priors import (
@@ -308,7 +307,7 @@ for p in regularizer.parameters():
     p.requires_grad_(True)
 if regularizer_name == "WCRR":  # fix regularization parameter to ensure 1-weak convexit
     regularizer.alpha.requires_grad_(False)
-if hypergradient_computation != "IFT-MAID":
+if not hypergradient_computation == "IFT-MAID":
     regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
         regularizer,
         physics,
@@ -334,29 +333,22 @@ if hypergradient_computation != "IFT-MAID":
         dynamic_range_psnr=problem == "CT",
         validation_epochs=20 if problem == "Denoising" else 1,
     )
-    torch.save(
-        regularizer.state_dict(),
-        f"weights/bilevel_{problem}/{regularizer_name}_bilevel_{hypergradient_computation}_for_{problem}.pt",
-    )
 else:
     # hyperparameters of MAID
     eps = 1e-1
     alpha = 1e-1
     # Define patch parameters for data augmentation
-    PATCH_SIZE = 64
-    STRIDE = 64  # Use PATCH_SIZE for non-overlapping patches
-    SUBSET = 32
-    regularizer, loss_train, loss_val, psnr_train, psnr_val, _, _, logs, _ = (
+    regularizer, loss_train, loss_val, psnr_train, psnr_val, _, _, _, _ = (
         bilevel_training_maid(
             regularizer,
             physics,
             data_fidelity,
             lmbd,
             train_set,
-            PATCH_SIZE,
-            STRIDE,
-            SUBSET,
-            val_dataloader,
+            PATCH_SIZE=64,
+            STRIDE=64,
+            SUBSET=32,
+            val_dataloader=val_dataloader,
             epochs=300,
             NAG_step_size=1e-1,
             NAG_max_iter=1000,
@@ -368,17 +360,11 @@ else:
             device=device,
             precondition=True,  # Use preconditioned upper-level optimization (AdaGrad)
             verbose=True,
-            save_dir=str(SUBSET)
-            + "_"
-            + str(eps)
-            + "_"
-            + str(alpha)
-            + "_CRR_MAID",  # Directory to save the model and logs
             algorithm="MAID Adagrad",  # Algorithm used for training
         )
     )
 
-    torch.save(
-        regularizer.state_dict(),
-        f"weights/bilevel_{problem}/{regularizer_name}_bilevel_MAID_{hypergradient_computation}_for_{problem}.pt",
-    )
+torch.save(
+    regularizer.state_dict(),
+    f"weights/bilevel_{problem}/{regularizer_name}_bilevel_{hypergradient_computation}_for_{problem}.pt",
+)

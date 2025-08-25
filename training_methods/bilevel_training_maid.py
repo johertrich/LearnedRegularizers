@@ -753,8 +753,7 @@ def bilevel_training_maid(
             psnr_val.append(mean_psnr_val)
             logs["val_loss"].append(mean_loss_val)
             logs["val_psnr"].append(mean_psnr_val)
-        torch.save(logs, f"weights/logs_{save_dir}.pt")
-        # torch.save(regularizer.state_dict(), f"weights/MAID_{save_dir}.pt")
+        torch.save(logs, f"weights/logs_MAID.pt")
 
         if NAG_tol_train < stopping_criterion or optimizer.lr < 1e-7:
             print(
