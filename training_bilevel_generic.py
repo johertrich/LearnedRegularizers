@@ -69,13 +69,11 @@ elif regularizer_name == "WCRR":
         weak_convexity=1.0,
     ).to(device)
 elif regularizer_name == "ICNN":
-    reg = ICNNPrior(in_channels=1, channels=32, device=device, kernel_size=5).to(
+    reg = ICNNPrior(in_channels=1, channels=32, device=device, kernel_size=5).to(device)
+elif regularizer_name == "IDCNN":
+    reg = IDCNNPrior(in_channels=1, channels=32, device=device, kernel_size=5).to(
         device
     )
-elif regularizer_name == "IDCNN":
-    reg = IDCNNPrior(
-        in_channels=1, channels=32, device=device, kernel_size=5
-    ).to(device)
 elif regularizer_name == "LAR":
     reg = LocalAR(
         in_channels=1,
@@ -176,10 +174,10 @@ if problem == "Denoising":
     pretrain_dataset = train_set
     val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
     train_dataloader = torch.utils.data.DataLoader(
-    train_set, batch_size=8, shuffle=True, drop_last=True, num_workers=8
+        train_set, batch_size=8, shuffle=True, drop_last=True, num_workers=8
     )
     fitting_dataloader = train_dataloader
-        
+
 elif problem == "CT":
     train_dataset = get_dataset("LoDoPaB", test=False)
     pretrain_dataset = get_dataset(
@@ -337,50 +335,50 @@ if hypergradient_computation != "IFT-MAID":
         validation_epochs=20 if problem == "Denoising" else 1,
     )
     torch.save(
-    regularizer.state_dict(),
-    f"weights/bilevel_{problem}/{regularizer_name}_bilevel_{hypergradient_computation}_for_{problem}.pt",
+        regularizer.state_dict(),
+        f"weights/bilevel_{problem}/{regularizer_name}_bilevel_{hypergradient_computation}_for_{problem}.pt",
     )
 else:
-    #hyperparameters of MAID
+    # hyperparameters of MAID
     eps = 1e-1
     alpha = 1e-1
     # Define patch parameters for data augmentation
     PATCH_SIZE = 64
     STRIDE = 64  # Use PATCH_SIZE for non-overlapping patches
     SUBSET = 32
-    regularizer, loss_train, loss_val, psnr_train, psnr_val, _, _, logs, _ = bilevel_training_maid(
-        regularizer,
-        physics,
-        data_fidelity,
-        lmbd,
-        train_set,
-        PATCH_SIZE,
-        STRIDE,
-        SUBSET,
-        val_dataloader,
-        epochs=300,
-        NAG_step_size=1e-1,
-        NAG_max_iter=1000,
-        NAG_tol_train=eps,
-        NAG_tol_val=1e-4,
-        CG_tol=eps,
-        lr=alpha,
-        lr_decay=0.25,
-        device=device,
-        precondition=True,  # Use preconditioned upper-level optimization (AdaGrad)
-        verbose=True,
-        save_dir=str(SUBSET)
-        + "_"
-        + str(eps)
-        + "_"
-        + str(alpha)
-        + "_CRR_MAID",  # Directory to save the model and logs
-        algorithm = "MAID Adagrad",  # Algorithm used for training
+    regularizer, loss_train, loss_val, psnr_train, psnr_val, _, _, logs, _ = (
+        bilevel_training_maid(
+            regularizer,
+            physics,
+            data_fidelity,
+            lmbd,
+            train_set,
+            PATCH_SIZE,
+            STRIDE,
+            SUBSET,
+            val_dataloader,
+            epochs=300,
+            NAG_step_size=1e-1,
+            NAG_max_iter=1000,
+            NAG_tol_train=eps,
+            NAG_tol_val=1e-4,
+            CG_tol=eps,
+            lr=alpha,
+            lr_decay=0.25,
+            device=device,
+            precondition=True,  # Use preconditioned upper-level optimization (AdaGrad)
+            verbose=True,
+            save_dir=str(SUBSET)
+            + "_"
+            + str(eps)
+            + "_"
+            + str(alpha)
+            + "_CRR_MAID",  # Directory to save the model and logs
+            algorithm="MAID Adagrad",  # Algorithm used for training
+        )
     )
-    
+
     torch.save(
-    regularizer.state_dict(),
-    f"weights/bilevel_{problem}/{regularizer_name}_bilevel_MAID_{hypergradient_computation}_for_{problem}.pt",
+        regularizer.state_dict(),
+        f"weights/bilevel_{problem}/{regularizer_name}_bilevel_MAID_{hypergradient_computation}_for_{problem}.pt",
     )
-
-
