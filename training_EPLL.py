@@ -99,15 +99,16 @@ for j, patch_size in enumerate(patch_sizes):
         )
 
         # Reconstruction with the given GMM
-        mean_psnr, x_out, y_out, recon_out = evaluate_adam(
+        mean_psnr, x_out, y_out, recon_out = evaluate(
             physics=physics,
             data_fidelity=data_fidelity,
             dataset=val_set,
             regularizer=regularizer,
             lmbd=lmbd,
-            step_size=1e-3,
-            max_iter=1000,
-            tol=1e-4,
+            NAG_step_size=1e-3,
+            NAG_max_iter=1000,
+            NAG_tol=1e-4,
+            adam=True,
             only_first=False,
             device=device,
             verbose=False,
