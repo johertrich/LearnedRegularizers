@@ -4,14 +4,13 @@ from torchvision.transforms import CenterCrop
 from deepinv.optim.utils import GaussianMixtureModel
 from evaluation import evaluate_adam
 from priors.epll import EPLL
-import yaml
 from dataset import get_dataset
 from operators import get_operator
 from pathlib import Path
 import os
-from copy import deepcopy
+import argparse
 
-device ="cuda" if torch.cuda.is_available() else "cpu"
+device = "cuda" if torch.cuda.is_available() else "cpu"
 torch.random.manual_seed(0)
 
 if torch.backends.mps.is_available():
@@ -21,7 +20,11 @@ elif torch.cuda.is_available():
 else:
     device = "cpu"
 
-problem = "Denoising"  # "CT" or "Denoising"
+parser = argparse.ArgumentParser(description="Choosing evaluation setting")
+parser.add_argument("--problem", type=str, default="Denoising")
+inp = parser.parse_args()
+
+problem = inp.problem
 
 if problem == "Denoising":
     dataset_name = "BSDS500_gray"
@@ -31,7 +34,7 @@ if problem == "Denoising":
 elif problem == "CT":
     dataset_name = "LoDoPaB"
     transform = None
-    lmbd = 500.
+    lmbd = 500.0
     adaptive_range = True
 else:
     raise NotImplementedError("Problem not found")
@@ -48,7 +51,7 @@ val_set = torch.utils.data.Subset(train_dataset, range(train_len, len(train_data
 channels = train_dataset[0].shape[0]
 
 train_imgs = []
-num_training_images = 100 
+num_training_images = 100
 for i in range(num_training_images):
     train_imgs.append(train_set[i].unsqueeze(0).float())
 train_imgs = torch.concat(train_imgs)
@@ -64,7 +67,9 @@ best_mean_psnr = -float("inf")
 
 for j, patch_size in enumerate(patch_sizes):
 
-    train_patch_dataset = PatchDataset(train_imgs, patch_size=patch_size, transforms=None)
+    train_patch_dataset = PatchDataset(
+        train_imgs, patch_size=patch_size, transforms=None
+    )
 
     patch_dataloader = torch.utils.data.DataLoader(
         train_patch_dataset,
@@ -73,10 +78,12 @@ for j, patch_size in enumerate(patch_sizes):
         drop_last=True,
     )
     for k, n_gmm_component in enumerate(n_gmm_components):
-        print("-"*30)
+        print("-" * 30)
         print(f"Running for patch size {patch_size} and {n_gmm_component} components")
 
-        GMM = GaussianMixtureModel(n_gmm_component, patch_size**2 * channels, device=device)
+        GMM = GaussianMixtureModel(
+            n_gmm_component, patch_size**2 * channels, device=device
+        )
         GMM.fit(patch_dataloader, verbose=True, max_iters=50)
         print("Fitting GMM done")
 
@@ -88,9 +95,9 @@ for j, patch_size in enumerate(patch_sizes):
             n_gmm_components=n_gmm_component,
             GMM=GMM,
             pad=True,
-            batch_size=30000
+            batch_size=30000,
         )
-        
+
         # Reconstruction with the given GMM
         mean_psnr, x_out, y_out, recon_out = evaluate_adam(
             physics=physics,
@@ -104,23 +111,32 @@ for j, patch_size in enumerate(patch_sizes):
             only_first=False,
             device=device,
             verbose=False,
-            adaptive_range=adaptive_range
+            adaptive_range=adaptive_range,
         )
-        print(f"Mean PSNR for patch size {patch_size} and {n_gmm_component} components: {mean_psnr:.2f}")
+        print(
+            f"Mean PSNR for patch size {patch_size} and {n_gmm_component} components: {mean_psnr:.2f}"
+        )
         if mean_psnr > best_mean_psnr:
             best_mean_psnr = mean_psnr
-            best_gmm = deepcopy(GMM.state_dict())
+            best_gmm = GMM.state_dict()
             best_patch_size = patch_size
             best_n_gmm_component = n_gmm_component
             print(f"\t New best GMM found!")
 
-print(f"Best GMM: Patch Size: {best_patch_size}, Components: {best_n_gmm_component}, Mean PSNR: {best_mean_psnr:.2f}")
+print(
+    f"Best GMM: Patch Size: {best_patch_size}, Components: {best_n_gmm_component}, Mean PSNR: {best_mean_psnr:.2f}"
+)
 
 gmm_dir = Path(f"weights")
 gmm_dir.mkdir(parents=True, exist_ok=True)
 gmm_filepath = gmm_dir / "gmm_{}.pt".format(problem)
 torch.save(best_gmm, gmm_filepath)
 
-data = {'patch_size': best_patch_size, "n_gmm_components": best_n_gmm_component, 'gmm_weights': str(gmm_filepath), 'training mean psnr': float(best_mean_psnr)}
-with open(os.path.join(gmm_dir, f"gmm_{problem}_setup.yaml"), 'w') as f:
-    yaml.dump(data, f)
+data = {
+    "patch_size": best_patch_size,
+    "n_gmm_components": best_n_gmm_component,
+    "gmm_weights": str(gmm_filepath),
+    "training mean psnr": float(best_mean_psnr),
+    "weights": best_gmm,
+}
+torch.save(data, gmm_filepath)
