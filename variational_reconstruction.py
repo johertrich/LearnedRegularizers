@@ -20,7 +20,7 @@ from priors import (
     ParameterLearningWrapper,
     LocalAR,
     EPLL,
-    PatchNR
+    PatchNR,
 )
 from deepinv.optim.utils import GaussianMixtureModel
 from operators import get_operator, get_evaluation_setting
@@ -94,13 +94,11 @@ elif regularizer_name == "WCRR":
         weak_convexity=1.0,
     ).to(device)
 elif regularizer_name == "ICNN":
-    reg = ICNNPrior(in_channels=1, channels=32, device=device, kernel_size=5).to(
+    reg = ICNNPrior(in_channels=1, channels=32, device=device, kernel_size=5).to(device)
+elif regularizer_name == "IDCNN":
+    reg = IDCNNPrior(in_channels=1, channels=32, device=device, kernel_size=5).to(
         device
     )
-elif regularizer_name == "IDCNN":
-    reg = IDCNNPrior(
-        in_channels=1, channels=32, device=device, kernel_size=5
-    ).to(device)
 elif regularizer_name == "LAR":
     reg = LocalAR(
         in_channels=1,
@@ -148,9 +146,9 @@ elif regularizer_name == "EPLL":
         pad=True,
         batch_size=30000,
     )
-    lmbd=20
+    lmbd = 20
 elif regularizer_name == "PatchNR":
-    train_on="BSD500" if problem == "Denoising" else "LoDoPaB"
+    train_on = "BSD500" if problem == "Denoising" else "LoDoPaB"
     regularizer = PatchNR(
         patch_size=6,
         channels=1,
@@ -161,7 +159,7 @@ elif regularizer_name == "PatchNR":
         pretrained=f"weights/patchnr_6x6_{train_on}.pt",
         pad=False,
     )
-    lmbd=21.0
+    lmbd = 21.0
 else:
     raise ValueError("Unknown model!")
 
