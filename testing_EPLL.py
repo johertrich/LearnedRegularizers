@@ -8,8 +8,8 @@ from pathlib import Path
 import os
 from torch.utils.data import DataLoader
 import argparse
+import yaml
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
 torch.random.manual_seed(0)
 
 if torch.backends.mps.is_available():
@@ -34,12 +34,10 @@ else:
 if problem == "Denoising":
     dataset_name = "BSD68"
     transform = None
-    lmbd = 13.5
     adaptive_range = False
 elif problem == "CT":
     dataset_name = "LoDoPaB"
     transform = None
-    lmbd = 500.0
     adaptive_range = True
 else:
     raise NotImplementedError("Problem not found")
@@ -62,11 +60,11 @@ if filename.is_file():
 else:
     raise FileNotFoundError("GMM weights file does not exist")
 
-
+lmbd = setup_data["lambda"]
 patch_size = setup_data["patch_size"]
 n_gmm_components = setup_data["n_gmm_components"]
 
-GMM = GaussianMixtureModel(n_gmm_components, patch_size**2 * channels, device=device)
+GMM = GaussianMixtureModel(n_gmm_components, patch_size ** 2 * channels, device=device)
 GMM.load_state_dict(setup_data["weights"])
 
 regularizer = EPLL(
@@ -100,7 +98,6 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
     device=device,
     verbose=False,
     save_path=save_dir,
-    save_png=True,
     adaptive_range=adaptive_range,
 )
 

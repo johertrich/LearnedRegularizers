@@ -107,6 +107,8 @@ class EPLL(Prior):
 
         :param torch.Tensor x: image tensor
         """
+
+        # The number of patches depends on the padding
         num_patches = (x.shape[2] + 2 * self.padding[0] - self.patch_size + 1) * (
             x.shape[3] + 2 * self.padding[0] - self.patch_size + 1
         )
@@ -162,7 +164,7 @@ class EPLL(Prior):
                     : self.batch_size
                 ]
                 grad = torch.autograd.grad(
-                    outputs=self.patch_gpad(x_, patch_inds), inputs=x_
+                    outputs=self.patch_g(x_, patch_inds), inputs=x_
                 )[0]
                 normalisation_factor = self.batch_size
             else:
@@ -175,12 +177,14 @@ class EPLL(Prior):
                         x.device
                     )
                     grad += torch.autograd.grad(
-                        outputs=self.patch_gpad(x_, patch_inds), inputs=x_
+                        outputs=self.patch_g(x_, patch_inds), inputs=x_
                     )[0]
                     ind += n_patches
         return grad / normalisation_factor
 
-    def reconstruction_hqs(self, y, physics, sigma=None, x_init=None, betas=None, batch_size=-1):
+    def reconstruction_hqs(
+        self, y, physics, sigma=None, x_init=None, betas=None, batch_size=-1
+    ):
         r"""
         Approximated half-quadratic splitting method for image reconstruction as proposed by Zoran and Weiss.
 
