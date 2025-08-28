@@ -19,7 +19,10 @@ from priors import (
     TDV,
     ParameterLearningWrapper,
     LocalAR,
+    EPLL,
+    PatchNR
 )
+from deepinv.optim.utils import GaussianMixtureModel
 from operators import get_operator, get_evaluation_setting
 from evaluation import evaluate
 from deepinv.utils.plotting import plot
@@ -45,7 +48,7 @@ parser.add_argument("--save_results", type=bool, default=False)
 inp = parser.parse_args()
 
 problem = inp.problem  # Denoising or CT
-evaluation_mode = inp.evaluation_mode  # AR, IFT, JFB or Score
+evaluation_mode = inp.evaluation_mode  # AR, IFT, JFB, NETT or Score
 regularizer_name = (
     inp.regularizer_name
 )  # CRR, WCRR, ICNN, IDCNN, TDV, LAR, LSR and NETT
@@ -129,39 +132,70 @@ elif regularizer_name == "NETT":
     reg = NETT(
         in_channels=1, out_channels=1, hidden_channels=64, padding_mode="zeros"
     ).to(device)
+elif regularizer_name == "EPLL":
+    weights_filepath = f"weights/gmm_{problem}.pt"
+    setup_data = torch.load(weights_filepath)
+    patch_size = setup_data["patch_size"]
+    n_gmm_components = setup_data["n_gmm_components"]
+    GMM = GaussianMixtureModel(n_gmm_components, patch_size**2, device=device)
+    GMM.load_state_dict(setup_data["weights"])
+    regularizer = EPLL(
+        device=device,
+        patch_size=patch_size,
+        channels=1,
+        n_gmm_components=n_gmm_components,
+        GMM=GMM,
+        pad=True,
+        batch_size=30000,
+    )
+    lmbd=20
+elif regularizer_name == "PatchNR":
+    train_on="BSD500" if problem == "Denoising" else "LoDoPaB"
+    regularizer = PatchNR(
+        patch_size=6,
+        channels=1,
+        num_layers=5,
+        sub_net_size=512,
+        device=device,
+        n_patches=-1,
+        pretrained=f"weights/patchnr_6x6_{train_on}.pt",
+        pad=False,
+    )
+    lmbd=21.0
 else:
     raise ValueError("Unknown model!")
 
 
-if evaluation_mode == "AR" and regularizer_name != "NETT":
+if evaluation_mode == "AR":
     weights = torch.load(
         f"weights/adversarial_{problem}/{regularizer_name}_adversarial_for_{problem}_fitted.pt",
         map_location=device,
         weights_only=True,
     )
-elif evaluation_mode == "Score" and regularizer_name != "NETT":
-    weights = torch.load(
-        f"weights/score_parameter_fitting_for_{problem}/{regularizer_name}_fitted_parameters_with_IFT_for_{problem}.pt",
-        map_location=device,
-        weights_only=True,
-    )
-elif regularizer_name != "NETT":
-    weights = torch.load(
-        f"weights/bilevel_{problem}/{regularizer_name}_bilevel_{evaluation_mode}_for_{problem}.pt",
-        map_location=device,
-        weights_only=True,
-    )
-else:  # regularizer_name == "NETT"
+elif evaluation_mode == "Score":
+    if not regularizer_name in ["EPLL", "PatchNR"]:
+        weights = torch.load(
+            f"weights/score_parameter_fitting_for_{problem}/{regularizer_name}_fitted_parameters_with_IFT_for_{problem}.pt",
+            map_location=device,
+            weights_only=True,
+        )
+elif evaluation_mode == "NETT":
     weights = torch.load(
         f"weights/NETT_{problem}_fitted.pt",
         map_location=device,
         weights_only=True,
     )
+else:
+    weights = torch.load(
+        f"weights/bilevel_{problem}/{regularizer_name}_bilevel_{evaluation_mode}_for_{problem}.pt",
+        map_location=device,
+        weights_only=True,
+    )
 
-
-regularizer = ParameterLearningWrapper(reg, device=device)
-regularizer.load_state_dict(weights)
-lmbd = 1.0
+if not regularizer_name in ["EPLL", "PatchNR"]:
+    regularizer = ParameterLearningWrapper(reg, device=device)
+    regularizer.load_state_dict(weights)
+    lmbd = 1.0
 
 # Define forward operator
 dataset, physics, data_fidelity = get_evaluation_setting(problem, device)
@@ -182,6 +216,7 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
     only_first=only_first,
     adaptive_range=problem == "CT",
     device=device,
+    adam=regularizer_name in ["EPLL", "PatchNR"],
     verbose=True,
     save_path=save_path if save_results else None,
     logger=logger if save_results else None,
