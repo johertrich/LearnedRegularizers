@@ -112,6 +112,8 @@ if (
         )
     regularizer.load_state_dict(weights)
 elif evaluation_mode == "AR":
+    """
+    # Shall be removed after having run training_AR.py
     if regularizer_name == "IDCNN":
         pretrained = "./weights/simple_simple_IDCNNPrior_ar_Denoising.pt"
         regularizer.load_state_dict(torch.load(pretrained, map_location=device))
@@ -120,7 +122,13 @@ elif evaluation_mode == "AR":
         cpk = torch.load(pretrained, map_location=device)
         regularizer.load_state_dict(cpk)
     else:
-        raise ValueError(f"no configuration for AR with regularizer {regularizer_name}")
+        raise ValueError(f"no configuration for AR with regularizer {regularizer_name}")"""
+    regularizer = ParameterLearningWrapper(reg, device=device)
+    weights = torch.load(
+            f"weights/adversarial_{problem}/{regularizer_name}_adversarial_for_{problem}_fitted.pt",
+            map_location=device,
+        )
+    regularizer.load_state_dict(weights)
 else:
     raise ValueError("Unknown evaluation mode!")
 
