@@ -86,8 +86,8 @@ else:
 
 if not os.path.isdir("weights"):
     os.mkdir("weights")
-if not os.path.isdir("weights/adversarial_{problem}"):
-    os.mkdir("weights/adversarial_{problem}")
+if not os.path.isdir(f"weights/adversarial_{problem}"):
+    os.mkdir(f"weights/adversarial_{problem}")
 
 # problem dependent parameters
 physics, data_fidelity = get_operator(problem, device)
