@@ -14,6 +14,10 @@ from deepinv.utils.plotting import plot
 from PIL import Image
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from torchvision.utils import save_image
+import logging
+import datetime
+import time
 
 from operators import get_evaluation_setting
 from priors.lpn.lpn import LPNPrior
@@ -52,6 +56,8 @@ parser.add_argument(
     default=None,
     help="gamma in the Identity residual connection. gamma=1 is the original denoiser.",
 )
+parser.add_argument("--only_first", type=bool, default=False)
+parser.add_argument("--save_results", type=bool, default=False)
 args = parser.parse_args()
 
 
@@ -78,7 +84,27 @@ elif task == "ct":
 else:
     raise ValueError("Unknown task. Choose 'denoising', 'ct_trained_on_bsd' or 'ct'.")
 
-only_first = False  # just evaluate on the first image of the dataset for test purposes
+only_first = args.only_first  # just evaluate on the first image of the dataset for test purposes
+save_results = args.save_results  # If True, save the first 10 image reconstructions
+
+if save_results:
+    save_path = f"savings/{problem}/{task}_LPN"
+    logging_path = save_path + "/logging"
+    os.makedirs(save_path, exist_ok=True)
+    os.makedirs(logging_path, exist_ok=True)
+
+    logger = logging.getLogger(__name__)
+    logging.basicConfig(
+        filename=logging_path
+        + "/log_eval_"
+        + problem
+        + "_LPN_"
+        + str(datetime.datetime.now())
+        + ".log",
+        level=logging.INFO,
+        format="%(asctime)s: %(message)s",
+    )
+    logger.info(f"Evaluation LPN on {problem}!!!")
 
 ############################################################
 
@@ -150,7 +176,7 @@ def evaluate(
     adaptive_range=False,
     device="cuda" if torch.cuda.is_available() else "cpu",
     save_path=None,
-    save_png=False,
+    logger=None,
 ):
     """
     model: Callable: y, physics -> recon. Reconstruction algorithm.
@@ -164,9 +190,11 @@ def evaluate(
 
     ## Evaluate on the test set
     psnrs = []
-    iters = []
-    Lip = []
-    for i, x in enumerate(tqdm(dataloader)):
+    times = []  # List of recon durations for each test image
+    x_out = None
+    y_out = None
+    recon_out = None
+    for i, x in (progress_bar := tqdm(enumerate(dataloader))):
         if device == "mps":
             # mps does not support float64
             x = x.to(torch.float32).to(device)
@@ -174,51 +202,49 @@ def evaluate(
             x = x.to(device).to(torch.float32)
         y = physics(x)
 
+        t_start = time.time()
+        
         # run the model on the problem.
         with torch.no_grad():
             recon = model(y, physics)
-
+            
+        t_end = time.time()
+        times.append(t_end - t_start)
         psnrs.append(psnr(recon, x).squeeze().item())
-        print(f"Image {i:03d} | PSNR: {psnrs[-1]:.2f}")
 
-        if save_path is not None:
-            fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(13, 6))
+        if logger is not None:
+            logger.info(f"Image {i} reconstructed, PSNR: {psnrs[-1]:.2f}")
 
-            ax1.imshow(x[0, 0].cpu().numpy(), cmap="gray")
-            ax1.axis("off")
-            ax1.set_title("ground truth")
-
-            ax2.imshow(recon[0, 0].cpu().numpy(), cmap="gray")
-            ax2.axis("off")
-            ax2.set_title("reconstruction")
-
-            ax3.imshow(y[0, 0].cpu().numpy(), cmap="gray")
-            ax3.axis("off")
-            ax3.set_title("measurements")
-
-            fig.suptitle(f"IDX={i} | PSNR {np.round(psnrs[-1],3)}")
-            plt.savefig(os.path.join(save_path, f"imgs_{i}.png"))
-            plt.close()
-
-        if save_png and save_path is not None:
-
-            # Scale to [0, 255] and convert to uint8
-            image_uint8 = (recon[0, 0].cpu().numpy().clip(0, 1) * 255).astype(np.uint8)
-
-            # Create a PIL Image object
-            image = Image.fromarray(image_uint8, mode="L")  # 'L' for grayscale
-
-            # Save as a PNG file
-            image.save(os.path.join(save_path, f"reco_{i}.png"))
+        if save_path is not None and (i < 10):
+            save_image(x, os.path.join(save_path, f"ground_truth_{i}.png"), padding=0)
+            save_image(y, os.path.join(save_path, f"measurement_{i}.png"), padding=0)
+            save_image(
+                recon, os.path.join(save_path, f"reconstruction_{i}.png"), padding=0
+            )
 
         if i == 0:
             y_out = y
             x_out = x
             recon_out = recon
+
+        progress_bar.set_description(
+            f"Mean PSNR: {np.mean(psnrs):.2f}, Last PSNR: {psnrs[-1]:.2f}"
+        )
         if only_first:
             break
     mean_psnr = np.mean(psnrs)
-    print("Mean PSNR over the test set: {0:.2f}".format(mean_psnr))
+    print_psnr = "Mean PSNR over the test set: {0:.2f}".format(mean_psnr)
+    print(print_psnr)
+    mean_time = np.mean(times)
+    print_time = "Mean reconstruction time over the test set: {0:.2f} seconds".format(
+        mean_time
+    )
+    print(print_time)
+
+    if logger is not None:
+        logger.info(print_psnr)
+        logger.info(print_time)
+
     return mean_psnr, x_out, y_out, recon_out
 
 
@@ -231,6 +257,8 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
     only_first=only_first,
     adaptive_range=adaptive_range,
     device=device,
+    save_path=save_path if save_results else None,
+    logger=logger if save_results else None,
 )
 
 # plot ground truth, observation and reconstruction for the first image from the test dataset
