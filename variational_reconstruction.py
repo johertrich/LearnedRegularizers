@@ -105,7 +105,6 @@ elif regularizer_name == "LAR":
         pad=True,
         use_bias=False,
         n_patches=-1,
-        normalise_grad=False,
         reduction="sum",
         output_factor=1 / 142**2,
         pretrained=None,
@@ -171,9 +170,15 @@ if evaluation_mode == "AR":
         weights_only=True,
     )
 elif evaluation_mode == "Score":
-    if not regularizer_name in ["EPLL", "PatchNR"]:
+    if not regularizer_name in ["EPLL", "PatchNR", "LAR"]:
         weights = torch.load(
             f"weights/score_parameter_fitting_for_{problem}/{regularizer_name}_fitted_parameters_with_IFT_for_{problem}.pt",
+            map_location=device,
+            weights_only=True,
+        )
+    if regularizer_name == "LAR":
+        weights = torch.load(
+            f"weights/score_parameter_fitting_for_{problem}/{regularizer_name}_fitted_parameters_with_JFB_for_{problem}.pt",
             map_location=device,
             weights_only=True,
         )

@@ -3,6 +3,7 @@ import logging
 import datetime
 import os
 import sys
+
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
@@ -53,16 +54,16 @@ if regularizer_name == "CRR":
     regularizer = WCRR(
         sigma=0.1,
         weak_convexity=0.0,
-        ).to(device)
+    ).to(device)
 elif regularizer_name == "WCRR":
     regularizer = WCRR(
         sigma=0.1,
         weak_convexity=1.0,
-        ).to(device)
+    ).to(device)
 elif regularizer_name == "ICNN":
-    regularizer = ICNNPrior(in_channels=1,channels=32,device=device)
+    regularizer = ICNNPrior(in_channels=1, channels=32, device=device)
 elif regularizer_name == "IDCNN":
-    regularizer = IDCNNPrior(in_channels=1,channels=32,kernel_size=5,device=device)
+    regularizer = IDCNNPrior(in_channels=1, channels=32, kernel_size=5, device=device)
 elif regularizer_name == "TDV":
     config = dict(
         in_channels=1,
@@ -73,30 +74,34 @@ elif regularizer_name == "TDV":
         potential="quadratic",
         activation="softplus",
         zero_mean=True,
-        )
+    )
     regularizer = TDV(**config).to(device)
 elif regularizer_name == "LSR":
     regularizer = LSR(
-        nc=[32, 64, 128, 256], pretrained_denoiser=False,
+        nc=[32, 64, 128, 256],
+        pretrained_denoiser=False,
     ).to(device)
 else:
     raise ValueError("Unknown model!")
+
+if not os.path.isdir("weights"):
+    os.mkdir("weights")
+if not os.path.isdir("weights/adversarial_{problem}"):
+    os.mkdir("weights/adversarial_{problem}")
 
 # problem dependent parameters
 physics, data_fidelity = get_operator(problem, device)
 transform = Compose(
     [
-    RandomCrop(hyper_params.patch_size),
-    RandomHorizontalFlip(p=0.5),
-    RandomVerticalFlip(p=0.5),
-    RandomApply([RandomRotation((90, 90))], p=0.5),
+        RandomCrop(hyper_params.patch_size),
+        RandomHorizontalFlip(p=0.5),
+        RandomVerticalFlip(p=0.5),
+        RandomApply([RandomRotation((90, 90))], p=0.5),
     ]
 )
 
 if problem == "Denoising":
-    train_dataset = get_dataset(
-        "BSDS500_gray", test=False, transform=transform
-    )
+    train_dataset = get_dataset("BSDS500_gray", test=False, transform=transform)
     val_dataset = get_dataset("BSDS500_gray", test=False, transform=CenterCrop(321))
     # splitting in training and validation set
     test_ratio = 0.1
@@ -107,7 +112,11 @@ if problem == "Denoising":
     val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
 
     train_dataloader = torch.utils.data.DataLoader(
-        train_set, batch_size=hyper_params.batch_size, shuffle=True, drop_last=True, num_workers=8
+        train_set,
+        batch_size=hyper_params.batch_size,
+        shuffle=True,
+        drop_last=True,
+        num_workers=8,
     )
     fitting_set = torch.utils.data.Subset(val_dataset, range(0, 5))
     fitting_dataloader = torch.utils.data.DataLoader(
@@ -115,9 +124,7 @@ if problem == "Denoising":
     )
 elif problem == "CT":
     train_dataset = get_dataset("LoDoPaB", test=False)
-    pretrain_dataset = get_dataset(
-        "LoDoPaB", test=False, transform=transform
-    )
+    pretrain_dataset = get_dataset("LoDoPaB", test=False, transform=transform)
     val_dataset = get_dataset("LoDoPaB", test=False)
     # splitting in training and validation set
     test_ratio = 0.1
@@ -126,14 +133,18 @@ elif problem == "CT":
     train_set = torch.utils.data.Subset(train_dataset, range(train_len))
     val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
     train_dataloader = torch.utils.data.DataLoader(
-        train_set, batch_size=hyper_params.batch_size, shuffle=True, drop_last=True, num_workers=8
+        train_set,
+        batch_size=hyper_params.batch_size,
+        shuffle=True,
+        drop_last=True,
+        num_workers=8,
     )
     fitting_set = get_dataset("LoDoPaB_val")
     # use smaller dataset for parameter fitting
     fitting_dataloader = torch.utils.data.DataLoader(
         fitting_set, batch_size=5, shuffle=True, drop_last=True, num_workers=8
     )
-    
+
 val_dataloader = torch.utils.data.DataLoader(
     val_set, batch_size=1, shuffle=True, drop_last=True
 )
@@ -149,7 +160,9 @@ logging.basicConfig(
 )
 
 if only_fitting:
-    ckp = torch.load(f"weights/adversarial_{problem}/{regularizer_name}_adversarial_for_{problem}.pt")
+    ckp = torch.load(
+        f"weights/adversarial_{problem}/{regularizer_name}_adversarial_for_{problem}.pt"
+    )
     regularizer.load_state_dict(ckp)
 else:
     regulalrizer = ar_training(
@@ -162,15 +175,18 @@ else:
         epochs=hyper_params.epochs,
         validation_epochs=hyper_params.val_epochs,
         lr=hyper_params.lr,
-        lr_decay = hyper_params.lr_decay,
+        lr_decay=hyper_params.lr_decay,
         mu=hyper_params.mu,
         logger=logger,
     )
-    torch.save(regularizer.state_dict(), f"weights/adversarial_{problem}/{regularizer_name}_adversarial_for_{problem}.pt")
+    torch.save(
+        regularizer.state_dict(),
+        f"weights/adversarial_{problem}/{regularizer_name}_adversarial_for_{problem}.pt",
+    )
 
-lmbd = estimate_lmbd(val_dataloader,physics,device)
-lip = estimate_lip(regularizer,val_dataloader,device)
-lmbd_est = lmbd/lip
+lmbd = estimate_lmbd(val_dataloader, physics, device)
+lip = estimate_lip(regularizer, val_dataloader, device)
+lmbd_est = lmbd / lip
 print("Estimated Lambda for Fitting:", lmbd_est)
 
 wrapped_regularizer = ParameterLearningWrapper(regularizer, device=device)
@@ -192,24 +208,27 @@ bilevel_training(
     fitting_dataloader,
     val_dataloader,
     epochs=100,
-    mode='IFT',
+    mode="IFT",
     NAG_step_size=1e-1,
     NAG_max_iter=1000,
     NAG_tol_train=1e-4,
     NAG_tol_val=1e-4,
     minres_tol=1e-4,
     lr=hyper_params.fitting_lr,
-    lr_decay=0.98 if problem=="CT" else 0.99,
-    reg = False if problem=="CT" else True,
+    lr_decay=0.98 if problem == "CT" else 0.99,
+    reg=False if problem == "CT" else True,
     device=device,
     verbose=True,
     validation_epochs=10,
-    dynamic_range_psnr=True if problem=="CT" else False,
+    dynamic_range_psnr=True if problem == "CT" else False,
     adabelief=True,
     logger=logger,
 )
 
-torch.save(wrapped_regularizer.state_dict(), f"weights/adversarial_{problem}/{regularizer_name}_adversarial_for_{problem}_fitted.pt")
+torch.save(
+    wrapped_regularizer.state_dict(),
+    f"weights/adversarial_{problem}/{regularizer_name}_adversarial_for_{problem}_fitted.pt",
+)
 
 print("Final alpha: ", torch.exp(wrapped_regularizer.alpha))
 print("Final scale: ", wrapped_regularizer.scale)
