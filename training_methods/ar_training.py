@@ -86,7 +86,7 @@ def ar_training(
     else:
         psnr = PSNR()
 
-    if lmbd == None:
+    if lmbd is None:
         lmbd = estimate_lmbd(val_dataloader,physics,device)
 
     NAG_step_size=1e-2#/lmbd

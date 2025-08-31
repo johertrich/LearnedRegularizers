@@ -4,7 +4,7 @@ import argparse
 def get_AR_hyperparameters(regularizer_name, problem):
     if not problem in ["Denoising", "CT"]:
         raise ValueError("Unknown Problem!")
-    if not regularizer_name in ["CRR", "WCRR", "ICNN", "IDCNN", "TDV", "LSR"]:
+    if not regularizer_name in ["CRR", "WCRR", "ICNN", "IDCNN", "TDV", "LSR", "LAR"]:
         raise ValueError("Unknown Regularizer!")
     args = argparse.Namespace()
 
@@ -89,5 +89,15 @@ def get_AR_hyperparameters(regularizer_name, problem):
             args.epochs = 500
             args.val_epochs = 15
             args.mu = 10
+
+    if regularizer_name == "LAR":
+        args.lr = 5e-5
+        args.epochs = 1000
+        args.mu = 5
+        args.patch_size = 15
+        args.batch_size = 8
+        args.lr_decay = 0.998
+        args.val_epochs = 25
+        args.fitting_lr = 1e-2
 
     return args

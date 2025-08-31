@@ -8,7 +8,15 @@ parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from priors import LSR, WCRR, ICNNPrior, IDCNNPrior, TDV, ParameterLearningWrapper
+from priors import (
+    LSR,
+    WCRR,
+    ICNNPrior,
+    IDCNNPrior,
+    TDV,
+    ParameterLearningWrapper,
+    LocalAR,
+)
 import torch
 from training_methods import ar_training, bilevel_training
 from training_methods.ar_training import estimate_lmbd, estimate_lip
@@ -81,6 +89,10 @@ elif regularizer_name == "LSR":
         nc=[32, 64, 128, 256],
         pretrained_denoiser=False,
     ).to(device)
+elif regularizer_name == "LAR":
+    regularizer = LocalAR(in_channels=1, pad=True, use_bias=True, n_patches=-1).to(
+        device
+    )
 else:
     raise ValueError("Unknown model!")
 
@@ -91,9 +103,10 @@ if not os.path.isdir(f"weights/adversarial_{problem}"):
 
 # problem dependent parameters
 physics, data_fidelity = get_operator(problem, device)
+crop_size = 128 if regularizer_name == "LAR" else hyper_params.patch_size
 transform = Compose(
     [
-        RandomCrop(hyper_params.patch_size),
+        RandomCrop(crop_size),
         RandomHorizontalFlip(p=0.5),
         RandomVerticalFlip(p=0.5),
         RandomApply([RandomRotation((90, 90))], p=0.5),
@@ -108,7 +121,6 @@ if problem == "Denoising":
     test_len = int(len(train_dataset) * 0.1)
     train_len = len(train_dataset) - test_len
     train_set = torch.utils.data.Subset(train_dataset, range(train_len))
-    pretrain_dataset = train_set
     val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
 
     train_dataloader = torch.utils.data.DataLoader(
@@ -124,10 +136,9 @@ if problem == "Denoising":
     )
 elif problem == "CT":
     train_dataset = get_dataset("LoDoPaB", test=False)
-    pretrain_dataset = get_dataset("LoDoPaB", test=False, transform=transform)
     val_dataset = get_dataset("LoDoPaB", test=False)
     # splitting in training and validation set
-    test_ratio = 0.1
+    test_ratio = 0.003 if regularizer_name == "LAR" else 0.1
     test_len = int(len(train_dataset) * 0.1)
     train_len = len(train_dataset) - test_len
     train_set = torch.utils.data.Subset(train_dataset, range(train_len))
@@ -177,6 +188,9 @@ else:
         lr=hyper_params.lr,
         lr_decay=hyper_params.lr_decay,
         mu=hyper_params.mu,
+        patch_size=hyper_params.patch_size if regularizer_name == "LAR" else None,
+        dynamic_range_psnr=problem == "CT",
+        patches_per_img=64 if regularizer_name == "LAR" else 8,
         logger=logger,
     )
     torch.save(
