@@ -145,7 +145,7 @@ elif regularizer_name == "EPLL":
         pad=True,
         batch_size=30000,
     )
-    lmbd = 20
+    lmbd = setup_data["lambda"]
 elif regularizer_name == "PatchNR":
     train_on = "BSD500" if problem == "Denoising" else "LoDoPaB"
     regularizer = PatchNR(
@@ -202,7 +202,9 @@ if not regularizer_name in ["EPLL", "PatchNR"]:
 
 # Define forward operator
 dataset, physics, data_fidelity = get_evaluation_setting(problem, device)
-NAG_step_size = 1e-1  # step size in NAG
+NAG_step_size = (
+    1e-3 if regularizer_name in ["EPLL", "PatchNR"] else 1e-1
+)  # step size in NAG
 NAG_max_iter = 1000  # maximum number of iterations in NAG
 NAG_tol = 1e-4  # tolerance for the relative error (stopping criterion)
 
