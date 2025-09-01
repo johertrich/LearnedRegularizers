@@ -9,6 +9,8 @@ from operators import get_operator
 from pathlib import Path
 import os
 import argparse
+import logging
+import datetime
 
 torch.random.manual_seed(0)
 
@@ -38,11 +40,22 @@ elif problem == "CT":
 else:
     raise NotImplementedError("Problem not found")
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    filename="log_training_"
+    + problem
+    + "_EPLL_"
+    + str(datetime.datetime.now())
+    + ".log",
+    level=logging.INFO,
+    format="%(asctime)s: %(message)s",
+)
+
 train_dataset = get_dataset(dataset_name, test=False, transform=transform)
 physics, data_fidelity = get_operator(problem, device)
 
 # Split the full train into training and validation set. The training is used to learn the GMM weights
-val_ratio = 0.1
+val_ratio = 0.003 if problem == "CT" else 0.1
 val_len = int(len(train_dataset) * val_ratio)
 train_len = len(train_dataset) - val_len
 train_set = torch.utils.data.Subset(train_dataset, range(train_len))
@@ -79,12 +92,17 @@ for j, patch_size in enumerate(patch_sizes):
     for k, n_gmm_component in enumerate(n_gmm_components):
         print("-" * 30)
         print(f"Running for patch size {patch_size} and {n_gmm_component} components")
+        logger.info("-" * 30)
+        logger.info(
+            f"Running for patch size {patch_size} and {n_gmm_component} components"
+        )
 
         GMM = GaussianMixtureModel(
             n_gmm_component, patch_size ** 2 * channels, device=device
         )
         GMM.fit(patch_dataloader, verbose=True, max_iters=50)
         print("Fitting GMM done")
+        logger.info("Fitting GMM done")
 
         # Create the EPLL regularizer with the learned GMM
         regularizer = EPLL(
@@ -116,14 +134,21 @@ for j, patch_size in enumerate(patch_sizes):
         print(
             f"Mean PSNR for patch size {patch_size} and {n_gmm_component} components: {mean_psnr:.2f}"
         )
+        logger.info(
+            f"Mean PSNR for patch size {patch_size} and {n_gmm_component} components: {mean_psnr:.2f}"
+        )
         if mean_psnr > best_mean_psnr:
             best_mean_psnr = mean_psnr
             best_gmm = GMM.state_dict()
             best_patch_size = patch_size
             best_n_gmm_component = n_gmm_component
             print(f"\t New best GMM found!")
+            logger.info(f"\t New best GMM found!")
 
 print(
+    f"Best GMM: Patch Size: {best_patch_size}, Components: {best_n_gmm_component}, Mean PSNR: {best_mean_psnr:.2f}"
+)
+logger.info(
     f"Best GMM: Patch Size: {best_patch_size}, Components: {best_n_gmm_component}, Mean PSNR: {best_mean_psnr:.2f}"
 )
 
@@ -160,11 +185,13 @@ for lamb in [0.95 * lmbd + i * (0.1 * lmbd) / 9 for i in range(10)]:
         adaptive_range=adaptive_range,
     )
     print(f"Mean PSNR for lambda {lamb}: {mean_psnr:.2f}")
+    logger.info(f"Mean PSNR for lambda {lamb}: {mean_psnr:.2f}")
     if mean_psnr > best_mean_psnr:
         best_mean_psnr = mean_psnr
         best_lamb = lamb
 
 print(f"Best lambda: {best_lamb}")
+logger.info(f"Best lambda: {best_lamb}")
 
 gmm_dir = Path(f"weights")
 gmm_dir.mkdir(parents=True, exist_ok=True)
