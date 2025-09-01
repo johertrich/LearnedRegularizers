@@ -100,7 +100,7 @@ for j, patch_size in enumerate(patch_sizes):
         GMM = GaussianMixtureModel(
             n_gmm_component, patch_size ** 2 * channels, device=device
         )
-        GMM.fit(patch_dataloader, verbose=True, max_iters=50)
+        GMM.fit(patch_dataloader, verbose=True, max_iters=50, stopping_criterion=1e-4)
         print("Fitting GMM done")
         logger.info("Fitting GMM done")
 
