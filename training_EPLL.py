@@ -52,14 +52,15 @@ logging.basicConfig(
 )
 
 train_dataset = get_dataset(dataset_name, test=False, transform=transform)
+val_dataset = get_dataset(dataset_name, test=False, transform=None)
 physics, data_fidelity = get_operator(problem, device)
 
 # Split the full train into training and validation set. The training is used to learn the GMM weights
-val_ratio = 0.003 if problem == "CT" else 0.1
+val_ratio = 0.001 if problem == "CT" else 0.03
 val_len = int(len(train_dataset) * val_ratio)
 train_len = len(train_dataset) - val_len
 train_set = torch.utils.data.Subset(train_dataset, range(train_len))
-val_set = torch.utils.data.Subset(train_dataset, range(train_len, len(train_dataset)))
+val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
 channels = train_dataset[0].shape[0]
 
 train_imgs = []
@@ -98,7 +99,7 @@ for j, patch_size in enumerate(patch_sizes):
         )
 
         GMM = GaussianMixtureModel(
-            n_gmm_component, patch_size ** 2 * channels, device=device
+            n_gmm_component, patch_size**2 * channels, device=device
         )
         GMM.fit(patch_dataloader, verbose=True, max_iters=50, stopping_criterion=1e-4)
         print("Fitting GMM done")
@@ -155,7 +156,7 @@ logger.info(
 # Fine tune lambda for the best fitted model with current lambda estimate and current best model
 best_lamb = lmbd
 GMM = GaussianMixtureModel(
-    best_n_gmm_component, best_patch_size ** 2 * channels, device=device
+    best_n_gmm_component, best_patch_size**2 * channels, device=device
 )
 GMM.load_state_dict(best_gmm)
 regularizer = EPLL(
@@ -168,7 +169,7 @@ regularizer = EPLL(
     batch_size=30000,
 )
 
-for lamb in [0.95 * lmbd + i * (0.1 * lmbd) / 9 for i in range(10)]:
+for lamb in [0.8 * lmbd + i * (0.4 * lmbd) / 9 for i in range(10)]:
     mean_psnr, x_out, y_out, recon_out = evaluate(
         physics=physics,
         data_fidelity=data_fidelity,
