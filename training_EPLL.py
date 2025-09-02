@@ -73,8 +73,8 @@ val_dataloader = torch.utils.data.DataLoader(
     val_set, batch_size=1, shuffle=False, drop_last=True
 )
 
-patch_sizes = [6, 8]
-n_gmm_components = [100, 200, 300, 400]
+patch_sizes = [6]
+n_gmm_components = [300, 400]
 best_mean_psnr = -float("inf")
 
 for j, patch_size in enumerate(patch_sizes):
