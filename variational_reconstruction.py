@@ -148,17 +148,20 @@ elif regularizer_name == "EPLL":
     lmbd = setup_data["lambda"]
 elif regularizer_name == "PatchNR":
     train_on = "BSD500" if problem == "Denoising" else "LoDoPaB"
+    weights_filepath = f"weights/patchnr/patchnr_6x6_{train_on}_fitted.pt"
+    weights = torch.load(weights_filepath, map_location=device)
     regularizer = PatchNR(
         patch_size=6,
         channels=1,
         num_layers=5,
-        sub_net_size=512,
+        sub_net_size=weights["patchnr_subnetsize"],
         device=device,
-        n_patches=-1,
-        pretrained=f"weights/patchnr_6x6_{train_on}.pt",
+        n_patches=weights["n_patches"],
+        pretrained=None,
         pad=False,
     )
-    lmbd = 21.0
+    regularizer.load_state_dict(weights["weights"]) 
+    lmbd = weights["lambda"]
 else:
     raise ValueError("Unknown model!")
 
@@ -188,6 +191,9 @@ elif evaluation_mode == "NETT":
         map_location=device,
         weights_only=True,
     )
+elif evaluation_mode == "PatchNR":
+    # weights already loaded above
+    pass
 else:
     weights = torch.load(
         f"weights/bilevel_{problem}/{regularizer_name}_bilevel_{evaluation_mode}_for_{problem}.pt",
