@@ -4,38 +4,52 @@ from deepinv.datasets import PatchDataset
 
 from tqdm import tqdm
 import numpy as np
-import os 
+import os
 import argparse
 from dataset import get_dataset
 from torchvision.transforms import RandomCrop, CenterCrop
 from evaluation import evaluate
 
-#from priors.patchnr import PatchNR
 from priors import ParameterLearningWrapper, PatchNR
 from operators import get_operator
 from training_methods import bilevel_training
+import logging
+import datetime
 
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 dtype = torch.float32
 
 parser = argparse.ArgumentParser(description="Choosing evaluation setting")
-parser.add_argument("--problem", type=str, default="Denoising", choices=["Denoising", "CT"])
+parser.add_argument(
+    "--problem", type=str, default="Denoising", choices=["Denoising", "CT"]
+)
 parser.add_argument("--only_fitting", type=bool, default=False)
 
 inp = parser.parse_args()
 
 problem = inp.problem
-only_fitting = inp.only_fitting  
+only_fitting = inp.only_fitting
 print("only fitting: ", only_fitting)
 if not os.path.isdir("weights"):
     os.mkdir("weights")
 if not os.path.isdir("weights/patchnr"):
     os.mkdir("weights/patchnr")
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    filename="log_training_"
+    + problem
+    + "_PatchNR_"
+    + str(datetime.datetime.now())
+    + ".log",
+    level=logging.INFO,
+    format="%(asctime)s: %(message)s",
+)
+
 # problem dependent parameters
 if problem == "Denoising":
-    physics , data_fidelity = get_operator(problem, device)
+    physics, data_fidelity = get_operator(problem, device)
     dataset = get_dataset("BSDS500_gray", test=False, transform=RandomCrop(128))
     train_on = "BSD500"
 
@@ -52,20 +66,20 @@ if problem == "Denoising":
     val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(dataset)))
 
     val_dataloader = torch.utils.data.DataLoader(
-    val_set, batch_size=1, shuffle=True, drop_last=True
+        val_set, batch_size=1, shuffle=True, drop_last=True
     )
     min_lmbd = 12.0
     max_lmbd = 20.0
 elif problem == "CT":
     dataset = get_dataset("LoDoPaB", test=False, transform=RandomCrop(128))
-    physics , data_fidelity = get_operator(problem, device)
+    physics, data_fidelity = get_operator(problem, device)
     train_on = "LoDoPab"
 else:
     raise NotImplementedError
 
 patch_size = 6
 patchnr_subnetsize = 512
-n_patches = 10000 # -1 for all patches
+n_patches = 10000  # -1 for all patches
 regularizer = PatchNR(
     patch_size=patch_size,
     channels=1,
@@ -76,9 +90,7 @@ regularizer = PatchNR(
 )
 
 if only_fitting:
-    ckp = torch.load(
-        f"weights/patchnr/patchnr_{patch_size}x{patch_size}_{train_on}.pt"
-    )
+    ckp = torch.load(f"weights/patchnr/patchnr_{patch_size}x{patch_size}_{train_on}.pt")
     regularizer.load_state_dict(ckp)
 else:
     train_imgs = []
@@ -90,7 +102,6 @@ else:
     verbose = True
     train_dataset = PatchDataset(train_imgs, patch_size=patch_size, transforms=None)
 
-    
     patchnr_epochs = 20
     patchnr_batch_size = 1024
     patchnr_learning_rate = 5e-4
@@ -105,8 +116,11 @@ else:
     optimizer = torch.optim.Adam(
         regularizer.normalizing_flow.parameters(), lr=patchnr_learning_rate
     )
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=patchnr_epochs, eta_min=patchnr_learning_rate/100.)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=patchnr_epochs, eta_min=patchnr_learning_rate / 100.0
+    )
     print("Start training PatchNR")
+    logger.info("Start training PatchNR")
     for epoch in range(patchnr_epochs):
         mean_loss = []
         with tqdm(total=len(patchnr_dataloader)) as pbar:
@@ -114,12 +128,14 @@ else:
                 optimizer.zero_grad()
 
                 x = batch[0].to(device)
-                x = x + 1/256. * torch.rand_like(x) # add small dequantisation noise
-                latent_x, logdet = regularizer.normalizing_flow(x)  # x -> z (we never need the other direction)
+                x = x + 1 / 256.0 * torch.rand_like(x)  # add small dequantisation noise
+                latent_x, logdet = regularizer.normalizing_flow(
+                    x
+                )  # x -> z (we never need the other direction)
 
                 # Compute the Kullback Leibler loss
                 logpz = 0.5 * torch.sum(latent_x ** 2, -1)
-                
+
                 nll = logpz - logdet
 
                 loss_total = nll.mean()
@@ -131,12 +147,17 @@ else:
                 pbar.update(1)
                 pbar.set_description(f"Loss {np.round(loss_total.item(), 5)}")
 
-        print(f"[Epoch {epoch+1} / {patchnr_epochs}] Train Loss: {np.mean(mean_loss):.2E} Step Size: {scheduler.get_last_lr()[0]:.3E}")
+        log_string = f"[Epoch {epoch+1} / {patchnr_epochs}] Train Loss: {np.mean(mean_loss):.2E} Step Size: {scheduler.get_last_lr()[0]:.3E}"
+        print(log_string)
+        logger.info(log_string)
 
         scheduler.step()
-        torch.save(regularizer.state_dict(), f"weights/patchnr/patchnr_{patch_size}x{patch_size}_{train_on}.pt")
+        torch.save(
+            regularizer.state_dict(),
+            f"weights/patchnr/patchnr_{patch_size}x{patch_size}_{train_on}.pt",
+        )
 
-# bilevel learning does not find into memory, use a line search instead 
+# bilevel learning does not find into memory, use a line search instead
 
 best_mean_psnr = -float("inf")
 
@@ -158,12 +179,13 @@ for lamb in lambdas:
         adaptive_range=True if problem == "CT" else False,
     )
     print(f"Mean PSNR for lambda {lamb}: {mean_psnr:.2f}")
+    logger.info(f"Mean PSNR for lambda {lamb}: {mean_psnr:.2f}")
     if mean_psnr > best_mean_psnr:
         best_mean_psnr = mean_psnr
         best_lamb = lamb
 
 print(f"Best lambda: {best_lamb}")
-
+logger.info(f"Best lambda: {best_lamb}")
 
 
 data = {
@@ -173,4 +195,6 @@ data = {
     "weights": regularizer.state_dict(),
     "lambda": best_lamb,
 }
-torch.save(data, f"weights/patchnr/patchnr_{patch_size}x{patch_size}_{train_on}_fitted.pt")
+torch.save(
+    data, f"weights/patchnr/patchnr_{patch_size}x{patch_size}_{train_on}_fitted.pt"
+)
