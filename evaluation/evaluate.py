@@ -50,7 +50,7 @@ def evaluate(
     x_out = None
     y_out = None
     recon_out = None
-    for i, x in (progress_bar := tqdm(enumerate(dataloader))):
+    for i, x in (progress_bar := tqdm(enumerate(dataloader), total=len(dataloader))):
         x = x.to(torch.float32).to(device)
         y = physics(x)
 
