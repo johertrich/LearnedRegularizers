@@ -90,7 +90,7 @@ elif regularizer_name == "LSR":
         pretrained_denoiser=False,
     ).to(device)
 elif regularizer_name == "LAR":
-    regularizer = LocalAR(in_channels=1, pad=True, use_bias=True, n_patches=-1).to(
+    regularizer = LocalAR(in_channels=1, pad=False, use_bias=True, n_patches=-1).to(
         device
     )
 else:
@@ -176,7 +176,7 @@ if only_fitting:
     )
     regularizer.load_state_dict(ckp)
 else:
-    regulalrizer = ar_training(
+    regularizer = ar_training(
         regularizer,
         physics,
         data_fidelity,
@@ -198,6 +198,8 @@ else:
         f"weights/adversarial_{problem}/{regularizer_name}_adversarial_for_{problem}.pt",
     )
 
+if regularizer_name == "LAR":
+    regularizer.pad = True
 lmbd = estimate_lmbd(val_dataloader, physics, device)
 lip = estimate_lip(regularizer, val_dataloader, device)
 lmbd_est = lmbd / lip
