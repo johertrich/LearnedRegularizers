@@ -7,10 +7,9 @@ Created on Wed Mar 5 2025
 import torch
 from deepinv.optim import Prior
 
-
-from .prior import evaluate_prior
 from .invert_model import invert
 from .lpn_64_neg1 import LPN
+from .prior import evaluate_prior
 
 
 class LPNPrior(Prior):
@@ -77,7 +76,8 @@ class LPNPrior(Prior):
             """
             patch_size = self.lpn.img_size
             stride_size = self.lpn.img_size // 2
-            return apply_func_to_patches(x, self.lpn, patch_size, stride_size)
+            out = apply_func_to_patches(x, self.lpn, patch_size, stride_size)
+            return out
 
     def forward(self, x):
         return self.prox(x)
