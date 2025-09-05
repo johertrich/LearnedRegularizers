@@ -109,6 +109,7 @@ regularizer = PatchNR(
     sub_net_size=patchnr_subnetsize,
     device=device,
     n_patches=n_patches,
+    pad=True
 )
 
 if only_fitting:
@@ -124,8 +125,6 @@ else:
     verbose = True
     train_dataset = PatchDataset(train_imgs, patch_size=patch_size, transforms=None)
 
-    patchnr_epochs = 20
-    patchnr_batch_size = 1024
     patchnr_learning_rate = 5e-4
 
     patchnr_dataloader = DataLoader(
@@ -183,7 +182,7 @@ else:
 
 best_mean_psnr = -float("inf")
 
-lambdas = np.linspace(min_lmbd, max_lmbd, 20)
+lambdas = np.linspace(min_lmbd, max_lmbd, 25)
 for lamb in lambdas:
     mean_psnr, x_out, y_out, recon_out = evaluate(
         physics=physics,
