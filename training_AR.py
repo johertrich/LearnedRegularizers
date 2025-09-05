@@ -36,6 +36,9 @@ from torchvision.transforms import (
 from hyperparameters import get_AR_hyperparameters
 import argparse
 
+torch.manual_seed(0)
+np.random.seed(0)
+
 if torch.backends.mps.is_available():
     # mps backend is used in Apple Silicon chips
     device = "mps"
@@ -90,7 +93,7 @@ elif regularizer_name == "LSR":
         pretrained_denoiser=False,
     ).to(device)
 elif regularizer_name == "LAR":
-    regularizer = LocalAR(in_channels=1, pad=False, use_bias=True, n_patches=-1).to(
+    regularizer = LocalAR(in_channels=1, pad=True, use_bias=True, n_patches=-1).to(
         device
     )
 else:
@@ -139,7 +142,7 @@ elif problem == "CT":
     val_dataset = get_dataset("LoDoPaB", test=False)
     # splitting in training and validation set
     test_ratio = 0.003 if regularizer_name == "LAR" else 0.1
-    test_len = int(len(train_dataset) * 0.1)
+    test_len = int(len(train_dataset) * test_ratio)
     train_len = len(train_dataset) - test_len
     train_set = torch.utils.data.Subset(train_dataset, range(train_len))
     val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
@@ -188,6 +191,7 @@ else:
         lr=hyper_params.lr,
         lr_decay=hyper_params.lr_decay,
         mu=hyper_params.mu,
+        LAR_eval=regularizer_name == "LAR",
         patch_size=hyper_params.patch_size if regularizer_name == "LAR" else None,
         dynamic_range_psnr=problem == "CT",
         patches_per_img=64 if regularizer_name == "LAR" else 8,
@@ -198,8 +202,6 @@ else:
         f"weights/adversarial_{problem}/{regularizer_name}_adversarial_for_{problem}.pt",
     )
 
-if regularizer_name == "LAR":
-    regularizer.pad = True
 lmbd = estimate_lmbd(val_dataloader, physics, device)
 lip = estimate_lip(regularizer, val_dataloader, device)
 lmbd_est = lmbd / lip
