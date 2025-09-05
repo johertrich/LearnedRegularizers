@@ -70,10 +70,32 @@ if problem == "Denoising":
     )
     min_lmbd = 12.0
     max_lmbd = 20.0
+    patchnr_epochs = 20
+    patchnr_batch_size = 1024
 elif problem == "CT":
     dataset = get_dataset("LoDoPaB", test=False, transform=RandomCrop(128))
     physics, data_fidelity = get_operator(problem, device)
     train_on = "LoDoPab"
+
+    val_dataset = get_dataset("LoDoPaB", test=False)
+    # splitting in training and validation set
+    fitting_set = torch.utils.data.Subset(val_dataset, range(0, 5))
+    fitting_dataloader = torch.utils.data.DataLoader(
+        fitting_set, batch_size=1, shuffle=True, drop_last=True
+    )
+    test_ratio = 0.003
+    test_len = int(len(dataset) * 0.1)
+    train_len = len(dataset) - test_len
+    train_set = torch.utils.data.Subset(dataset, range(train_len))
+    val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(dataset)))
+
+    val_dataloader = torch.utils.data.DataLoader(
+    val_set, batch_size=1, shuffle=True, drop_last=True
+    )
+    min_lmbd =280.
+    max_lmbd = 320.
+    patchnr_epochs = 4
+    patchnr_batch_size = 2048
 else:
     raise NotImplementedError
 
@@ -87,6 +109,7 @@ regularizer = PatchNR(
     sub_net_size=patchnr_subnetsize,
     device=device,
     n_patches=n_patches,
+    pad=True
 )
 
 if only_fitting:
@@ -102,8 +125,6 @@ else:
     verbose = True
     train_dataset = PatchDataset(train_imgs, patch_size=patch_size, transforms=None)
 
-    patchnr_epochs = 20
-    patchnr_batch_size = 1024
     patchnr_learning_rate = 5e-4
 
     patchnr_dataloader = DataLoader(
@@ -161,7 +182,7 @@ else:
 
 best_mean_psnr = -float("inf")
 
-lambdas = np.linspace(min_lmbd, max_lmbd, 20)
+lambdas = np.linspace(min_lmbd, max_lmbd, 25)
 for lamb in lambdas:
     mean_psnr, x_out, y_out, recon_out = evaluate(
         physics=physics,

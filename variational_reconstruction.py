@@ -159,7 +159,7 @@ elif regularizer_name == "EPLL":
     )
     lmbd = setup_data["lambda"]
 elif regularizer_name == "PatchNR":
-    train_on = "BSD500" if problem == "Denoising" else "LoDoPaB"
+    train_on = "BSD500" if problem == "Denoising" else "LoDoPab"
     weights_filepath = f"weights/patchnr/patchnr_6x6_{train_on}_fitted.pt"
     weights = torch.load(weights_filepath, map_location=device)
     regularizer = PatchNR(
@@ -170,7 +170,7 @@ elif regularizer_name == "PatchNR":
         device=device,
         n_patches=weights["n_patches"],
         pretrained=None,
-        pad=False,
+        pad=True,
     )
     regularizer.load_state_dict(weights["weights"])
     lmbd = weights["lambda"]

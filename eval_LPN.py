@@ -1,7 +1,10 @@
 """Evaluation script for LPN."""
 
 import argparse
+import datetime
+import logging
 import os
+import time
 from typing import Callable
 
 import matplotlib.pyplot as plt
@@ -13,11 +16,8 @@ from deepinv.optim.prior import PnP
 from deepinv.utils.plotting import plot
 from PIL import Image
 from torch.utils.data import DataLoader
-from tqdm import tqdm
 from torchvision.utils import save_image
-import logging
-import datetime
-import time
+from tqdm import tqdm
 
 from operators import get_evaluation_setting
 from priors.lpn.lpn import LPNPrior
@@ -69,22 +69,24 @@ if task == "denoising":
     pretrained_path = args.pretrained_path or "weights/lpn_64_bsd/LPN.pt"
 elif task == "ct_trained_on_bsd":
     problem = "CT"
-    pretrained_path = args.pretrained_path or "weights/lpn_64_bsd/LPN.pt"
-    stepsize = args.stepsize or 0.015
+    pretrained_path = args.pretrained_path or "weights/lpn_64_bsd_noise_0.05/LPN.pt"
+    stepsize = args.stepsize or 0.008
     beta = args.beta or 1.0
-    max_iter = args.max_iter or 100 #20 previous
-    gamma = args.gamma or 0.9
+    max_iter = args.max_iter or 100
+    gamma = args.gamma or 1.0
 elif task == "ct":
     problem = "CT"
     pretrained_path = args.pretrained_path or "weights/lpn_64_ct/LPN.pt"
     stepsize = args.stepsize or 0.02
     beta = args.beta or 1.0
-    max_iter = args.max_iter or 100 #20 previous
+    max_iter = args.max_iter or 100
     gamma = args.gamma or 1.0
 else:
     raise ValueError("Unknown task. Choose 'denoising', 'ct_trained_on_bsd' or 'ct'.")
 
-only_first = args.only_first  # just evaluate on the first image of the dataset for test purposes
+only_first = (
+    args.only_first
+)  # just evaluate on the first image of the dataset for test purposes
 save_results = args.save_results  # If True, save the first 10 image reconstructions
 
 if save_results:
@@ -146,9 +148,13 @@ if task in ["ct_trained_on_bsd", "ct"]:
         def denoiser(x, *args, **kwargs):
             return gamma * regularizer.prox(x) + (1 - gamma) * x
 
+    denoiser_clip = lambda x, *args, **kwargs: torch.clamp(
+        denoiser(x, *args, **kwargs), 0, 1
+    )  # clip for stability
+
     model = optim_builder(
         iteration="ADMM",
-        prior=PnP(denoiser=denoiser),
+        prior=PnP(denoiser=denoiser_clip),
         data_fidelity=data_fidelity,
         early_stop=True,
         max_iter=max_iter,
@@ -203,11 +209,11 @@ def evaluate(
         y = physics(x)
 
         t_start = time.time()
-        
+
         # run the model on the problem.
         with torch.no_grad():
             recon = model(y, physics)
-            
+
         t_end = time.time()
         times.append(t_end - t_start)
         psnrs.append(psnr(recon, x).squeeze().item())
