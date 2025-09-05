@@ -100,15 +100,27 @@ elif regularizer_name == "IDCNN":
         device
     )
 elif regularizer_name == "LAR":
-    reg = LocalAR(
-        in_channels=1,
-        pad=True,
-        use_bias=False,
-        n_patches=-1,
-        reduction="sum",
-        output_factor=1 / 142**2,
-        pretrained=None,
-    ).to(device)
+    if evaluation_mode == "AR":
+        output_factor = (
+            1.0 if problem == "CT" else 481 / 321
+        )  # due to the mean reduction the regularization constant must be adapted for different image sizes
+        reg = LocalAR(
+            in_channels=1,
+            pad=True,
+            use_bias=True,
+            n_patches=-1,
+            output_factor=output_factor,
+        ).to(device)
+    else:
+        reg = LocalAR(
+            in_channels=1,
+            pad=True,
+            use_bias=False,
+            n_patches=-1,
+            reduction="sum",
+            output_factor=1 / 142 ** 2,
+            pretrained=None,
+        ).to(device)
 elif regularizer_name == "TDV":
     config = dict(
         in_channels=1,
@@ -134,7 +146,7 @@ elif regularizer_name == "EPLL":
     setup_data = torch.load(weights_filepath)
     patch_size = setup_data["patch_size"]
     n_gmm_components = setup_data["n_gmm_components"]
-    GMM = GaussianMixtureModel(n_gmm_components, patch_size**2, device=device)
+    GMM = GaussianMixtureModel(n_gmm_components, patch_size ** 2, device=device)
     GMM.load_state_dict(setup_data["weights"])
     regularizer = EPLL(
         device=device,
@@ -160,7 +172,7 @@ elif regularizer_name == "PatchNR":
         pretrained=None,
         pad=True,
     )
-    regularizer.load_state_dict(weights["weights"]) 
+    regularizer.load_state_dict(weights["weights"])
     lmbd = weights["lambda"]
 else:
     raise ValueError("Unknown model!")
