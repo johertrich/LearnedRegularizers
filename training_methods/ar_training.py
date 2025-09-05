@@ -13,47 +13,59 @@ from torch.utils.data import DataLoader
 from deepinv.loss.metric import PSNR
 
 
-def WGAN_loss(regularizer, images, images_gt,mu=10):
+def WGAN_loss(regularizer, images, images_gt, mu=10):
     """Calculates the gradient penalty loss for WGAN GP"""
-    real_samples=images_gt
-    fake_samples=images
+    real_samples = images_gt
+    fake_samples = images
 
-    B = real_samples.size(0) 
+    B = real_samples.size(0)
     alpha = torch.rand(B, 1, 1, 1, device=real_samples.device)
     interpolates = images_gt + alpha * (images - images_gt)
     interpolates.requires_grad_(True)
-    grad_norm = regularizer.grad(interpolates).flatten(1).norm(2, dim=1) 
+    grad_norm = regularizer.grad(interpolates).flatten(1).norm(2, dim=1)
     data_loss = regularizer.g(real_samples).mean() - regularizer.g(fake_samples).mean()
     grad_loss = mu * torch.nn.functional.relu(grad_norm - 1).square().mean()
-    return data_loss + grad_loss,  grad_loss
+    return data_loss + grad_loss, grad_loss
 
-def estimate_lmbd(dataset,physics,device):
-    if dataset is None: lmbd=1.0
-    else: 
+
+def estimate_lmbd(dataset, physics, device):
+    if dataset is None:
+        lmbd = 1.0
+    else:
         with torch.no_grad():
             residual = 0.0
             for x in tqdm(dataset, total=len(dataset)):
                 x = x.to(device)
-                y = physics(x) ##Ax+e
-                residual += torch.norm(physics.A_adjoint(y - physics.A(x)),dim=(-2,-1)).mean()
-            lmbd = residual/(len(dataset))
-        print('Estimated lambda: ' + str(lmbd.item()))
+                y = physics(x)  ##Ax+e
+                residual += torch.norm(
+                    physics.A_adjoint(y - physics.A(x)), dim=(-2, -1)
+                ).mean()
+            lmbd = residual / (len(dataset))
+        print("Estimated lambda: " + str(lmbd.item()))
     return lmbd
 
-def estimate_lip (regularizer,dataset,device):
-    if dataset is None: lip=1.0
+
+def estimate_lip(regularizer, dataset, device):
+    if dataset is None:
+        lip = 1.0
     else:
         with torch.no_grad():
             lip_avg = torch.tensor(0.0, device=device)
             lip_max = torch.tensor(0.0, device=device)
             for x in tqdm(dataset, total=len(dataset)):
                 x = x.to(device)
-                gradients = torch.sqrt(torch.sum(regularizer.grad(x)**2))
+                gradients = torch.sqrt(torch.sum(regularizer.grad(x) ** 2))
                 lip_avg += gradients
                 lip_max = torch.max(lip_max, gradients)
-            lip_avg = lip_avg/len(dataset)
-        print('Lipschitz constant: Max ' + str(lip_max.item()) +  ' Avg ' + str(lip_avg.item()))
+            lip_avg = lip_avg / len(dataset)
+        print(
+            "Lipschitz constant: Max "
+            + str(lip_max.item())
+            + " Avg "
+            + str(lip_avg.item())
+        )
     return lip_max
+
 
 def ar_training(
     regularizer,
@@ -70,7 +82,7 @@ def ar_training(
     mu=10.0,
     patch_size=None,
     patches_per_img=8,
-    LAR_eval = False,
+    LAR_eval=False,
     dynamic_range_psnr=False,
     savestr=None,
     logger=None,
@@ -80,23 +92,23 @@ def ar_training(
         "If validation_epochs > epochs, no validation will occur, "
         "best_regularizer_state will remain unchanged, and the returned model will be identical to the initial state."
     )
-    
+
     if dynamic_range_psnr:
         psnr = PSNR(max_pixel=None)
     else:
         psnr = PSNR()
 
     if lmbd is None:
-        lmbd = estimate_lmbd(val_dataloader,physics,device)
+        lmbd = estimate_lmbd(val_dataloader, physics, device)
 
-    NAG_step_size=1e-2#/lmbd
-    NAG_max_iter=1000
-    NAG_tol_val=1e-4
+    NAG_step_size = 1e-2  # /lmbd
+    NAG_max_iter = 1000
+    NAG_tol_val = 1e-4
 
     adversarial_loss = WGAN_loss
     optimizer = torch.optim.Adam(regularizer.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=lr_decay)
-    best_val_psnr=-999
+    best_val_psnr = -999
 
     for epoch in range(epochs):
         loss_vals = []
@@ -107,16 +119,26 @@ def ar_training(
             y = physics(x)
             x_noisy = physics.A_dagger(y)
             if not patch_size == None:
-                x_patches, linear_inds = patch_extractor(x, n_patches=patches_per_img, patch_size=patch_size)
+                x_patches, linear_inds = patch_extractor(
+                    x, n_patches=patches_per_img, patch_size=patch_size
+                )
                 B, C, _, _ = x_noisy.shape
                 imgs = x_noisy.reshape(B, -1)
                 x_noisy_patches = imgs.view(B, -1)[:, linear_inds]
-                x_noisy_patches = x_noisy_patches.reshape(patches_per_img*x.shape[0], C, patch_size, patch_size)
-                x_patches = x_patches.reshape(patches_per_img*x.shape[0], C, patch_size, patch_size)
+                x_noisy_patches = x_noisy_patches.reshape(
+                    patches_per_img * x.shape[0], C, patch_size, patch_size
+                )
+                x_patches = x_patches.reshape(
+                    patches_per_img * x.shape[0], C, patch_size, patch_size
+                )
                 if LAR_eval:
-                    loss, grad_loss = adversarial_loss(regularizer.cnn, x_noisy_patches, x_patches, mu)
+                    loss, grad_loss = adversarial_loss(
+                        regularizer.cnn, x_noisy_patches, x_patches, mu
+                    )
                 else:
-                    loss, grad_loss = adversarial_loss(regularizer, x_noisy_patches, x_patches, mu)
+                    loss, grad_loss = adversarial_loss(
+                        regularizer, x_noisy_patches, x_patches, mu
+                    )
             else:
                 loss, grad_loss = adversarial_loss(regularizer, x_noisy, x, mu)
             loss.backward()
@@ -132,7 +154,13 @@ def ar_training(
             logger.info(print_str)
         if (epoch + 1) % validation_epochs == 0:
             regularizer.eval()
-            lip = estimate_lip(regularizer,val_dataloader,device)
+            if LAR_eval:
+                pad = regularizer.pad
+                regularizer.pad = False
+                lip = estimate_lip(regularizer, val_dataloader, device)
+                regularizer.pad = pad
+            else:
+                lip = estimate_lip(regularizer, val_dataloader, device)
             with torch.no_grad():
                 val_loss_epoch = 0
                 val_psnr_epoch = 0
@@ -148,7 +176,7 @@ def ar_training(
                         physics,
                         data_fidelity,
                         regularizer,
-                        lmbd/lip,
+                        lmbd / lip,
                         NAG_step_size,
                         NAG_max_iter,
                         NAG_tol_val,
@@ -156,11 +184,11 @@ def ar_training(
                         x_init=x_val_noisy,
                     )
 
-                    #import matplotlib.pyplot as plt 
-                    #fig, (ax1, ax2) = plt.subplots(1,2, figsize=(12,6))
-                    #ax1.imshow(x_val[0,0].cpu().numpy(), cmap="gray")
-                    #ax2.imshow(x_recon_val[0,0].cpu().numpy(), cmap="gray")
-                    #plt.show()
+                    # import matplotlib.pyplot as plt
+                    # fig, (ax1, ax2) = plt.subplots(1,2, figsize=(12,6))
+                    # ax1.imshow(x_val[0,0].cpu().numpy(), cmap="gray")
+                    # ax2.imshow(x_recon_val[0,0].cpu().numpy(), cmap="gray")
+                    # plt.show()
 
                     new_psnr = psnr(x_recon_val, x_val).mean().item()
                     if new_psnr <= 0:

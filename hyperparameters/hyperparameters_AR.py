@@ -91,13 +91,15 @@ def get_AR_hyperparameters(regularizer_name, problem):
             args.mu = 10
 
     if regularizer_name == "LAR":
-        args.lr = 5e-5
+        args.lr = 1e-3
         args.epochs = 1000
-        args.mu = 5
+        args.mu = 0.1
         args.patch_size = 15
         args.batch_size = 8
-        args.lr_decay = 0.998
+        args.lr_decay = 0.1 ** (1 / args.epochs)
         args.val_epochs = 25
         args.fitting_lr = 1e-2
+        if problem == "CT":
+            args.mu = .5
 
     return args
