@@ -36,9 +36,6 @@ from torchvision.transforms import (
 from hyperparameters import get_AR_hyperparameters
 import argparse
 
-torch.manual_seed(0)
-np.random.seed(0)
-
 if torch.backends.mps.is_available():
     # mps backend is used in Apple Silicon chips
     device = "mps"
