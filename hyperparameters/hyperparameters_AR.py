@@ -99,5 +99,7 @@ def get_AR_hyperparameters(regularizer_name, problem):
         args.lr_decay = 0.1 ** (1 / args.epochs)
         args.val_epochs = 25
         args.fitting_lr = 1e-2
+        if problem == "CT":
+            args.mu = .5
 
     return args
