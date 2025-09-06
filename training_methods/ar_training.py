@@ -162,8 +162,12 @@ def ar_training(
             else:
                 lip = estimate_lip(regularizer, val_dataloader, device)
             with torch.no_grad():
+                if LAR_eval:
+                    pad = regularizer.pad
+                    regularizer.pad = True
                 val_loss_epoch = 0
                 val_psnr_epoch = 0
+                i = 0
                 for x_val in tqdm(
                     val_dataloader, desc=f"Epoch {epoch+1}/{epochs} - Val"
                 ):
@@ -184,17 +188,13 @@ def ar_training(
                         x_init=x_val_noisy,
                     )
 
-                    # import matplotlib.pyplot as plt
-                    # fig, (ax1, ax2) = plt.subplots(1,2, figsize=(12,6))
-                    # ax1.imshow(x_val[0,0].cpu().numpy(), cmap="gray")
-                    # ax2.imshow(x_recon_val[0,0].cpu().numpy(), cmap="gray")
-                    # plt.show()
-
                     new_psnr = psnr(x_recon_val, x_val).mean().item()
                     if new_psnr <= 0:
                         print(f"Warning: Negativ PSNR occured {new_psnr}")
                     val_psnr_epoch += new_psnr
 
+                if LAR_eval:
+                    regularizer.pad = pad
                 mean_val_psnr = val_psnr_epoch / len(val_dataloader)
                 print_str = f"[Epoch {epoch+1}] PSNR: {mean_val_psnr:.2f}"
                 print(print_str)
