@@ -1,0 +1,22 @@
+2025-09-05 21:27:58,373: ------------------------------
+2025-09-05 21:27:58,373: Running for patch size 6 and 300 components
+2025-09-05 21:46:08,353: Fitting GMM done
+2025-09-05 21:48:55,456: Mean PSNR for patch size 6 and 300 components: 34.38
+2025-09-05 21:48:55,457: 	 New best GMM found!
+2025-09-05 21:48:55,457: ------------------------------
+2025-09-05 21:48:55,457: Running for patch size 6 and 400 components
+2025-09-05 22:04:43,861: Fitting GMM done
+2025-09-05 22:08:21,598: Mean PSNR for patch size 6 and 400 components: 34.47
+2025-09-05 22:08:21,598: 	 New best GMM found!
+2025-09-05 22:08:21,598: Best GMM: Patch Size: 6, Components: 400, Mean PSNR: 34.47
+2025-09-05 22:12:20,881: Mean PSNR for lambda 400.0: 34.29
+2025-09-05 22:16:25,743: Mean PSNR for lambda 422.22222222222223: 34.37
+2025-09-05 22:20:20,174: Mean PSNR for lambda 444.44444444444446: 34.44
+2025-09-05 22:24:04,851: Mean PSNR for lambda 466.6666666666667: 34.38
+2025-09-05 22:27:45,823: Mean PSNR for lambda 488.8888888888889: 34.46
+2025-09-05 22:31:25,847: Mean PSNR for lambda 511.1111111111111: 34.44
+2025-09-05 22:35:00,105: Mean PSNR for lambda 533.3333333333334: 34.46
+2025-09-05 22:38:34,045: Mean PSNR for lambda 555.5555555555555: 34.36
+2025-09-05 22:42:07,977: Mean PSNR for lambda 577.7777777777778: 34.41
+2025-09-05 22:45:34,874: Mean PSNR for lambda 600.0: 34.36
+2025-09-05 22:45:34,875: Best lambda: 500.0
