@@ -91,7 +91,6 @@ def get_AR_hyperparameters(regularizer_name, problem):
             args.mu = 10
 
     if regularizer_name == "LAR":
-        args.lr = 1e-3
         args.patch_size = 15
         args.batch_size = 8
         args.val_epochs = 25
@@ -99,10 +98,12 @@ def get_AR_hyperparameters(regularizer_name, problem):
             args.epochs = 400
             args.fitting_lr = 1e-3
             args.mu = 0.5
+            args.lr = 5e-4
         if problem == "Denoising":
             args.epochs = 1000
             args.fitting_lr = 1e-2
             args.mu = 0.1
+            args.lr = 1e-3
         args.lr_decay = 0.1 ** (1 / args.epochs)
 
     return args
