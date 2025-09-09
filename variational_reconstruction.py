@@ -128,8 +128,6 @@ elif regularizer_name == "TDV":
         multiplier=1,
         num_mb=3,
         num_scales=3,
-        potential="quadratic",
-        activation="softplus",
         zero_mean=True,
     )
     reg = TDV(**config).to(device)
