@@ -73,7 +73,8 @@ def nmAPG(
                 s
                 / (dx * (x_bar[idx] - x_bar_old[idx]))
                 .sum((1, 2, 3), keepdim=True)
-                .clip(min=0., max=None),  # alpha_y = <s,r>/<r,r> in paper, Eq 150
+                .abs()
+                .clip(min=0.0, max=None),  # alpha_y = <s,r>/<r,r> in paper, Eq 150
                 min=1.0,
                 max=None,
             )  # clips for stability --> on a long term we can adjust min-clip based on the spectral norm of physics.A
@@ -118,6 +119,7 @@ def nmAPG(
                     s
                     / (dx * (x[idx_idx2] - x_bar_old[idx_idx2]))
                     .sum((1, 2, 3), keepdim=True)
+                    .abs()
                     .clip(min=0, max=None),
                     min=1.0,
                     max=None,
@@ -162,7 +164,7 @@ def nmAPG(
                 print(f"Converged in iter {i}, tol {torch.max(res).item():.6f}")
             break
         t_old = t
-        t = (np.sqrt(4.0 * t_old ** 2 + 1.0) + 1.0) / 2.0  # Eq 159
+        t = (np.sqrt(4.0 * t_old**2 + 1.0) + 1.0) / 2.0  # Eq 159
         q_old = q
         q = eta * q + 1.0  # Eq 160
         c[idx] = (eta * q_old * c[idx] + f(x[idx], y[idx])) / q  # Eq 161
