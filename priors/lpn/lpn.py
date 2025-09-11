@@ -82,6 +82,13 @@ class LPNPrior(Prior):
     def forward(self, x):
         return self.prox(x)
 
+    def wclip(self):
+        self.lpn.wclip()
+
+    @property
+    def img_size(self):
+        return self.lpn.img_size
+
 
 def apply_func_to_patches(
     x: torch.Tensor, func, patch_size, stride_size

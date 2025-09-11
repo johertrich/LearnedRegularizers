@@ -1,5 +1,8 @@
 """Module for inverting LPN using convex optimization with gradient descent."""
+
 import torch
+from matplotlib.pylab import f
+from tqdm import tqdm
 
 
 def invert_cvx_gd(x, model):
@@ -20,13 +23,15 @@ def invert_cvx_gd(x, model):
 
     optimizer = torch.optim.Adam([x], lr=1e-2)
 
-    for i in range(2000):
+    for i in tqdm(range(2000), desc="invert_cvx_gd"):
         optimizer.zero_grad()
         loss = torch_f(x, model, z)
         loss.backward()
         optimizer.step()
         if i % 100 == 0:
-            print("loss", loss.item())
+            with torch.no_grad():
+                mse = (model(x) - z).pow(2).mean().item()
+            print(f"iter {i}, obj: {loss.item():.2f}, mse: {mse:.5f}")
 
     print("final mse: ", (model(x) - z).pow(2).mean().item())
     x = x.detach().cpu().numpy()

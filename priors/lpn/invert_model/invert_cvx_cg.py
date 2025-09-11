@@ -1,8 +1,8 @@
 """Module for inverting LPN using convex optimization with conjugate gradient."""
 
 import numpy as np
-from scipy.optimize import fmin_cg
 import torch
+from scipy.optimize import fmin_cg
 from tqdm import tqdm
 
 from .utils import prox
@@ -27,7 +27,7 @@ def invert_cvx_cg_single(x, model):
     x_list = []
     callback = lambda x: x_list.append(x)
     res = fmin_cg(
-        f, x0, fprime=gradf, args=args, full_output=True, disp=0, callback=callback
+        f, x0, fprime=gradf, args=args, full_output=True, disp=2, callback=callback
     )
     # print(
     #     f"fopt: {res[1]}, func_calls: {res[2]}, grad_calls: {res[3]}, warnflag: {res[4]}"
