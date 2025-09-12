@@ -63,7 +63,7 @@ def lpn_training(
             l1: L1 loss always
             pm: L1 loss for pretraining, then prox matching loss
     """
-    model = regularizer.lpn
+    model = regularizer
 
     # Initialize the optimizer
     if optimizer == "adam":

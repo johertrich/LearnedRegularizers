@@ -13,12 +13,17 @@ class IDCNNPrior(Prior):
         device,
         kernel_size=5,
         smoothing=0.01,
+        act_name="smoothed_relu",
         pretrained=None,
     ):
         super().__init__()
-        self.icnn1 = ICNN_2l(in_channels, channels, kernel_size, smoothing).to(device)
+        self.icnn1 = ICNN_2l(
+            in_channels, channels, kernel_size, smoothing, act_name=act_name
+        ).to(device)
         self.icnn1.init_weight()
-        self.icnn2 = ICNN_2l(in_channels, channels, kernel_size, smoothing).to(device)
+        self.icnn2 = ICNN_2l(
+            in_channels, channels, kernel_size, smoothing, act_name=act_name
+        ).to(device)
         self.icnn2.init_weight()
 
         if pretrained is not None:
