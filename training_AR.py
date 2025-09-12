@@ -101,17 +101,17 @@ if not os.path.isdir(f"weights/adversarial_{problem}"):
 
 # problem dependent parameters
 physics, data_fidelity = get_operator(problem, device)
-crop_size = 128 if regularizer_name == "LAR" else hyper_params.patch_size
-transform = Compose(
-    [
-        RandomCrop(crop_size),
-        RandomHorizontalFlip(p=0.5),
-        RandomVerticalFlip(p=0.5),
-        RandomApply([RandomRotation((90, 90))], p=0.5),
-    ]
-)
 
 if problem == "Denoising":
+    crop_size = 128 if regularizer_name == "LAR" else hyper_params.patch_size
+    transform = Compose(
+        [   
+            RandomCrop(crop_size),
+            RandomHorizontalFlip(p=0.5),
+            RandomVerticalFlip(p=0.5),
+            RandomApply([RandomRotation((90, 90))], p=0.5),
+        ]
+    )
     train_dataset = get_dataset("BSDS500_gray", test=False, transform=transform)
     val_dataset = get_dataset("BSDS500_gray", test=False, transform=CenterCrop(321))
     # splitting in training and validation set
@@ -132,6 +132,9 @@ if problem == "Denoising":
     fitting_dataloader = torch.utils.data.DataLoader(
         fitting_set, batch_size=5, shuffle=True, drop_last=True
     )
+    if not regularizer_name == "LAR":
+        # patches already processed in data loader
+        hyper_params.patch_size = None
 elif problem == "CT":
     train_dataset = get_dataset("LoDoPaB", test=False)
     val_dataset = get_dataset("LoDoPaB", test=False)
@@ -187,9 +190,9 @@ else:
         lr_decay=hyper_params.lr_decay,
         mu=hyper_params.mu,
         LAR_eval=regularizer_name == "LAR",
-        patch_size=hyper_params.patch_size if regularizer_name == "LAR" else None,
+        patch_size=hyper_params.patch_size,
         dynamic_range_psnr=problem == "CT",
-        patches_per_img=64 if regularizer_name == "LAR" else 8,
+        patches_per_img=hyper_params.patch_per_img,
         logger=logger,
     )
     torch.save(
