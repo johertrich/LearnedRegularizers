@@ -54,7 +54,8 @@ def get_AR_hyperparameters(regularizer_name, problem):
             args.lr_decay = 1.0
             args.epochs = 200
             args.val_epochs = 10
-
+            args.patch_per_img = 36
+            
     if regularizer_name == "TDV":
         args.lr = 2e-4
         args.mu = 10
@@ -71,7 +72,8 @@ def get_AR_hyperparameters(regularizer_name, problem):
             args.lr_decay = 0.995
             args.epochs = 500
             args.val_epochs = 15
-
+            args.patch_per_img = 36
+            
     if regularizer_name == "LSR":
         args.lr = 1e-4
         args.fitting_lr = 1e-2
