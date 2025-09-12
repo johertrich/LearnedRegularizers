@@ -12,7 +12,9 @@ class ZeroMean(nn.Module):
 
 
 class ICNN_2l(nn.Module):
-    def __init__(self, in_c, channels, kernel_size=5, smoothing=0.01):
+    def __init__(
+        self, in_c, channels, kernel_size=5, smoothing=0.01, act_name="smoothed_relu"
+    ):
         super(ICNN_2l, self).__init__()
         self.in_c = in_c
         self.channels = channels
@@ -28,15 +30,20 @@ class ICNN_2l(nn.Module):
             torch.log(torch.tensor(0.001)) * torch.ones(1, channels, 1, 1)
         )
         # self.act = lambda x: torch.clip(x, 0.0, self.smoothing)**2/(2*self.smoothing) + torch.clip(x, self.smoothing) - self.smoothing
-        self.act = (
-            lambda x: torch.clip(
-                x, torch.zeros_like(self.smoothing), self.smoothing.exp()
+        if act_name == "smoothed_relu":
+            self.act = (
+                lambda x: torch.clip(
+                    x, torch.zeros_like(self.smoothing), self.smoothing.exp()
+                )
+                ** 2
+                / (2 * self.smoothing.exp())
+                + torch.clip(x, self.smoothing.exp())
+                - self.smoothing.exp()
             )
-            ** 2
-            / (2 * self.smoothing.exp())
-            + torch.clip(x, self.smoothing.exp())
-            - self.smoothing.exp()
-        )
+        elif act_name == "elu":
+            self.act = torch.nn.ELU()
+        else:
+            raise NameError("Unknown activation!")
 
         P.register_parametrization(self.wx, "weight", ZeroMean())
 
