@@ -187,9 +187,9 @@ else:
         lr_decay=hyper_params.lr_decay,
         mu=hyper_params.mu,
         LAR_eval=regularizer_name == "LAR",
-        patch_size=hyper_params.patch_size if regularizer_name == "LAR" else None,
+        patch_size=hyper_params.patch_size,
         dynamic_range_psnr=problem == "CT",
-        patches_per_img=64 if regularizer_name == "LAR" else 8,
+        patches_per_img=hyper_params.patches_per_img,
         logger=logger,
     )
     torch.save(
