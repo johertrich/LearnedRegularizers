@@ -108,7 +108,7 @@ physics, data_fidelity = get_operator(problem, device)
 if problem == "Denoising":
     crop_size = 128 if regularizer_name == "LAR" else hyper_params.patch_size
     transform = Compose(
-        [   
+        [
             RandomCrop(crop_size),
             RandomHorizontalFlip(p=0.5),
             RandomVerticalFlip(p=0.5),
@@ -135,9 +135,6 @@ if problem == "Denoising":
     fitting_dataloader = torch.utils.data.DataLoader(
         fitting_set, batch_size=5, shuffle=True, drop_last=True
     )
-    if not regularizer_name == "LAR":
-        # patches already processed in data loader
-        hyper_params.patch_size = None
 elif problem == "CT":
     train_dataset = get_dataset("LoDoPaB", test=False)
     val_dataset = get_dataset("LoDoPaB", test=False)
