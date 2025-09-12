@@ -118,7 +118,7 @@ def ar_training(
             x = x.to(device)
             y = physics(x)
             x_noisy = physics.A_dagger(y)
-            if not patch_size == None:
+            if x.shape[-1] != patch_size or x.shape[-2] != patch_size:
                 x_patches, linear_inds = patch_extractor(
                     x, n_patches=patches_per_img, patch_size=patch_size
                 )

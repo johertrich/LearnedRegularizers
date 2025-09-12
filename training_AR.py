@@ -71,7 +71,10 @@ elif regularizer_name == "WCRR":
 elif regularizer_name == "ICNN":
     regularizer = ICNNPrior(in_channels=1, channels=32, device=device)
 elif regularizer_name == "IDCNN":
-    regularizer = IDCNNPrior(in_channels=1, channels=32, kernel_size=5, device=device)
+    act_name = "smoothed_relu" if problem == "Denoising" else "elu"
+    regularizer = IDCNNPrior(
+        in_channels=1, channels=32, kernel_size=5, act_name=act_name, device=device
+    )
 elif regularizer_name == "TDV":
     config = dict(
         in_channels=1,
@@ -187,7 +190,7 @@ else:
         lr_decay=hyper_params.lr_decay,
         mu=hyper_params.mu,
         LAR_eval=regularizer_name == "LAR",
-        patch_size=hyper_params.patch_size if regularizer_name == "LAR" else None,
+        patch_size=hyper_params.patch_size,
         dynamic_range_psnr=problem == "CT",
         patches_per_img=64 if regularizer_name == "LAR" else 8,
         logger=logger,
