@@ -148,7 +148,7 @@ elif problem == "CT":
     test_len = int(len(train_dataset) * test_ratio)
     train_len = len(train_dataset) - test_len
     train_set = torch.utils.data.Subset(train_dataset, range(train_len))
-    val_set = torch.utils.data.Subset(train_dataset, range(train_len, train_len + int(50.)))
+    val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
     train_dataloader = torch.utils.data.DataLoader(
         train_set,
         batch_size=hyper_params.batch_size,
