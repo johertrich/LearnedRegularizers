@@ -53,7 +53,7 @@ def get_AR_hyperparameters(regularizer_name, problem):
             args.val_epochs = 5
         if problem == "CT":
             args.patch_size = 76
-            args.patch_per_img = 8
+            args.patch_per_img = 4
             args.batch_size = 32
             args.lr_decay = 1.0
             args.epochs = 200
