@@ -139,11 +139,16 @@ elif problem == "CT":
     train_dataset = get_dataset("LoDoPaB", test=False)
     val_dataset = get_dataset("LoDoPaB", test=False)
     # splitting in training and validation set
-    test_ratio = 0.003 if regularizer_name == "LAR" else 0.1
+    if regularizer_name == "LAR":
+        test_ratio = 0.003
+    elif regularizer_name == "TDV":
+        test_ratio = 0.015
+    else:
+        test_ratio = 0.1
     test_len = int(len(train_dataset) * test_ratio)
     train_len = len(train_dataset) - test_len
     train_set = torch.utils.data.Subset(train_dataset, range(train_len))
-    val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
+    val_set = torch.utils.data.Subset(train_dataset, range(train_len, train_len + int(50.)))
     train_dataloader = torch.utils.data.DataLoader(
         train_set,
         batch_size=hyper_params.batch_size,
