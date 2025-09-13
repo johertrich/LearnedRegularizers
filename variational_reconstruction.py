@@ -96,9 +96,13 @@ elif regularizer_name == "WCRR":
 elif regularizer_name == "ICNN":
     reg = ICNNPrior(in_channels=1, channels=32, device=device, kernel_size=5).to(device)
 elif regularizer_name == "IDCNN":
-    reg = IDCNNPrior(in_channels=1, channels=32, device=device, kernel_size=5).to(
-        device
-    )
+    if problem == "CT" and evaluation_mode == "AR":
+        act_name = "elu"
+    else:
+        act_name = "smoothed_relu"
+    reg = IDCNNPrior(
+        in_channels=1, channels=32, device=device, kernel_size=5, act_name=act_name
+    ).to(device)
 elif regularizer_name == "LAR":
     if evaluation_mode == "AR":
         output_factor = (
