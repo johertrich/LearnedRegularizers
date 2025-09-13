@@ -51,13 +51,8 @@ def get_AR_hyperparameters(regularizer_name, problem):
             args.lr_decay = 0.998
             args.epochs = 1000
             args.val_epochs = 5
-            args.patch_per_img = 8
         if problem == "CT":
             args.patch_size = 76
-<<<<<<< HEAD
-=======
-            args.patch_per_img = 4
->>>>>>> 6693197358f9f1f0533fcb1dd254beeaca65cab1
             args.batch_size = 32
             args.lr_decay = 1.0
             args.epochs = 200
@@ -67,11 +62,7 @@ def get_AR_hyperparameters(regularizer_name, problem):
         args.lr = 2e-4
         args.mu = 10
         args.fitting_lr = 1e-2
-<<<<<<< HEAD
         args.patch_per_img = 4
-=======
-        args.patch_per_img = 8
->>>>>>> 6693197358f9f1f0533fcb1dd254beeaca65cab1
         if problem == "Denoising":
             args.patch_size = 64
             args.batch_size = 8
@@ -79,11 +70,7 @@ def get_AR_hyperparameters(regularizer_name, problem):
             args.epochs = 4000
             args.val_epochs = 100
         if problem == "CT":
-<<<<<<< HEAD
             args.patch_size = 32
-=======
-            args.patch_size = 25
->>>>>>> 6693197358f9f1f0533fcb1dd254beeaca65cab1
             args.batch_size = 8
             args.lr_decay = 0.995
             args.epochs = 500
@@ -92,11 +79,7 @@ def get_AR_hyperparameters(regularizer_name, problem):
     if regularizer_name == "LSR":
         args.lr = 1e-4
         args.fitting_lr = 1e-2
-<<<<<<< HEAD
         args.patch_per_img = 4
-=======
-        args.patch_per_img = 8
->>>>>>> 6693197358f9f1f0533fcb1dd254beeaca65cab1
         if problem == "Denoising":
             args.patch_size = 64
             args.batch_size = 16
@@ -105,11 +88,7 @@ def get_AR_hyperparameters(regularizer_name, problem):
             args.val_epochs = 100
             args.mu = 15
         if problem == "CT":
-<<<<<<< HEAD
             args.patch_size = 32
-=======
-            args.patch_size = 25
->>>>>>> 6693197358f9f1f0533fcb1dd254beeaca65cab1
             args.batch_size = 8
             args.lr_decay = 0.995
             args.epochs = 500
