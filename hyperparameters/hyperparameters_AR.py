@@ -44,7 +44,7 @@ def get_AR_hyperparameters(regularizer_name, problem):
         args.lr = 1e-3
         args.mu = 10
         args.fitting_lr = 1e-2
-        args.patch_per_img = 8
+        args.patch_per_img = 4
         if problem == "Denoising":
             args.patch_size = 64
             args.batch_size = 32
