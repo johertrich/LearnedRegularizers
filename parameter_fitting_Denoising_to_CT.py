@@ -122,7 +122,7 @@ elif evaluation_mode == "AR":
         raise ValueError(f"no configuration for AR with regularizer {regularizer_name}")"""
     regularizer = ParameterLearningWrapper(reg, device=device)
     weights = torch.load(
-            f"weights/adversarial_{problem}/{regularizer_name}_adversarial_for_{problem}_fitted.pt",
+            f"weights/adversarial_Denoising/{regularizer_name}_adversarial_for_Denoising_fitted.pt",
             map_location=device,
         )
     regularizer.load_state_dict(weights)
