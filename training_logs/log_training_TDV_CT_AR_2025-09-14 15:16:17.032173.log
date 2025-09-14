@@ -1,0 +1,287 @@
+2025-09-14 15:16:31,173: Average training loss in epoch 1: -1.62E+00, average grad loss: 5.76E-01
+2025-09-14 15:16:44,803: Average training loss in epoch 2: -1.93E+00, average grad loss: 6.12E-01
+2025-09-14 15:16:58,385: Average training loss in epoch 3: -2.10E+00, average grad loss: 6.34E-01
+2025-09-14 15:17:11,993: Average training loss in epoch 4: -1.60E+00, average grad loss: 9.52E-01
+2025-09-14 15:17:25,590: Average training loss in epoch 5: -2.03E+00, average grad loss: 6.13E-01
+2025-09-14 15:17:39,237: Average training loss in epoch 6: -2.11E+00, average grad loss: 6.33E-01
+2025-09-14 15:17:52,829: Average training loss in epoch 7: -2.12E+00, average grad loss: 6.35E-01
+2025-09-14 15:18:06,490: Average training loss in epoch 8: -2.14E+00, average grad loss: 6.38E-01
+2025-09-14 15:18:20,134: Average training loss in epoch 9: -2.16E+00, average grad loss: 6.42E-01
+2025-09-14 15:18:33,725: Average training loss in epoch 10: -2.18E+00, average grad loss: 6.50E-01
+2025-09-14 15:20:33,415: [Epoch 10] PSNR: 30.78
+2025-09-14 15:20:47,030: Average training loss in epoch 11: 1.62E+00, average grad loss: 4.30E+00
+2025-09-14 15:21:00,673: Average training loss in epoch 12: -1.85E+00, average grad loss: 6.00E-01
+2025-09-14 15:21:14,290: Average training loss in epoch 13: -1.86E+00, average grad loss: 6.51E-01
+2025-09-14 15:21:27,920: Average training loss in epoch 14: -1.91E+00, average grad loss: 5.95E-01
+2025-09-14 15:21:41,533: Average training loss in epoch 15: -1.94E+00, average grad loss: 6.14E-01
+2025-09-14 15:21:55,189: Average training loss in epoch 16: -1.97E+00, average grad loss: 6.26E-01
+2025-09-14 15:22:08,802: Average training loss in epoch 17: -1.98E+00, average grad loss: 6.27E-01
+2025-09-14 15:22:22,439: Average training loss in epoch 18: -2.00E+00, average grad loss: 6.30E-01
+2025-09-14 15:22:36,075: Average training loss in epoch 19: -2.02E+00, average grad loss: 6.30E-01
+2025-09-14 15:22:49,725: Average training loss in epoch 20: -2.06E+00, average grad loss: 6.38E-01
+2025-09-14 15:26:07,184: [Epoch 20] PSNR: 29.73
+2025-09-14 15:26:20,835: Average training loss in epoch 21: -2.10E+00, average grad loss: 6.32E-01
+2025-09-14 15:26:34,423: Average training loss in epoch 22: -2.13E+00, average grad loss: 6.42E-01
+2025-09-14 15:26:48,023: Average training loss in epoch 23: -2.16E+00, average grad loss: 6.53E-01
+2025-09-14 15:27:01,665: Average training loss in epoch 24: -2.18E+00, average grad loss: 6.55E-01
+2025-09-14 15:27:15,340: Average training loss in epoch 25: -2.19E+00, average grad loss: 6.59E-01
+2025-09-14 15:27:28,977: Average training loss in epoch 26: -2.21E+00, average grad loss: 6.62E-01
+2025-09-14 15:27:42,542: Average training loss in epoch 27: -2.20E+00, average grad loss: 6.67E-01
+2025-09-14 15:27:56,178: Average training loss in epoch 28: -2.22E+00, average grad loss: 6.66E-01
+2025-09-14 15:28:09,820: Average training loss in epoch 29: -2.24E+00, average grad loss: 6.73E-01
+2025-09-14 15:28:23,489: Average training loss in epoch 30: -2.24E+00, average grad loss: 6.76E-01
+2025-09-14 15:31:50,747: [Epoch 30] PSNR: 30.93
+2025-09-14 15:32:04,402: Average training loss in epoch 31: -2.25E+00, average grad loss: 6.79E-01
+2025-09-14 15:32:18,005: Average training loss in epoch 32: -1.68E+00, average grad loss: 1.21E+00
+2025-09-14 15:32:31,618: Average training loss in epoch 33: -1.90E+00, average grad loss: 6.53E-01
+2025-09-14 15:32:45,219: Average training loss in epoch 34: -2.10E+00, average grad loss: 6.30E-01
+2025-09-14 15:32:58,858: Average training loss in epoch 35: -2.13E+00, average grad loss: 6.39E-01
+2025-09-14 15:33:12,525: Average training loss in epoch 36: -2.15E+00, average grad loss: 6.45E-01
+2025-09-14 15:33:26,193: Average training loss in epoch 37: -2.16E+00, average grad loss: 6.46E-01
+2025-09-14 15:33:39,840: Average training loss in epoch 38: -2.17E+00, average grad loss: 6.50E-01
+2025-09-14 15:33:53,461: Average training loss in epoch 39: -2.19E+00, average grad loss: 6.60E-01
+2025-09-14 15:34:07,079: Average training loss in epoch 40: -2.20E+00, average grad loss: 6.60E-01
+2025-09-14 15:36:38,989: [Epoch 40] PSNR: 30.81
+2025-09-14 15:36:52,617: Average training loss in epoch 41: -2.21E+00, average grad loss: 6.65E-01
+2025-09-14 15:37:06,234: Average training loss in epoch 42: -2.22E+00, average grad loss: 6.69E-01
+2025-09-14 15:37:19,857: Average training loss in epoch 43: -2.22E+00, average grad loss: 6.71E-01
+2025-09-14 15:37:33,480: Average training loss in epoch 44: -2.23E+00, average grad loss: 6.72E-01
+2025-09-14 15:37:47,107: Average training loss in epoch 45: -2.24E+00, average grad loss: 6.76E-01
+2025-09-14 15:38:00,746: Average training loss in epoch 46: -2.25E+00, average grad loss: 6.76E-01
+2025-09-14 15:38:14,390: Average training loss in epoch 47: -2.25E+00, average grad loss: 6.76E-01
+2025-09-14 15:38:28,008: Average training loss in epoch 48: -2.26E+00, average grad loss: 6.85E-01
+2025-09-14 15:38:41,630: Average training loss in epoch 49: -2.15E+00, average grad loss: 7.02E-01
+2025-09-14 15:38:55,262: Average training loss in epoch 50: -2.23E+00, average grad loss: 6.71E-01
+2025-09-14 15:41:29,779: [Epoch 50] PSNR: 31.40
+2025-09-14 15:41:43,454: Average training loss in epoch 51: -2.25E+00, average grad loss: 6.74E-01
+2025-09-14 15:41:57,092: Average training loss in epoch 52: -2.26E+00, average grad loss: 6.78E-01
+2025-09-14 15:42:10,728: Average training loss in epoch 53: -2.27E+00, average grad loss: 6.85E-01
+2025-09-14 15:42:24,377: Average training loss in epoch 54: -2.28E+00, average grad loss: 6.88E-01
+2025-09-14 15:42:38,039: Average training loss in epoch 55: -2.28E+00, average grad loss: 6.89E-01
+2025-09-14 15:42:51,669: Average training loss in epoch 56: -2.28E+00, average grad loss: 6.88E-01
+2025-09-14 15:43:05,326: Average training loss in epoch 57: -2.29E+00, average grad loss: 6.90E-01
+2025-09-14 15:43:18,987: Average training loss in epoch 58: -2.30E+00, average grad loss: 6.92E-01
+2025-09-14 15:43:32,567: Average training loss in epoch 59: -2.30E+00, average grad loss: 6.92E-01
+2025-09-14 15:43:46,200: Average training loss in epoch 60: -2.30E+00, average grad loss: 6.98E-01
+2025-09-14 15:46:01,748: [Epoch 60] PSNR: 32.20
+2025-09-14 15:46:15,407: Average training loss in epoch 61: -2.30E+00, average grad loss: 6.94E-01
+2025-09-14 15:46:29,008: Average training loss in epoch 62: -2.31E+00, average grad loss: 6.95E-01
+2025-09-14 15:46:42,687: Average training loss in epoch 63: -2.32E+00, average grad loss: 7.02E-01
+2025-09-14 15:46:56,343: Average training loss in epoch 64: -2.32E+00, average grad loss: 7.01E-01
+2025-09-14 15:47:09,949: Average training loss in epoch 65: -2.32E+00, average grad loss: 7.03E-01
+2025-09-14 15:47:23,580: Average training loss in epoch 66: -2.33E+00, average grad loss: 7.07E-01
+2025-09-14 15:47:37,191: Average training loss in epoch 67: -2.33E+00, average grad loss: 7.10E-01
+2025-09-14 15:47:50,814: Average training loss in epoch 68: -2.34E+00, average grad loss: 7.06E-01
+2025-09-14 15:48:04,422: Average training loss in epoch 69: -2.34E+00, average grad loss: 7.10E-01
+2025-09-14 15:48:18,071: Average training loss in epoch 70: -2.34E+00, average grad loss: 7.09E-01
+2025-09-14 15:50:43,388: [Epoch 70] PSNR: 32.50
+2025-09-14 15:50:57,036: Average training loss in epoch 71: -2.35E+00, average grad loss: 7.11E-01
+2025-09-14 15:51:10,669: Average training loss in epoch 72: -2.35E+00, average grad loss: 7.13E-01
+2025-09-14 15:51:24,281: Average training loss in epoch 73: -2.35E+00, average grad loss: 7.17E-01
+2025-09-14 15:51:37,903: Average training loss in epoch 74: -2.35E+00, average grad loss: 7.10E-01
+2025-09-14 15:51:51,520: Average training loss in epoch 75: -2.36E+00, average grad loss: 7.15E-01
+2025-09-14 15:52:05,125: Average training loss in epoch 76: -2.35E+00, average grad loss: 7.11E-01
+2025-09-14 15:52:18,701: Average training loss in epoch 77: -2.36E+00, average grad loss: 7.15E-01
+2025-09-14 15:52:32,272: Average training loss in epoch 78: -2.36E+00, average grad loss: 7.13E-01
+2025-09-14 15:52:45,904: Average training loss in epoch 79: -2.37E+00, average grad loss: 7.19E-01
+2025-09-14 15:52:59,521: Average training loss in epoch 80: -2.37E+00, average grad loss: 7.19E-01
+2025-09-14 15:55:43,079: [Epoch 80] PSNR: 32.44
+2025-09-14 15:55:56,719: Average training loss in epoch 81: -2.37E+00, average grad loss: 7.20E-01
+2025-09-14 15:56:10,305: Average training loss in epoch 82: -2.37E+00, average grad loss: 7.20E-01
+2025-09-14 15:56:23,914: Average training loss in epoch 83: -2.37E+00, average grad loss: 7.21E-01
+2025-09-14 15:56:37,540: Average training loss in epoch 84: -2.37E+00, average grad loss: 7.19E-01
+2025-09-14 15:56:51,191: Average training loss in epoch 85: -2.38E+00, average grad loss: 7.22E-01
+2025-09-14 15:57:04,781: Average training loss in epoch 86: -2.37E+00, average grad loss: 7.18E-01
+2025-09-14 15:57:18,433: Average training loss in epoch 87: -2.37E+00, average grad loss: 7.18E-01
+2025-09-14 15:57:32,067: Average training loss in epoch 88: -2.38E+00, average grad loss: 7.21E-01
+2025-09-14 15:57:45,686: Average training loss in epoch 89: -2.38E+00, average grad loss: 7.21E-01
+2025-09-14 15:57:59,313: Average training loss in epoch 90: -2.38E+00, average grad loss: 7.23E-01
+2025-09-14 16:10:38,047: [Epoch 90] PSNR: 19.30
+2025-09-14 16:10:51,630: Average training loss in epoch 91: -2.38E+00, average grad loss: 7.22E-01
+2025-09-14 16:11:05,268: Average training loss in epoch 92: -2.38E+00, average grad loss: 7.23E-01
+2025-09-14 16:11:18,885: Average training loss in epoch 93: -2.38E+00, average grad loss: 7.21E-01
+2025-09-14 16:11:32,500: Average training loss in epoch 94: -2.38E+00, average grad loss: 7.22E-01
+2025-09-14 16:11:46,107: Average training loss in epoch 95: -2.38E+00, average grad loss: 7.22E-01
+2025-09-14 16:11:59,720: Average training loss in epoch 96: -2.39E+00, average grad loss: 7.25E-01
+2025-09-14 16:12:13,328: Average training loss in epoch 97: -2.38E+00, average grad loss: 7.23E-01
+2025-09-14 16:12:26,989: Average training loss in epoch 98: -2.38E+00, average grad loss: 7.23E-01
+2025-09-14 16:12:40,593: Average training loss in epoch 99: -2.39E+00, average grad loss: 7.21E-01
+2025-09-14 16:12:54,203: Average training loss in epoch 100: -2.38E+00, average grad loss: 7.23E-01
+2025-09-14 16:16:12,306: [Epoch 100] PSNR: 32.14
+2025-09-14 16:16:25,948: Average training loss in epoch 101: -2.38E+00, average grad loss: 7.23E-01
+2025-09-14 16:16:39,551: Average training loss in epoch 102: -2.38E+00, average grad loss: 7.22E-01
+2025-09-14 16:16:53,164: Average training loss in epoch 103: -2.38E+00, average grad loss: 7.20E-01
+2025-09-14 16:17:06,794: Average training loss in epoch 104: -2.39E+00, average grad loss: 7.23E-01
+2025-09-14 16:17:20,403: Average training loss in epoch 105: -2.39E+00, average grad loss: 7.28E-01
+2025-09-14 16:17:34,001: Average training loss in epoch 106: -2.39E+00, average grad loss: 7.23E-01
+2025-09-14 16:17:47,621: Average training loss in epoch 107: -2.25E+00, average grad loss: 8.04E-01
+2025-09-14 16:18:01,219: Average training loss in epoch 108: -2.28E+00, average grad loss: 6.92E-01
+2025-09-14 16:18:14,847: Average training loss in epoch 109: -2.33E+00, average grad loss: 7.02E-01
+2025-09-14 16:18:28,499: Average training loss in epoch 110: -2.36E+00, average grad loss: 7.10E-01
+2025-09-14 16:21:27,725: [Epoch 110] PSNR: 32.44
+2025-09-14 16:21:41,373: Average training loss in epoch 111: -2.37E+00, average grad loss: 7.13E-01
+2025-09-14 16:21:54,966: Average training loss in epoch 112: -2.38E+00, average grad loss: 7.19E-01
+2025-09-14 16:22:08,603: Average training loss in epoch 113: -2.38E+00, average grad loss: 7.20E-01
+2025-09-14 16:22:22,230: Average training loss in epoch 114: -2.39E+00, average grad loss: 7.22E-01
+2025-09-14 16:22:35,830: Average training loss in epoch 115: -2.39E+00, average grad loss: 7.25E-01
+2025-09-14 16:22:49,423: Average training loss in epoch 116: -2.39E+00, average grad loss: 7.23E-01
+2025-09-14 16:23:03,048: Average training loss in epoch 117: -2.40E+00, average grad loss: 7.28E-01
+2025-09-14 16:23:16,702: Average training loss in epoch 118: -2.39E+00, average grad loss: 7.23E-01
+2025-09-14 16:23:30,314: Average training loss in epoch 119: -2.40E+00, average grad loss: 7.26E-01
+2025-09-14 16:23:43,916: Average training loss in epoch 120: -2.40E+00, average grad loss: 7.27E-01
+2025-09-14 16:27:05,304: [Epoch 120] PSNR: 32.41
+2025-09-14 16:27:18,948: Average training loss in epoch 121: -2.39E+00, average grad loss: 7.23E-01
+2025-09-14 16:27:32,576: Average training loss in epoch 122: -2.39E+00, average grad loss: 7.23E-01
+2025-09-14 16:27:46,162: Average training loss in epoch 123: -2.39E+00, average grad loss: 7.26E-01
+2025-09-14 16:27:59,790: Average training loss in epoch 124: -2.40E+00, average grad loss: 7.26E-01
+2025-09-14 16:28:13,432: Average training loss in epoch 125: -2.40E+00, average grad loss: 7.31E-01
+2025-09-14 16:28:27,064: Average training loss in epoch 126: -2.39E+00, average grad loss: 7.27E-01
+2025-09-14 16:28:40,619: Average training loss in epoch 127: -2.39E+00, average grad loss: 7.27E-01
+2025-09-14 16:28:54,245: Average training loss in epoch 128: -2.40E+00, average grad loss: 7.27E-01
+2025-09-14 16:29:07,860: Average training loss in epoch 129: -2.40E+00, average grad loss: 7.30E-01
+2025-09-14 16:29:21,481: Average training loss in epoch 130: -2.39E+00, average grad loss: 7.24E-01
+2025-09-14 16:41:52,484: [Epoch 130] PSNR: 19.58
+2025-09-14 16:42:06,132: Average training loss in epoch 131: -2.40E+00, average grad loss: 7.29E-01
+2025-09-14 16:42:19,777: Average training loss in epoch 132: -2.40E+00, average grad loss: 7.27E-01
+2025-09-14 16:42:33,417: Average training loss in epoch 133: -2.40E+00, average grad loss: 7.26E-01
+2025-09-14 16:42:47,037: Average training loss in epoch 134: -2.40E+00, average grad loss: 7.28E-01
+2025-09-14 16:43:00,729: Average training loss in epoch 135: -2.39E+00, average grad loss: 7.27E-01
+2025-09-14 16:43:14,351: Average training loss in epoch 136: -2.40E+00, average grad loss: 7.28E-01
+2025-09-14 16:43:27,970: Average training loss in epoch 137: -2.40E+00, average grad loss: 7.27E-01
+2025-09-14 16:43:41,588: Average training loss in epoch 138: -2.39E+00, average grad loss: 7.28E-01
+2025-09-14 16:43:55,252: Average training loss in epoch 139: -2.40E+00, average grad loss: 7.27E-01
+2025-09-14 16:44:08,890: Average training loss in epoch 140: -2.40E+00, average grad loss: 7.28E-01
+2025-09-14 16:48:31,988: [Epoch 140] PSNR: 31.59
+2025-09-14 16:48:45,609: Average training loss in epoch 141: -2.40E+00, average grad loss: 7.27E-01
+2025-09-14 16:48:59,235: Average training loss in epoch 142: -2.39E+00, average grad loss: 7.26E-01
+2025-09-14 16:49:12,868: Average training loss in epoch 143: -2.40E+00, average grad loss: 7.28E-01
+2025-09-14 16:49:26,509: Average training loss in epoch 144: -2.40E+00, average grad loss: 7.28E-01
+2025-09-14 16:49:40,120: Average training loss in epoch 145: -2.40E+00, average grad loss: 7.28E-01
+2025-09-14 16:49:53,749: Average training loss in epoch 146: -2.40E+00, average grad loss: 7.29E-01
+2025-09-14 16:50:07,395: Average training loss in epoch 147: -2.40E+00, average grad loss: 7.27E-01
+2025-09-14 16:50:21,037: Average training loss in epoch 148: -2.40E+00, average grad loss: 7.27E-01
+2025-09-14 16:50:34,696: Average training loss in epoch 149: -2.40E+00, average grad loss: 7.28E-01
+2025-09-14 16:50:48,316: Average training loss in epoch 150: -2.40E+00, average grad loss: 7.28E-01
+2025-09-14 16:55:19,643: [Epoch 150] PSNR: 31.85
+2025-09-14 16:55:33,265: Average training loss in epoch 151: -2.40E+00, average grad loss: 7.25E-01
+2025-09-14 16:55:46,893: Average training loss in epoch 152: -2.40E+00, average grad loss: 7.30E-01
+2025-09-14 16:56:00,529: Average training loss in epoch 153: -2.40E+00, average grad loss: 7.29E-01
+2025-09-14 16:56:14,137: Average training loss in epoch 154: -2.40E+00, average grad loss: 7.27E-01
+2025-09-14 16:56:27,755: Average training loss in epoch 155: -2.41E+00, average grad loss: 7.32E-01
+2025-09-14 16:56:41,374: Average training loss in epoch 156: -2.40E+00, average grad loss: 7.28E-01
+2025-09-14 16:56:55,004: Average training loss in epoch 157: -2.40E+00, average grad loss: 7.26E-01
+2025-09-14 16:57:08,651: Average training loss in epoch 158: -2.40E+00, average grad loss: 7.26E-01
+2025-09-14 16:57:22,242: Average training loss in epoch 159: -2.40E+00, average grad loss: 7.27E-01
+2025-09-14 16:57:35,874: Average training loss in epoch 160: -2.41E+00, average grad loss: 7.26E-01
+2025-09-14 17:03:07,506: [Epoch 160] PSNR: 30.51
+2025-09-14 17:03:07,506: Best Training PSNR: 32.49565245554997
+2025-09-14 17:03:42,581: [Epoch 1] Train Loss: 1.79E+01, PSNR: 35.49
+2025-09-14 17:04:15,619: [Epoch 2] Train Loss: 1.76E+01, PSNR: 35.58
+2025-09-14 17:04:42,242: [Epoch 3] Train Loss: 1.75E+01, PSNR: 35.60
+2025-09-14 17:05:09,131: [Epoch 4] Train Loss: 1.74E+01, PSNR: 35.63
+2025-09-14 17:05:35,696: [Epoch 5] Train Loss: 1.69E+01, PSNR: 35.75
+2025-09-14 17:06:00,666: [Epoch 6] Train Loss: 1.68E+01, PSNR: 35.79
+2025-09-14 17:06:24,766: [Epoch 7] Train Loss: 1.66E+01, PSNR: 35.82
+2025-09-14 17:06:49,175: [Epoch 8] Train Loss: 1.66E+01, PSNR: 35.84
+2025-09-14 17:07:13,976: [Epoch 9] Train Loss: 1.64E+01, PSNR: 35.90
+2025-09-14 17:07:42,037: [Epoch 10] Train Loss: 1.66E+01, PSNR: 35.85
+2025-09-14 17:09:35,744: [Epoch 10] Val Loss: 3.50E+01, PSNR: 32.77
+2025-09-14 17:10:03,171: [Epoch 11] Train Loss: 1.64E+01, PSNR: 35.89
+2025-09-14 17:10:25,751: [Epoch 12] Train Loss: 1.63E+01, PSNR: 35.93
+2025-09-14 17:10:47,415: [Epoch 13] Train Loss: 1.64E+01, PSNR: 35.90
+2025-09-14 17:11:18,274: [Epoch 14] Train Loss: 1.62E+01, PSNR: 35.96
+2025-09-14 17:11:47,215: [Epoch 15] Train Loss: 1.62E+01, PSNR: 35.96
+2025-09-14 17:12:11,484: [Epoch 16] Train Loss: 1.63E+01, PSNR: 35.93
+2025-09-14 17:12:38,254: [Epoch 17] Train Loss: 1.61E+01, PSNR: 35.98
+2025-09-14 17:13:12,103: [Epoch 18] Train Loss: 1.62E+01, PSNR: 35.95
+2025-09-14 17:13:36,126: [Epoch 19] Train Loss: 1.60E+01, PSNR: 36.00
+2025-09-14 17:14:03,014: [Epoch 20] Train Loss: 1.60E+01, PSNR: 36.01
+2025-09-14 17:15:54,360: [Epoch 20] Val Loss: 3.48E+01, PSNR: 32.82
+2025-09-14 17:16:21,555: [Epoch 21] Train Loss: 1.62E+01, PSNR: 35.97
+2025-09-14 17:16:43,381: [Epoch 22] Train Loss: 1.60E+01, PSNR: 36.01
+2025-09-14 17:17:10,029: [Epoch 23] Train Loss: 1.61E+01, PSNR: 35.99
+2025-09-14 17:17:37,940: [Epoch 24] Train Loss: 1.60E+01, PSNR: 36.01
+2025-09-14 17:18:06,428: [Epoch 25] Train Loss: 1.58E+01, PSNR: 36.05
+2025-09-14 17:18:33,372: [Epoch 26] Train Loss: 1.59E+01, PSNR: 36.03
+2025-09-14 17:19:05,014: [Epoch 27] Train Loss: 1.61E+01, PSNR: 35.97
+2025-09-14 17:19:30,734: [Epoch 28] Train Loss: 1.60E+01, PSNR: 36.00
+2025-09-14 17:19:57,215: [Epoch 29] Train Loss: 1.59E+01, PSNR: 36.03
+2025-09-14 17:20:24,350: [Epoch 30] Train Loss: 1.60E+01, PSNR: 36.02
+2025-09-14 17:22:09,525: [Epoch 30] Val Loss: 3.48E+01, PSNR: 32.84
+2025-09-14 17:22:37,033: [Epoch 31] Train Loss: 1.57E+01, PSNR: 36.08
+2025-09-14 17:22:59,943: [Epoch 32] Train Loss: 1.59E+01, PSNR: 36.03
+2025-09-14 17:23:23,045: [Epoch 33] Train Loss: 1.58E+01, PSNR: 36.06
+2025-09-14 17:23:47,390: [Epoch 34] Train Loss: 1.59E+01, PSNR: 36.03
+2025-09-14 17:24:11,170: [Epoch 35] Train Loss: 1.58E+01, PSNR: 36.07
+2025-09-14 17:24:36,477: [Epoch 36] Train Loss: 1.60E+01, PSNR: 36.03
+2025-09-14 17:25:02,180: [Epoch 37] Train Loss: 1.59E+01, PSNR: 36.04
+2025-09-14 17:25:26,698: [Epoch 38] Train Loss: 1.59E+01, PSNR: 36.04
+2025-09-14 17:25:51,988: [Epoch 39] Train Loss: 1.57E+01, PSNR: 36.08
+2025-09-14 17:26:18,576: [Epoch 40] Train Loss: 1.59E+01, PSNR: 36.03
+2025-09-14 17:27:59,260: [Epoch 40] Val Loss: 3.48E+01, PSNR: 32.87
+2025-09-14 17:28:27,617: [Epoch 41] Train Loss: 1.59E+01, PSNR: 36.05
+2025-09-14 17:28:55,386: [Epoch 42] Train Loss: 1.57E+01, PSNR: 36.08
+2025-09-14 17:29:19,526: [Epoch 43] Train Loss: 1.59E+01, PSNR: 36.03
+2025-09-14 17:29:53,716: [Epoch 44] Train Loss: 1.58E+01, PSNR: 36.05
+2025-09-14 17:30:22,433: [Epoch 45] Train Loss: 1.56E+01, PSNR: 36.12
+2025-09-14 17:30:48,225: [Epoch 46] Train Loss: 1.58E+01, PSNR: 36.06
+2025-09-14 17:31:11,403: [Epoch 47] Train Loss: 1.57E+01, PSNR: 36.10
+2025-09-14 17:31:38,596: [Epoch 48] Train Loss: 1.58E+01, PSNR: 36.06
+2025-09-14 17:32:07,053: [Epoch 49] Train Loss: 1.59E+01, PSNR: 36.03
+2025-09-14 17:32:35,374: [Epoch 50] Train Loss: 1.59E+01, PSNR: 36.03
+2025-09-14 17:34:13,856: [Epoch 50] Val Loss: 3.47E+01, PSNR: 32.87
+2025-09-14 17:34:43,733: [Epoch 51] Train Loss: 1.58E+01, PSNR: 36.07
+2025-09-14 17:35:08,591: [Epoch 52] Train Loss: 1.59E+01, PSNR: 36.04
+2025-09-14 17:35:36,056: [Epoch 53] Train Loss: 1.58E+01, PSNR: 36.06
+2025-09-14 17:36:02,353: [Epoch 54] Train Loss: 1.58E+01, PSNR: 36.06
+2025-09-14 17:36:29,065: [Epoch 55] Train Loss: 1.58E+01, PSNR: 36.06
+2025-09-14 17:36:52,630: [Epoch 56] Train Loss: 1.58E+01, PSNR: 36.06
+2025-09-14 17:37:18,609: [Epoch 57] Train Loss: 1.57E+01, PSNR: 36.10
+2025-09-14 17:37:44,435: [Epoch 58] Train Loss: 1.58E+01, PSNR: 36.07
+2025-09-14 17:38:09,972: [Epoch 59] Train Loss: 1.58E+01, PSNR: 36.05
+2025-09-14 17:38:32,591: [Epoch 60] Train Loss: 1.57E+01, PSNR: 36.09
+2025-09-14 17:40:18,252: [Epoch 60] Val Loss: 3.48E+01, PSNR: 32.87
+2025-09-14 17:40:43,172: [Epoch 61] Train Loss: 1.59E+01, PSNR: 36.04
+2025-09-14 17:41:06,827: [Epoch 62] Train Loss: 1.57E+01, PSNR: 36.10
+2025-09-14 17:41:30,231: [Epoch 63] Train Loss: 1.58E+01, PSNR: 36.06
+2025-09-14 17:41:56,437: [Epoch 64] Train Loss: 1.59E+01, PSNR: 36.05
+2025-09-14 17:42:24,593: [Epoch 65] Train Loss: 1.57E+01, PSNR: 36.08
+2025-09-14 17:42:45,580: [Epoch 66] Train Loss: 1.57E+01, PSNR: 36.10
+2025-09-14 17:43:09,680: [Epoch 67] Train Loss: 1.58E+01, PSNR: 36.07
+2025-09-14 17:43:34,459: [Epoch 68] Train Loss: 1.58E+01, PSNR: 36.07
+2025-09-14 17:44:02,961: [Epoch 69] Train Loss: 1.57E+01, PSNR: 36.10
+2025-09-14 17:44:24,944: [Epoch 70] Train Loss: 1.58E+01, PSNR: 36.05
+2025-09-14 17:46:09,354: [Epoch 70] Val Loss: 3.47E+01, PSNR: 32.88
+2025-09-14 17:46:39,023: [Epoch 71] Train Loss: 1.58E+01, PSNR: 36.07
+2025-09-14 17:47:07,013: [Epoch 72] Train Loss: 1.57E+01, PSNR: 36.09
+2025-09-14 17:47:32,835: [Epoch 73] Train Loss: 1.57E+01, PSNR: 36.08
+2025-09-14 17:47:55,180: [Epoch 74] Train Loss: 1.58E+01, PSNR: 36.05
+2025-09-14 17:48:28,281: [Epoch 75] Train Loss: 1.56E+01, PSNR: 36.11
+2025-09-14 17:48:52,076: [Epoch 76] Train Loss: 1.58E+01, PSNR: 36.04
+2025-09-14 17:49:17,399: [Epoch 77] Train Loss: 1.59E+01, PSNR: 36.03
+2025-09-14 17:49:49,214: [Epoch 78] Train Loss: 1.58E+01, PSNR: 36.08
+2025-09-14 17:50:12,245: [Epoch 79] Train Loss: 1.55E+01, PSNR: 36.13
+2025-09-14 17:50:32,973: [Epoch 80] Train Loss: 1.57E+01, PSNR: 36.09
+2025-09-14 17:52:19,133: [Epoch 80] Val Loss: 3.47E+01, PSNR: 32.89
+2025-09-14 17:52:48,378: [Epoch 81] Train Loss: 1.56E+01, PSNR: 36.11
+2025-09-14 17:53:16,230: [Epoch 82] Train Loss: 1.58E+01, PSNR: 36.07
+2025-09-14 17:53:38,407: [Epoch 83] Train Loss: 1.60E+01, PSNR: 36.02
+2025-09-14 17:54:10,726: [Epoch 84] Train Loss: 1.57E+01, PSNR: 36.10
+2025-09-14 17:54:39,778: [Epoch 85] Train Loss: 1.58E+01, PSNR: 36.09
+2025-09-14 17:55:04,493: [Epoch 86] Train Loss: 1.56E+01, PSNR: 36.12
+2025-09-14 17:55:36,358: [Epoch 87] Train Loss: 1.57E+01, PSNR: 36.11
+2025-09-14 17:56:04,718: [Epoch 88] Train Loss: 1.60E+01, PSNR: 36.02
+2025-09-14 17:56:27,596: [Epoch 89] Train Loss: 1.56E+01, PSNR: 36.11
+2025-09-14 17:57:02,668: [Epoch 90] Train Loss: 1.56E+01, PSNR: 36.11
+2025-09-14 17:58:53,352: [Epoch 90] Val Loss: 3.47E+01, PSNR: 32.88
+2025-09-14 17:59:20,114: [Epoch 91] Train Loss: 1.57E+01, PSNR: 36.09
+2025-09-14 17:59:44,721: [Epoch 92] Train Loss: 1.56E+01, PSNR: 36.11
+2025-09-14 18:00:04,823: [Epoch 93] Train Loss: 1.57E+01, PSNR: 36.08
+2025-09-14 18:00:35,140: [Epoch 94] Train Loss: 1.57E+01, PSNR: 36.10
+2025-09-14 18:00:57,898: [Epoch 95] Train Loss: 1.57E+01, PSNR: 36.11
+2025-09-14 18:01:25,605: [Epoch 96] Train Loss: 1.58E+01, PSNR: 36.07
+2025-09-14 18:01:52,650: [Epoch 97] Train Loss: 1.56E+01, PSNR: 36.11
+2025-09-14 18:02:22,486: [Epoch 98] Train Loss: 1.57E+01, PSNR: 36.08
+2025-09-14 18:02:49,743: [Epoch 99] Train Loss: 1.58E+01, PSNR: 36.06
+2025-09-14 18:03:19,469: [Epoch 100] Train Loss: 1.58E+01, PSNR: 36.08
+2025-09-14 18:05:04,826: [Epoch 100] Val Loss: 3.47E+01, PSNR: 32.87
