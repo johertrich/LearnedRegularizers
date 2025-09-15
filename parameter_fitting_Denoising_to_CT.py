@@ -58,15 +58,9 @@ elif regularizer_name == "IDCNN":
         in_channels=1, channels=32, device=device, kernel_size=5
     ).to(device)
 elif regularizer_name == "LAR":
-    reg = LocalAR(
-        in_channels=1,
-        pad=True,
-        use_bias=False,
-        n_patches=-1,
-        reduction="sum",
-        output_factor=1 / 142 ** 2,
-        pretrained=None,
-    ).to(device)
+    reg = LocalAR(in_channels=1, pad=False, use_bias=True, n_patches=-1).to(
+        device
+    )
 elif regularizer_name == "TDV":
     config = dict(
         in_channels=1,
