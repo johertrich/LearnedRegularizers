@@ -213,7 +213,7 @@ class PatchNR(Prior):
         """
         x = F.pad(x, self.padding, mode="replicate") if self.pad else x
 
-        patches, linear_inds = patch_extractor(x, self.n_patches, self.patch_size)
+        patches, _ = patch_extractor(x, self.n_patches, self.patch_size)
 
         B, n_patches = patches.shape[0:2]
 

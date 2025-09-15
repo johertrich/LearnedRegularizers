@@ -10,6 +10,7 @@ def get_AR_hyperparameters(regularizer_name, problem):
 
     if regularizer_name in ["CRR", "WCRR"]:
         args.patch_size = 64
+        args.patch_per_img = 8
         args.batch_size = 8
         args.lr = 1e-2
         args.mu = 10
@@ -25,6 +26,7 @@ def get_AR_hyperparameters(regularizer_name, problem):
 
     if regularizer_name == "ICNN":
         args.patch_size = 64
+        args.patch_per_img = 8
         args.batch_size = 8
         args.lr = 1e-3
         args.mu = 10
@@ -42,6 +44,7 @@ def get_AR_hyperparameters(regularizer_name, problem):
         args.lr = 1e-3
         args.mu = 10
         args.fitting_lr = 1e-2
+        args.patch_per_img = 4
         if problem == "Denoising":
             args.patch_size = 64
             args.batch_size = 32
@@ -57,24 +60,27 @@ def get_AR_hyperparameters(regularizer_name, problem):
 
     if regularizer_name == "TDV":
         args.lr = 2e-4
-        args.mu = 10
         args.fitting_lr = 1e-2
+        args.patch_per_img = 4
         if problem == "Denoising":
             args.patch_size = 64
             args.batch_size = 8
             args.lr_decay = 0.9997
             args.epochs = 4000
             args.val_epochs = 100
+            args.mu = 10
         if problem == "CT":
-            args.patch_size = 25
+            args.patch_size = 32
             args.batch_size = 8
             args.lr_decay = 0.995
-            args.epochs = 500
-            args.val_epochs = 15
+            args.epochs = 160
+            args.val_epochs = 10
+            args.mu = 1.0
 
     if regularizer_name == "LSR":
         args.lr = 1e-4
         args.fitting_lr = 1e-2
+        args.patch_per_img = 4
         if problem == "Denoising":
             args.patch_size = 64
             args.batch_size = 16
@@ -83,7 +89,7 @@ def get_AR_hyperparameters(regularizer_name, problem):
             args.val_epochs = 100
             args.mu = 15
         if problem == "CT":
-            args.patch_size = 25
+            args.patch_size = 32
             args.batch_size = 8
             args.lr_decay = 0.995
             args.epochs = 500
@@ -91,13 +97,20 @@ def get_AR_hyperparameters(regularizer_name, problem):
             args.mu = 10
 
     if regularizer_name == "LAR":
-        args.lr = 5e-5
-        args.epochs = 1000
-        args.mu = 5
         args.patch_size = 15
+        args.patch_per_img = 64
         args.batch_size = 8
-        args.lr_decay = 0.998
         args.val_epochs = 25
-        args.fitting_lr = 1e-2
+        if problem == "CT":
+            args.epochs = 400
+            args.fitting_lr = 1e-3
+            args.mu = 0.5
+            args.lr = 5e-4
+        if problem == "Denoising":
+            args.epochs = 1000
+            args.fitting_lr = 1e-2
+            args.mu = 0.1
+            args.lr = 1e-3
+        args.lr_decay = 0.1 ** (1 / args.epochs)
 
     return args

@@ -71,7 +71,10 @@ elif regularizer_name == "WCRR":
 elif regularizer_name == "ICNN":
     regularizer = ICNNPrior(in_channels=1, channels=32, device=device)
 elif regularizer_name == "IDCNN":
-    regularizer = IDCNNPrior(in_channels=1, channels=32, kernel_size=5, device=device)
+    act_name = "smoothed_relu" if problem == "Denoising" else "elu"
+    regularizer = IDCNNPrior(
+        in_channels=1, channels=32, kernel_size=5, act_name=act_name, device=device
+    )
 elif regularizer_name == "TDV":
     config = dict(
         in_channels=1,
@@ -79,8 +82,6 @@ elif regularizer_name == "TDV":
         multiplier=1,
         num_mb=3,
         num_scales=3,
-        potential="quadratic",
-        activation="softplus",
         zero_mean=True,
     )
     regularizer = TDV(**config).to(device)
@@ -90,7 +91,7 @@ elif regularizer_name == "LSR":
         pretrained_denoiser=False,
     ).to(device)
 elif regularizer_name == "LAR":
-    regularizer = LocalAR(in_channels=1, pad=True, use_bias=True, n_patches=-1).to(
+    regularizer = LocalAR(in_channels=1, pad=False, use_bias=True, n_patches=-1).to(
         device
     )
 else:
@@ -103,17 +104,17 @@ if not os.path.isdir(f"weights/adversarial_{problem}"):
 
 # problem dependent parameters
 physics, data_fidelity = get_operator(problem, device)
-crop_size = 128 if regularizer_name == "LAR" else hyper_params.patch_size
-transform = Compose(
-    [
-        RandomCrop(crop_size),
-        RandomHorizontalFlip(p=0.5),
-        RandomVerticalFlip(p=0.5),
-        RandomApply([RandomRotation((90, 90))], p=0.5),
-    ]
-)
 
 if problem == "Denoising":
+    crop_size = 128 if regularizer_name == "LAR" else hyper_params.patch_size
+    transform = Compose(
+        [
+            RandomCrop(crop_size),
+            RandomHorizontalFlip(p=0.5),
+            RandomVerticalFlip(p=0.5),
+            RandomApply([RandomRotation((90, 90))], p=0.5),
+        ]
+    )
     train_dataset = get_dataset("BSDS500_gray", test=False, transform=transform)
     val_dataset = get_dataset("BSDS500_gray", test=False, transform=CenterCrop(321))
     # splitting in training and validation set
@@ -138,8 +139,13 @@ elif problem == "CT":
     train_dataset = get_dataset("LoDoPaB", test=False)
     val_dataset = get_dataset("LoDoPaB", test=False)
     # splitting in training and validation set
-    test_ratio = 0.003 if regularizer_name == "LAR" else 0.1
-    test_len = int(len(train_dataset) * 0.1)
+    if regularizer_name == "LAR":
+        test_ratio = 0.003
+    elif regularizer_name == "TDV":
+        test_ratio = 0.015
+    else:
+        test_ratio = 0.1
+    test_len = int(len(train_dataset) * test_ratio)
     train_len = len(train_dataset) - test_len
     train_set = torch.utils.data.Subset(train_dataset, range(train_len))
     val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
@@ -176,7 +182,7 @@ if only_fitting:
     )
     regularizer.load_state_dict(ckp)
 else:
-    regulalrizer = ar_training(
+    regularizer = ar_training(
         regularizer,
         physics,
         data_fidelity,
@@ -188,9 +194,10 @@ else:
         lr=hyper_params.lr,
         lr_decay=hyper_params.lr_decay,
         mu=hyper_params.mu,
-        patch_size=hyper_params.patch_size if regularizer_name == "LAR" else None,
+        LAR_eval=regularizer_name == "LAR",
+        patch_size=hyper_params.patch_size,
         dynamic_range_psnr=problem == "CT",
-        patches_per_img=64 if regularizer_name == "LAR" else 8,
+        patches_per_img=hyper_params.patch_per_img,
         logger=logger,
     )
     torch.save(
@@ -198,6 +205,8 @@ else:
         f"weights/adversarial_{problem}/{regularizer_name}_adversarial_for_{problem}.pt",
     )
 
+if regularizer_name == "LAR":
+    regularizer.pad = True
 lmbd = estimate_lmbd(val_dataloader, physics, device)
 lip = estimate_lip(regularizer, val_dataloader, device)
 lmbd_est = lmbd / lip

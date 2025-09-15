@@ -8,7 +8,6 @@ from torchvision.transforms import (
     CenterCrop,
     Compose,
     RandomApply,
-    CenterCrop,
     RandomHorizontalFlip,
     RandomRotation,
     RandomVerticalFlip,
@@ -16,7 +15,7 @@ from torchvision.transforms import (
 
 from dataset import get_dataset
 from priors.lpn.lpn import LPNPrior
-from training_methods.lpn_training import Validator, lpn_training
+from training_methods.lpn_training import lpn_training
 
 if torch.backends.mps.is_available():
     # mps backend is used in Apple Silicon chips
@@ -37,21 +36,14 @@ parser.add_argument(
 parser.add_argument(
     "--noise_level", type=float, default=0.1, help="Noise level for training"
 )
+parser.add_argument("--batch_size", type=int, default=None)
 parser.add_argument("--ckpt_dir", type=str, default=None)
 args = parser.parse_args()
 
 ###############################################################################
-# Select default parameters
-if args.dataset == "BSD":
-    ckpt_dir = args.ckpt_dir or "weights/lpn_64_bsd"
-    noise_level = args.noise_level or 0.1
-    batch_size = 64
-elif args.dataset == "LoDoPaB":
-    ckpt_dir = args.ckpt_dir or "weights/lpn_64_ct"
-    noise_level = args.noise_level or 0.1
-    batch_size = 128
-else:
-    raise ValueError(f"Unknown dataset {args.dataset}")
+ckpt_dir = args.ckpt_dir
+noise_level = args.noise_level
+batch_size = args.batch_size
 
 crop_size = 64
 physics = None

@@ -96,19 +96,35 @@ elif regularizer_name == "WCRR":
 elif regularizer_name == "ICNN":
     reg = ICNNPrior(in_channels=1, channels=32, device=device, kernel_size=5).to(device)
 elif regularizer_name == "IDCNN":
-    reg = IDCNNPrior(in_channels=1, channels=32, device=device, kernel_size=5).to(
-        device
-    )
-elif regularizer_name == "LAR":
-    reg = LocalAR(
-        in_channels=1,
-        pad=True,
-        use_bias=False,
-        n_patches=-1,
-        reduction="sum",
-        output_factor=1 / 142**2,
-        pretrained=None,
+    if problem == "CT" and evaluation_mode == "AR":
+        act_name = "elu"
+    else:
+        act_name = "smoothed_relu"
+    reg = IDCNNPrior(
+        in_channels=1, channels=32, device=device, kernel_size=5, act_name=act_name
     ).to(device)
+elif regularizer_name == "LAR":
+    if evaluation_mode == "AR":
+        output_factor = (
+            1.0 if problem == "CT" else 481 / 321
+        )  # due to the mean reduction the regularization constant must be adapted for different image sizes
+        reg = LocalAR(
+            in_channels=1,
+            pad=True,
+            use_bias=True,
+            n_patches=-1,
+            output_factor=output_factor,
+        ).to(device)
+    else:
+        reg = LocalAR(
+            in_channels=1,
+            pad=True,
+            use_bias=False,
+            n_patches=-1,
+            reduction="sum",
+            output_factor=1 / 142 ** 2,
+            pretrained=None,
+        ).to(device)
 elif regularizer_name == "TDV":
     config = dict(
         in_channels=1,
@@ -116,8 +132,6 @@ elif regularizer_name == "TDV":
         multiplier=1,
         num_mb=3,
         num_scales=3,
-        potential="quadratic",
-        activation="softplus",
         zero_mean=True,
     )
     reg = TDV(**config).to(device)
@@ -134,7 +148,7 @@ elif regularizer_name == "EPLL":
     setup_data = torch.load(weights_filepath)
     patch_size = setup_data["patch_size"]
     n_gmm_components = setup_data["n_gmm_components"]
-    GMM = GaussianMixtureModel(n_gmm_components, patch_size**2, device=device)
+    GMM = GaussianMixtureModel(n_gmm_components, patch_size ** 2, device=device)
     GMM.load_state_dict(setup_data["weights"])
     regularizer = EPLL(
         device=device,
@@ -147,18 +161,21 @@ elif regularizer_name == "EPLL":
     )
     lmbd = setup_data["lambda"]
 elif regularizer_name == "PatchNR":
-    train_on = "BSD500" if problem == "Denoising" else "LoDoPaB"
+    train_on = "BSD500" if problem == "Denoising" else "LoDoPab"
+    weights_filepath = f"weights/patchnr/patchnr_6x6_{train_on}_fitted.pt"
+    weights = torch.load(weights_filepath, map_location=device)
     regularizer = PatchNR(
         patch_size=6,
         channels=1,
         num_layers=5,
-        sub_net_size=512,
+        sub_net_size=weights["patchnr_subnetsize"],
         device=device,
-        n_patches=-1,
-        pretrained=f"weights/patchnr_6x6_{train_on}.pt",
-        pad=False,
+        n_patches=weights["n_patches"],
+        pretrained=None,
+        pad=True,
     )
-    lmbd = 21.0
+    regularizer.load_state_dict(weights["weights"])
+    lmbd = weights["lambda"]
 else:
     raise ValueError("Unknown model!")
 
@@ -188,6 +205,9 @@ elif evaluation_mode == "NETT":
         map_location=device,
         weights_only=True,
     )
+elif evaluation_mode == "PatchNR":
+    # weights already loaded above
+    pass
 else:
     weights = torch.load(
         f"weights/bilevel_{problem}/{regularizer_name}_bilevel_{evaluation_mode}_for_{problem}.pt",

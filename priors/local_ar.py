@@ -112,7 +112,7 @@ class LocalAR(Prior):
 
         if self.pad:
             pad = self.patch_size - 1
-            x = F.pad(x, (pad, pad, pad, pad), mode="replicate")
+            x = F.pad(x, (pad, pad, pad, pad), mode='replicate') # zero, reflect? 
 
         if self.n_patches == -1:
             if self.reduction == "mean":
