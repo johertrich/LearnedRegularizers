@@ -50,7 +50,9 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s: %(message)s",
 )
-
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(logging.Formatter("%(message)s"))
+logger.addHandler(console_handler)
 train_dataset = get_dataset(dataset_name, test=False, transform=transform)
 val_dataset = get_dataset(dataset_name, test=False, transform=None)
 physics, data_fidelity = get_operator(problem, device)
@@ -91,18 +93,15 @@ for j, patch_size in enumerate(patch_sizes):
         drop_last=True,
     )
     for k, n_gmm_component in enumerate(n_gmm_components):
-        print("-" * 30)
-        print(f"Running for patch size {patch_size} and {n_gmm_component} components")
         logger.info("-" * 30)
         logger.info(
             f"Running for patch size {patch_size} and {n_gmm_component} components"
         )
 
         GMM = GaussianMixtureModel(
-            n_gmm_component, patch_size**2 * channels, device=device
+            n_gmm_component, patch_size ** 2 * channels, device=device
         )
         GMM.fit(patch_dataloader, verbose=True, max_iters=50, stopping_criterion=1e-4)
-        print("Fitting GMM done")
         logger.info("Fitting GMM done")
 
         # Create the EPLL regularizer with the learned GMM
@@ -132,9 +131,6 @@ for j, patch_size in enumerate(patch_sizes):
             verbose=False,
             adaptive_range=adaptive_range,
         )
-        print(
-            f"Mean PSNR for patch size {patch_size} and {n_gmm_component} components: {mean_psnr:.2f}"
-        )
         logger.info(
             f"Mean PSNR for patch size {patch_size} and {n_gmm_component} components: {mean_psnr:.2f}"
         )
@@ -143,12 +139,8 @@ for j, patch_size in enumerate(patch_sizes):
             best_gmm = GMM.state_dict()
             best_patch_size = patch_size
             best_n_gmm_component = n_gmm_component
-            print(f"\t New best GMM found!")
             logger.info(f"\t New best GMM found!")
 
-print(
-    f"Best GMM: Patch Size: {best_patch_size}, Components: {best_n_gmm_component}, Mean PSNR: {best_mean_psnr:.2f}"
-)
 logger.info(
     f"Best GMM: Patch Size: {best_patch_size}, Components: {best_n_gmm_component}, Mean PSNR: {best_mean_psnr:.2f}"
 )
@@ -156,7 +148,7 @@ logger.info(
 # Fine tune lambda for the best fitted model with current lambda estimate and current best model
 best_lamb = lmbd
 GMM = GaussianMixtureModel(
-    best_n_gmm_component, best_patch_size**2 * channels, device=device
+    best_n_gmm_component, best_patch_size ** 2 * channels, device=device
 )
 GMM.load_state_dict(best_gmm)
 regularizer = EPLL(
@@ -185,13 +177,11 @@ for lamb in [0.8 * lmbd + i * (0.4 * lmbd) / 9 for i in range(10)]:
         verbose=False,
         adaptive_range=adaptive_range,
     )
-    print(f"Mean PSNR for lambda {lamb}: {mean_psnr:.2f}")
     logger.info(f"Mean PSNR for lambda {lamb}: {mean_psnr:.2f}")
     if mean_psnr > best_mean_psnr:
         best_mean_psnr = mean_psnr
         best_lamb = lamb
 
-print(f"Best lambda: {best_lamb}")
 logger.info(f"Best lambda: {best_lamb}")
 
 gmm_dir = Path(f"weights")
