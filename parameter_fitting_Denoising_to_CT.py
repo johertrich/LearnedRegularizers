@@ -94,8 +94,7 @@ elif regularizer_name == "EPLL":
     lmbd = 500.0
     lmbd_guesses = [0.8 * lmbd + i * (0.4 * lmbd) / 9 for i in range(10)]
 elif regularizer_name == "PatchNR":
-    train_on = "BSD500" if problem == "Denoising" else "LoDoPab"
-    weights_filepath = f"weights/patchnr/patchnr_6x6_{train_on}_fitted.pt"
+    weights_filepath = f"weights/patchnr/patchnr_6x6_BSD500_fitted.pt"
     weights = torch.load(weights_filepath, map_location=device)
     regularizer = PatchNR(
         patch_size=6,
@@ -193,12 +192,23 @@ else:
     wrapped_regularizer = ParameterLearningWrapper(regularizer, device=device)
 
 if load_fitted_parameters:
-    wrapped_regularizer.load_state_dict(
-        torch.load(
-            f"weights/Denoising_to_CT/{regularizer_name}_with_{evaluation_mode}",
-            map_location=device,
+    if regularizer_name == "EPLL":
+        setup_data = torch.load(f"weights/Denoising_to_CT/EPLL", map_location=device)
+        regularizer.GMM.load_state_dict(setup_data["weights"])
+        lmbd_initial_guess = setup_data["lambda"]
+        wrapped_regularizer = regularizer
+    elif regularizer_name == "PatchNR":
+        weights = torch.load(f"weights/Denoising_to_CT/PatchNR", map_location=device)
+        regularizer.load_state_dict(weights["weights"])
+        lmbd_initial_guess = weights["lambda"]
+        wrapped_regularizer = regularizer
+    else:
+        wrapped_regularizer.load_state_dict(
+            torch.load(
+                f"weights/Denoising_to_CT/{regularizer_name}_with_{evaluation_mode}",
+                map_location=device,
+            )
         )
-    )
 elif regularizer_name in ["EPLL", "PatchNR"]:
     best_lmbd = -1
     best_psnr = -999
@@ -224,6 +234,12 @@ elif regularizer_name in ["EPLL", "PatchNR"]:
             best_lmbd = lmbd
     lmbd_initial_guess = best_lmbd
     wrapped_regularizer = regularizer
+    if regularizer_name == "EPLL":
+        setup_data["lambda"] = best_lmbd
+        torch.save(setup_data, f"weights/Denoising_to_CT/EPLL")
+    elif regularizer_name == "PatchNR":
+        weights["lambda"] = best_lmbd
+        torch.save(weights, f"weights/Denoising_to_CT/PatchNR")
 else:
     for p in wrapped_regularizer.parameters():
         p.requires_grad_(False)
@@ -275,12 +291,13 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
     dataset=dataset,
     regularizer=wrapped_regularizer,
     lmbd=lmbd_initial_guess,
-    NAG_step_size=1e-2,
+    NAG_step_size=1e-3 if regularizer_name in ["EPLL", "PatchNR"] else 1e-2,
     NAG_max_iter=1000,
     NAG_tol=1e-4,
     only_first=only_first,
     device=device,
     verbose=True,
+    adam=regularizer_name in ["EPLL", "PatchNR"],
     adaptive_range=True,
 )
 
