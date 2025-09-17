@@ -141,6 +141,8 @@ elif (
 ):
     if regularizer_name == "IDCNN":
         mode = "JFB"
+    if regularizer_name == "LAR":
+        lr = 0.01
     if regularizer_name == "LSR":
         lr = 0.1
     regularizer = ParameterLearningWrapper(reg, device=device)
