@@ -1,0 +1,136 @@
+2025-09-17 10:14:25,643: Number of test images: 5.
+2025-09-17 10:14:48,994: Image 0 reconstructed, PSNR: 37.96
+2025-09-17 10:15:12,679: Image 1 reconstructed, PSNR: 33.60
+2025-09-17 10:15:37,164: Image 2 reconstructed, PSNR: 39.98
+2025-09-17 10:15:59,123: Image 3 reconstructed, PSNR: 33.51
+2025-09-17 10:16:21,734: Image 4 reconstructed, PSNR: 34.75
+2025-09-17 10:16:21,734: Mean PSNR over the test set: 35.96
+2025-09-17 10:16:21,734: Mean iterations over the test set: 2841.20
+2025-09-17 10:16:21,734: Mean reconstruction time over the test set: 23.21 seconds
+2025-09-17 10:16:21,735: Number of test images: 5.
+2025-09-17 10:16:44,864: Image 0 reconstructed, PSNR: 37.97
+2025-09-17 10:17:08,609: Image 1 reconstructed, PSNR: 33.27
+2025-09-17 10:17:33,099: Image 2 reconstructed, PSNR: 40.07
+2025-09-17 10:17:55,107: Image 3 reconstructed, PSNR: 33.63
+2025-09-17 10:18:17,748: Image 4 reconstructed, PSNR: 34.76
+2025-09-17 10:18:17,749: Mean PSNR over the test set: 35.94
+2025-09-17 10:18:17,749: Mean iterations over the test set: 2842.80
+2025-09-17 10:18:17,749: Mean reconstruction time over the test set: 23.20 seconds
+2025-09-17 10:18:17,749: Number of test images: 5.
+2025-09-17 10:18:40,952: Image 0 reconstructed, PSNR: 37.77
+2025-09-17 10:19:04,821: Image 1 reconstructed, PSNR: 33.48
+2025-09-17 10:19:29,313: Image 2 reconstructed, PSNR: 39.87
+2025-09-17 10:19:51,309: Image 3 reconstructed, PSNR: 33.77
+2025-09-17 10:20:13,941: Image 4 reconstructed, PSNR: 34.80
+2025-09-17 10:20:13,941: Mean PSNR over the test set: 35.94
+2025-09-17 10:20:13,941: Mean iterations over the test set: 2845.80
+2025-09-17 10:20:13,941: Mean reconstruction time over the test set: 23.24 seconds
+2025-09-17 10:20:13,941: Number of test images: 5.
+2025-09-17 10:20:37,076: Image 0 reconstructed, PSNR: 37.92
+2025-09-17 10:21:00,906: Image 1 reconstructed, PSNR: 33.49
+2025-09-17 10:21:25,402: Image 2 reconstructed, PSNR: 40.07
+2025-09-17 10:21:47,411: Image 3 reconstructed, PSNR: 33.78
+2025-09-17 10:22:10,032: Image 4 reconstructed, PSNR: 34.73
+2025-09-17 10:22:10,032: Mean PSNR over the test set: 36.00
+2025-09-17 10:22:10,032: Mean iterations over the test set: 2843.80
+2025-09-17 10:22:10,032: Mean reconstruction time over the test set: 23.22 seconds
+2025-09-17 10:22:10,032: Number of test images: 5.
+2025-09-17 10:22:33,194: Image 0 reconstructed, PSNR: 38.07
+2025-09-17 10:22:57,002: Image 1 reconstructed, PSNR: 33.32
+2025-09-17 10:23:21,511: Image 2 reconstructed, PSNR: 40.14
+2025-09-17 10:23:43,518: Image 3 reconstructed, PSNR: 33.80
+2025-09-17 10:24:06,145: Image 4 reconstructed, PSNR: 34.79
+2025-09-17 10:24:06,146: Mean PSNR over the test set: 36.02
+2025-09-17 10:24:06,154: Mean iterations over the test set: 2843.20
+2025-09-17 10:24:06,154: Mean reconstruction time over the test set: 23.22 seconds
+2025-09-17 10:24:06,154: Number of test images: 5.
+2025-09-17 10:24:29,348: Image 0 reconstructed, PSNR: 38.01
+2025-09-17 10:24:53,143: Image 1 reconstructed, PSNR: 33.49
+2025-09-17 10:25:17,642: Image 2 reconstructed, PSNR: 39.99
+2025-09-17 10:25:39,657: Image 3 reconstructed, PSNR: 33.91
+2025-09-17 10:26:02,270: Image 4 reconstructed, PSNR: 34.65
+2025-09-17 10:26:02,270: Mean PSNR over the test set: 36.01
+2025-09-17 10:26:02,270: Mean iterations over the test set: 2844.00
+2025-09-17 10:26:02,270: Mean reconstruction time over the test set: 23.22 seconds
+2025-09-17 10:26:02,270: Number of test images: 5.
+2025-09-17 10:26:25,424: Image 0 reconstructed, PSNR: 38.01
+2025-09-17 10:26:49,284: Image 1 reconstructed, PSNR: 33.61
+2025-09-17 10:27:13,787: Image 2 reconstructed, PSNR: 39.92
+2025-09-17 10:27:35,790: Image 3 reconstructed, PSNR: 33.88
+2025-09-17 10:27:58,404: Image 4 reconstructed, PSNR: 34.77
+2025-09-17 10:27:58,405: Mean PSNR over the test set: 36.04
+2025-09-17 10:27:58,405: Mean iterations over the test set: 2843.60
+2025-09-17 10:27:58,405: Mean reconstruction time over the test set: 23.22 seconds
+2025-09-17 10:27:58,405: Number of test images: 5.
+2025-09-17 10:28:21,546: Image 0 reconstructed, PSNR: 38.12
+2025-09-17 10:28:45,312: Image 1 reconstructed, PSNR: 33.45
+2025-09-17 10:29:09,832: Image 2 reconstructed, PSNR: 40.00
+2025-09-17 10:29:31,829: Image 3 reconstructed, PSNR: 33.78
+2025-09-17 10:29:54,384: Image 4 reconstructed, PSNR: 34.89
+2025-09-17 10:29:54,385: Mean PSNR over the test set: 36.05
+2025-09-17 10:29:54,385: Mean iterations over the test set: 2838.80
+2025-09-17 10:29:54,385: Mean reconstruction time over the test set: 23.19 seconds
+2025-09-17 10:29:54,385: Number of test images: 5.
+2025-09-17 10:30:17,626: Image 0 reconstructed, PSNR: 37.96
+2025-09-17 10:30:41,374: Image 1 reconstructed, PSNR: 33.46
+2025-09-17 10:31:05,890: Image 2 reconstructed, PSNR: 39.80
+2025-09-17 10:31:27,867: Image 3 reconstructed, PSNR: 33.80
+2025-09-17 10:31:50,495: Image 4 reconstructed, PSNR: 34.76
+2025-09-17 10:31:50,496: Mean PSNR over the test set: 35.96
+2025-09-17 10:31:50,496: Mean iterations over the test set: 2842.40
+2025-09-17 10:31:50,496: Mean reconstruction time over the test set: 23.22 seconds
+2025-09-17 10:31:50,496: Number of test images: 5.
+2025-09-17 10:32:13,651: Image 0 reconstructed, PSNR: 37.92
+2025-09-17 10:32:37,520: Image 1 reconstructed, PSNR: 33.64
+2025-09-17 10:33:02,048: Image 2 reconstructed, PSNR: 39.83
+2025-09-17 10:33:24,044: Image 3 reconstructed, PSNR: 33.73
+2025-09-17 10:33:46,662: Image 4 reconstructed, PSNR: 34.87
+2025-09-17 10:33:46,663: Mean PSNR over the test set: 36.00
+2025-09-17 10:33:46,663: Mean iterations over the test set: 2842.80
+2025-09-17 10:33:46,663: Mean reconstruction time over the test set: 23.23 seconds
+2025-09-17 10:33:46,663: Number of test images: 5.
+2025-09-17 10:34:09,794: Image 0 reconstructed, PSNR: 38.00
+2025-09-17 10:34:33,556: Image 1 reconstructed, PSNR: 33.30
+2025-09-17 10:34:58,051: Image 2 reconstructed, PSNR: 40.09
+2025-09-17 10:35:20,029: Image 3 reconstructed, PSNR: 33.77
+2025-09-17 10:35:42,631: Image 4 reconstructed, PSNR: 34.85
+2025-09-17 10:35:42,632: Mean PSNR over the test set: 36.00
+2025-09-17 10:35:42,632: Mean iterations over the test set: 2839.60
+2025-09-17 10:35:42,632: Mean reconstruction time over the test set: 23.19 seconds
+2025-09-17 10:35:42,632: Number of test images: 5.
+2025-09-17 10:36:05,769: Image 0 reconstructed, PSNR: 37.92
+2025-09-17 10:36:29,720: Image 1 reconstructed, PSNR: 33.54
+2025-09-17 10:36:54,228: Image 2 reconstructed, PSNR: 39.95
+2025-09-17 10:37:16,225: Image 3 reconstructed, PSNR: 33.67
+2025-09-17 10:37:38,809: Image 4 reconstructed, PSNR: 34.69
+2025-09-17 10:37:38,810: Mean PSNR over the test set: 35.95
+2025-09-17 10:37:38,810: Mean iterations over the test set: 2844.00
+2025-09-17 10:37:38,810: Mean reconstruction time over the test set: 23.23 seconds
+2025-09-17 10:37:38,810: Number of test images: 5.
+2025-09-17 10:38:01,959: Image 0 reconstructed, PSNR: 37.91
+2025-09-17 10:38:25,698: Image 1 reconstructed, PSNR: 33.50
+2025-09-17 10:38:50,226: Image 2 reconstructed, PSNR: 39.85
+2025-09-17 10:39:12,200: Image 3 reconstructed, PSNR: 33.56
+2025-09-17 10:39:34,822: Image 4 reconstructed, PSNR: 34.74
+2025-09-17 10:39:34,822: Mean PSNR over the test set: 35.91
+2025-09-17 10:39:34,822: Mean iterations over the test set: 2838.80
+2025-09-17 10:39:34,822: Mean reconstruction time over the test set: 23.20 seconds
+2025-09-17 10:39:34,823: Number of test images: 5.
+2025-09-17 10:39:58,072: Image 0 reconstructed, PSNR: 37.92
+2025-09-17 10:40:21,943: Image 1 reconstructed, PSNR: 33.40
+2025-09-17 10:40:46,464: Image 2 reconstructed, PSNR: 39.76
+2025-09-17 10:41:08,454: Image 3 reconstructed, PSNR: 33.52
+2025-09-17 10:41:31,079: Image 4 reconstructed, PSNR: 34.79
+2025-09-17 10:41:31,079: Mean PSNR over the test set: 35.88
+2025-09-17 10:41:31,079: Mean iterations over the test set: 2845.00
+2025-09-17 10:41:31,079: Mean reconstruction time over the test set: 23.25 seconds
+2025-09-17 10:41:31,079: Number of test images: 5.
+2025-09-17 10:41:54,269: Image 0 reconstructed, PSNR: 37.99
+2025-09-17 10:42:18,005: Image 1 reconstructed, PSNR: 33.51
+2025-09-17 10:42:42,526: Image 2 reconstructed, PSNR: 39.91
+2025-09-17 10:43:04,532: Image 3 reconstructed, PSNR: 33.65
+2025-09-17 10:43:27,141: Image 4 reconstructed, PSNR: 34.73
+2025-09-17 10:43:27,141: Mean PSNR over the test set: 35.96
+2025-09-17 10:43:27,141: Mean iterations over the test set: 2839.80
+2025-09-17 10:43:27,141: Mean reconstruction time over the test set: 23.21 seconds
+2025-09-17 11:33:21,997: Mean PSNR: 32.17403717339039

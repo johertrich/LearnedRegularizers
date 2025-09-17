@@ -61,7 +61,9 @@ elif regularizer_name == "IDCNN":
     )
 elif regularizer_name == "LAR":
     if evaluation_mode == "AR":
-        output_factor = 362**2 / 321**2  # due to the mean reduction the regularization constant must be adapted for different image sizes
+        output_factor = (
+            362 ** 2 / 321 ** 2
+        )  # due to the mean reduction the regularization constant must be adapted for different image sizes
         reg = LocalAR(
             in_channels=1,
             pad=True,
@@ -137,7 +139,7 @@ elif (
     or evaluation_mode == "bilevel-JFB"
     or evaluation_mode == "Score"
 ):
-    if regularizer_name == "IDCNN" or regularizer_name == "LAR":
+    if regularizer_name == "IDCNN":
         mode = "JFB"
     if regularizer_name == "LSR":
         lr = 0.1
@@ -239,7 +241,7 @@ elif regularizer_name in ["EPLL", "PatchNR"]:
             regularizer=regularizer,
             lmbd=lmbd,
             NAG_step_size=1e-3,
-            NAG_max_iter=2000,
+            NAG_max_iter=3000,
             NAG_tol=1e-4,
             only_first=False,
             adaptive_range=True,
@@ -310,7 +312,7 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
     regularizer=wrapped_regularizer,
     lmbd=lmbd_initial_guess,
     NAG_step_size=1e-3 if regularizer_name in ["EPLL", "PatchNR"] else 1e-2,
-    NAG_max_iter=2000 if regularizer_name in ["EPLL", "PatchNR"] else 1000,
+    NAG_max_iter=3000 if regularizer_name in ["EPLL", "PatchNR"] else 1000,
     NAG_tol=1e-4,
     only_first=only_first,
     device=device,
