@@ -60,7 +60,25 @@ elif regularizer_name == "IDCNN":
         device
     )
 elif regularizer_name == "LAR":
-    reg = LocalAR(in_channels=1, pad=False, use_bias=True, n_patches=-1).to(device)
+    if evaluation_mode == "AR":
+        output_factor = 362**2 / 321**2  # due to the mean reduction the regularization constant must be adapted for different image sizes
+        reg = LocalAR(
+            in_channels=1,
+            pad=True,
+            use_bias=True,
+            n_patches=-1,
+            output_factor=output_factor,
+        ).to(device)
+    else:
+        reg = LocalAR(
+            in_channels=1,
+            pad=True,
+            use_bias=False,
+            n_patches=-1,
+            reduction="sum",
+            output_factor=1 / 142 ** 2,
+            pretrained=None,
+        ).to(device)
 elif regularizer_name == "TDV":
     config = dict(
         in_channels=1,
@@ -221,7 +239,7 @@ elif regularizer_name in ["EPLL", "PatchNR"]:
             regularizer=regularizer,
             lmbd=lmbd,
             NAG_step_size=1e-3,
-            NAG_max_iter=1000,
+            NAG_max_iter=2000,
             NAG_tol=1e-4,
             only_first=False,
             adaptive_range=True,
@@ -292,7 +310,7 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
     regularizer=wrapped_regularizer,
     lmbd=lmbd_initial_guess,
     NAG_step_size=1e-3 if regularizer_name in ["EPLL", "PatchNR"] else 1e-2,
-    NAG_max_iter=1000,
+    NAG_max_iter=2000 if regularizer_name in ["EPLL", "PatchNR"] else 1000,
     NAG_tol=1e-4,
     only_first=only_first,
     device=device,
