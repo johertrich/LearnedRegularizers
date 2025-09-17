@@ -1,5 +1,6 @@
 from priors import (
     ParameterLearningWrapper,
+    NETT,
     WCRR,
     ICNNPrior,
     IDCNNPrior,
@@ -130,7 +131,10 @@ elif regularizer_name == "PatchNR":
     min_lmbd = 280.0
     max_lmbd = 320.0
     lmbd_guesses = np.linspace(min_lmbd, max_lmbd, 15)
-
+elif regularizer_name == "NETT":
+    reg = NETT(
+        in_channels=1, out_channels=1, hidden_channels=64, padding_mode="zeros"
+    ).to(device)
 
 if regularizer_name in ["EPLL", "PatchNR"]:
     pass
@@ -138,6 +142,7 @@ elif (
     evaluation_mode == "bilevel-IFT"
     or evaluation_mode == "bilevel-JFB"
     or evaluation_mode == "Score"
+    or evaluation_mode == "NETT"
 ):
     if regularizer_name == "IDCNN":
         mode = "JFB"
@@ -159,6 +164,11 @@ elif (
     elif evaluation_mode == "bilevel-JFB":
         weights = torch.load(
             f"weights/bilevel_Denoising/{regularizer_name}_bilevel_JFB_for_Denoising.pt",
+            map_location=device,
+        )
+    elif evaluation_mode == "NETT":
+        weights = torch.load(
+            f"weights/NETT_Denoising_fitted.pt",
             map_location=device,
         )
     regularizer.load_state_dict(weights)
