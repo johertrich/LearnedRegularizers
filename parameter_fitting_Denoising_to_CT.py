@@ -276,7 +276,8 @@ else:
     for p in wrapped_regularizer.parameters():
         p.requires_grad_(False)
     wrapped_regularizer.alpha.requires_grad_(True)
-    wrapped_regularizer.scale.requires_grad_(True)
+    if not regularizer_name == "NETT":
+        wrapped_regularizer.scale.requires_grad_(True)
 
     # parameter search
     wrapped_regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
