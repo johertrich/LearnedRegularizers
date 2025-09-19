@@ -118,7 +118,11 @@ def ar_training(
             x = x.to(device)
             y = physics(x)
             x_noisy = physics.A_dagger(y)
-            if not patch_size == None:
+            if patch_size is None or (
+                x.shape[-1] == patch_size and x.shape[-2] == patch_size
+            ):
+                loss, grad_loss = adversarial_loss(regularizer, x_noisy, x, mu)
+            else:
                 x_patches, linear_inds = patch_extractor(
                     x, n_patches=patches_per_img, patch_size=patch_size
                 )
@@ -139,8 +143,6 @@ def ar_training(
                     loss, grad_loss = adversarial_loss(
                         regularizer, x_noisy_patches, x_patches, mu
                     )
-            else:
-                loss, grad_loss = adversarial_loss(regularizer, x_noisy, x, mu)
             loss.backward()
             optimizer.step()
             loss_vals.append(loss.item())
