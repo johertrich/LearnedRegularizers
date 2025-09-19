@@ -14,7 +14,6 @@ from torchvision.transforms import (
 )
 
 from dataset import get_dataset
-from priors.lpn.lpn import LPNPrior
 from training_methods.lpn_training import lpn_training
 
 if torch.backends.mps.is_available():
@@ -38,6 +37,7 @@ parser.add_argument(
 )
 parser.add_argument("--batch_size", type=int, default=None)
 parser.add_argument("--ckpt_dir", type=str, default=None)
+parser.add_argument("--lpn_no_patch", action="store_true")
 args = parser.parse_args()
 
 ###############################################################################
@@ -106,6 +106,10 @@ print(data.shape, data.min(), data.max())
 # Training
 ###############################################################################
 # define regularizer
+if args.lpn_no_patch:
+    from priors.lpn.lpn_no_patch import LPNPrior
+else:
+    from priors.lpn.lpn import LPNPrior
 regularizer = LPNPrior().to(device)
 print(
     f"Number of parameters: {sum(p.numel() for p in regularizer.parameters() if p.requires_grad):,}"

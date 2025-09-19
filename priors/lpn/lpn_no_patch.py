@@ -20,6 +20,7 @@ class LPNPrior(Prior):
         beta=100.0,
         alpha=1e-6,
         pretrained=None,
+        clip=True,
     ):
         """
         Args:
@@ -33,6 +34,8 @@ class LPNPrior(Prior):
         self.lpn = LPN(in_dim, hidden, beta, alpha)
         if pretrained is not None:
             self.load_state_dict(torch.load(pretrained, map_location="cpu"))
+
+        self.clip = clip
 
     def g(self, x: torch.Tensor, inv_alg="cvx_cg", **kwargs) -> torch.Tensor:
         """
@@ -72,6 +75,9 @@ class LPNPrior(Prior):
             out = test_pad(self.lpn, x, 8)
         # convert back to [0, 1]
         out = (out + 1) / 2
+        # clipping
+        if self.clip:
+            out = torch.clamp(out, 0, 1)
         return out
 
     def forward(self, x):
