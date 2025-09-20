@@ -50,12 +50,6 @@ parser.add_argument("--stepsize", type=float, default=None)
 parser.add_argument("--beta", type=float, default=None)
 parser.add_argument("--max_iter", type=int, default=None)
 ##############################################
-parser.add_argument(
-    "--gamma",
-    type=float,
-    default=None,
-    help="gamma in the Identity residual connection. gamma=1 is the original denoiser.",
-)
 parser.add_argument("--only_first", type=bool, default=False)
 parser.add_argument("--save_results", type=bool, default=False)
 args = parser.parse_args()
@@ -73,14 +67,12 @@ elif task == "ct_trained_on_bsd":
     stepsize = args.stepsize or 0.008
     beta = args.beta or 1.0
     max_iter = args.max_iter or 100
-    gamma = args.gamma or 1.0
 elif task == "ct":
     problem = "CT"
     pretrained_path = args.pretrained_path or "weights/lpn_64_ct/LPN.pt"
     stepsize = args.stepsize or 0.02
     beta = args.beta or 1.0
     max_iter = args.max_iter or 100
-    gamma = args.gamma or 1.0
 else:
     raise ValueError("Unknown task. Choose 'denoising', 'ct_trained_on_bsd' or 'ct'.")
 
@@ -133,7 +125,7 @@ else:
 #############################################################
 
 # Define regularizer
-regularizer = LPNPrior(pretrained=pretrained_path).to(device)
+regularizer = LPNPrior(pretrained=pretrained_path, clip=True).to(device)
 regularizer.eval()
 
 
@@ -141,20 +133,9 @@ if task in ["ct_trained_on_bsd", "ct"]:
     # Use PnP-ADMM for CT reconstruction
     params_algo = {"stepsize": stepsize, "g_param": None, "beta": beta}
 
-    if gamma is None or gamma == 1.0:
-        denoiser = regularizer.prox
-    else:
-        # Apply the Identity residual connection
-        def denoiser(x, *args, **kwargs):
-            return gamma * regularizer.prox(x) + (1 - gamma) * x
-
-    denoiser_clip = lambda x, *args, **kwargs: torch.clamp(
-        denoiser(x, *args, **kwargs), 0, 1
-    )  # clip for stability
-
     model = optim_builder(
         iteration="ADMM",
-        prior=PnP(denoiser=denoiser_clip),
+        prior=regularizer,
         data_fidelity=data_fidelity,
         early_stop=True,
         max_iter=max_iter,
