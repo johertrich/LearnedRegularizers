@@ -200,6 +200,7 @@ else:
         patches_per_img=hyper_params.patch_per_img,
         logger=logger,
     )
+    os.makedirs(f"weights/adversarial_{problem}", exist_ok=True)
     torch.save(
         regularizer.state_dict(),
         f"weights/adversarial_{problem}/{regularizer_name}_adversarial_for_{problem}.pt",

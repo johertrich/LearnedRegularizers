@@ -33,7 +33,10 @@ def evaluate_prior(x, model, inv_alg, batch=True, **kwargs):
         x_torch = torch.tensor(x).float().to(device)
 
         # invert model
-        y = invert(x, model, inv_alg, **kwargs)
+        if kwargs.get("finv_x") is not None:
+            y = kwargs["finv_x"].cpu().numpy()
+        else:
+            y = invert(x, model, inv_alg, **kwargs)
         fy = model(torch.tensor(y).to(device).float()).detach().cpu().numpy()
 
         # compute prior

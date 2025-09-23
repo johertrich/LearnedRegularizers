@@ -14,8 +14,9 @@ from torchvision.transforms import (
 )
 
 from dataset import get_dataset
-from priors.lpn.lpn import LPNPrior
 from training_methods.lpn_training import lpn_training
+import logging
+import datetime
 
 if torch.backends.mps.is_available():
     # mps backend is used in Apple Silicon chips
@@ -37,13 +38,12 @@ parser.add_argument(
     "--noise_level", type=float, default=0.1, help="Noise level for training"
 )
 parser.add_argument("--batch_size", type=int, default=None)
-parser.add_argument("--ckpt_dir", type=str, default=None)
 args = parser.parse_args()
 
 ###############################################################################
-ckpt_dir = args.ckpt_dir
+ckpt_dir = f"weights/lpn_64_{args.dataset}_noise_{args.noise_level}"
 noise_level = args.noise_level
-batch_size = args.batch_size
+batch_size = 64 if args.batch_size is None else args.batch_size
 
 crop_size = 64
 physics = None
@@ -101,13 +101,29 @@ print(data.shape, data.min(), data.max())
 
 ###############################################################################
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    filename=f"log_training_LPN_{args.dataset}_noise{args.noise_level}_"
+    + str(datetime.datetime.now())
+    + ".log",
+    level=logging.INFO,
+    format="%(asctime)s: %(message)s",
+)
+
 
 ###############################################################################
 # Training
 ###############################################################################
 # define regularizer
+if args.lpn_no_patch:
+    from priors.lpn.lpn_no_patch import LPNPrior
+else:
+    from priors.lpn.lpn import LPNPrior
 regularizer = LPNPrior().to(device)
 print(
+    f"Number of parameters: {sum(p.numel() for p in regularizer.parameters() if p.requires_grad):,}"
+)
+logger.info(
     f"Number of parameters: {sum(p.numel() for p in regularizer.parameters() if p.requires_grad):,}"
 )
 
@@ -125,6 +141,8 @@ regularizer = lpn_training(
     num_steps_pretrain=160_000,
     validate_every_n_steps=10_000,
     ckpt_dir=ckpt_dir,
+    logger=logger,
     loss_type="pm",
 )
 torch.save(regularizer.state_dict(), f"{ckpt_dir}/LPN.pt")
+logger.info("Training finished.")

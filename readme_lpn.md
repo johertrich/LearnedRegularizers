@@ -19,6 +19,12 @@ Test:
 ```
 python eval_LPN.py --task ct_trained_on_bsd
 ```
+Fast testing using multi-GPU and batch size > 1:
+```
+accelerate launch eval_LPN_CT.py \
+--pretrained_path weights/lpn_64_bsd_noise_0.05/LPN.pt \
+--stepsize 0.008 --beta 1.0 --max_iter 100
+```
 
 ## Experiment 3: CT reconstruction using model trained on LoDoPaB.
 Train:
@@ -29,4 +35,10 @@ Weights will be saved in `weights/lpn_64_ct/LPN.pt`.
 Test:
 ```
 python eval_LPN.py --task ct
+```
+Fast testing using multi-GPU and batch size > 1:
+```
+accelerate launch eval_LPN_CT.py \
+--pretrained_path weights/lpn_64_ct/LPN.pt \
+--stepsize 0.02 --beta 1.0 --max_iter 100
 ```

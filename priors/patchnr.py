@@ -1,19 +1,9 @@
-"""
-Here will be the implementation for the PatchNR 
-
-Altekrueger et al., PatchNR: learning from very few images by patch normalizing flow regularization, Inverse Problems 2023
-https://iopscience.iop.org/article/10.1088/1361-6420/acce5e
-
-The PatchNR uses two-sided AffineCouplingBlocks. 
-
-The implementation here is inspired from the FrEIA library (https://github.com/vislearn/FrEIA).
-"""
-
 from deepinv.optim import Prior
 from deepinv.utils import patch_extractor
 
 import torch
 import torch.nn.functional as F
+
 
 class AffineCouplingBlock(torch.nn.Module):
     """The inputs are split in two halves. Two affine
@@ -156,6 +146,26 @@ class INN(torch.nn.Module):
 
 
 class PatchNR(Prior):
+    r"""
+    Patch Normalizing Flow Regularizer (PatchNR)
+    Altekrueger et al., PatchNR: learning from very few images by patch normalizing flow regularization, Inverse Problems 2023
+    https://iopscience.iop.org/article/10.1088/1361-6420/abf5b5
+    The PatchNR uses two-sided AffineCouplingBlocks.
+    The implementation here is inspired from the FrEIA library (https://github.com/VLL-HD/FrEIA).
+
+
+    :param int patch_size: patch size
+    :param int n_patches: number of (random) patches to extract from the image. If -1, all overlapping patches are used.
+    :param int channels: number of color channels (e.g. 1 for gray-valued images and 3 for RGB images)
+    :param int num_layers: number of affine coupling layers in the normalizing flow
+    :param int sub_net_size: size of the hidden layers in the subnetworks of the affine coupling layers
+    :param bool pad: if ``True``, pads the input image with ``patch_size - 1`` pixels on each side with replicate padding. This is needed for gradient based solvers to avoid artifacts at the image borders
+    :param str device: defines device (``cpu`` or ``cuda``)
+    :param str, None pretrained: Path to pretrained weights of the GMM with file ending ``.pt``. None for no pretrained weights,
+        ``"download"`` for pretrained weights on the BSDS500 dataset, ``"GMM_lodopab_small"`` for the weights from the limited-angle CT example.
+        See :ref:`pretrained-weights <pretrained-weights>` for more details.
+    """
+
     def __init__(
         self,
         patch_size=6,

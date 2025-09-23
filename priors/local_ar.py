@@ -47,10 +47,29 @@ class cnn(nn.Module):
             nll = self.g(image_)
             nll = nll.sum()
             grad = torch.autograd.grad(outputs=nll, inputs=image_, create_graph=True)[0]
-           
+
         return grad
 
+
 class LocalAR(Prior):
+    r"""
+    Local Adversarial Regularizer (LocalAR)
+    as introduced in :cite:`lunz2018adversarial`
+
+    :param int patch_size: patch size
+    :param int n_patches: number of (random) patches to extract from the image. If -1, all overlapping patches are used.
+    :param int in_channels: number of color channels (e.g. 1 for gray-valued images and 3 for RGB images)
+    :param int num_layers: number of affine coupling layers in the normalizing flow
+    :param bool pad: if ``True``, pads the input image with ``patch_size - 1`` pixels on each side with replicate padding. This is needed for gradient based solvers to avoid artifacts at the image borders
+    :param str, None pretrained: Path to pretrained weights of the GMM with file ending ``.pt``. None for no pretrained weights,
+        ``"download"`` for pretrained weights on the BSDS500 dataset, ``"GMM_lodopab_small"`` for the weights from the limited-angle CT example.
+        See :ref:`pretrained-weights <pretrained-weights>` for more details.
+    :param str device: defines device (``cpu`` or ``cuda``)
+    :param bool use_bias: if ``True``, uses bias in the convolutional layers
+    :param str reduction: reduction method for patch-based output, either ``"mean"`` or ``"sum"``
+    :param float output_factor: factor to multiply the output of the CNN with
+    """
+
     def __init__(
         self,
         patch_size=15,
@@ -96,12 +115,11 @@ class LocalAR(Prior):
             x = F.pad(x, (pad, pad, pad, pad), mode='replicate') # zero, reflect? 
 
         if self.n_patches == -1:
-            # print("x.shape ", x.shape)
             if self.reduction == "mean":
                 out = self.cnn(x).mean([1, 2, 3])
             else:
                 out = self.cnn(x).sum([1, 2, 3])
-            
+
         else:
             patches, _ = patch_extractor(x, self.n_patches, self.patch_size)
             B, n_patches = patches.shape[0:2]
@@ -118,8 +136,8 @@ class LocalAR(Prior):
                 out = out.sum(1)
 
         out = out * self.output_factor
-        
-        return out 
+
+        return out
 
     def grad(self, x, *args, **kwargs):
         r"""
@@ -133,7 +151,7 @@ class LocalAR(Prior):
             nll = self.g(x_)
             nll = nll.sum()
             grad = torch.autograd.grad(outputs=nll, inputs=x_, create_graph=True)[0]
-           
+
         return grad
 
 
