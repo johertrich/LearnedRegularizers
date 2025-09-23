@@ -17,6 +17,7 @@ from dataset import get_dataset
 from training_methods.lpn_training import lpn_training
 import logging
 import datetime
+from priors.lpn.lpn import LPNPrior
 
 if torch.backends.mps.is_available():
     # mps backend is used in Apple Silicon chips
@@ -115,10 +116,7 @@ logging.basicConfig(
 # Training
 ###############################################################################
 # define regularizer
-if args.lpn_no_patch:
-    from priors.lpn.lpn_no_patch import LPNPrior
-else:
-    from priors.lpn.lpn import LPNPrior
+
 regularizer = LPNPrior().to(device)
 print(
     f"Number of parameters: {sum(p.numel() for p in regularizer.parameters() if p.requires_grad):,}"
