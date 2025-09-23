@@ -128,9 +128,6 @@ logger.info(
 os.makedirs(ckpt_dir, exist_ok=True)
 regularizer = lpn_training(
     regularizer=regularizer,
-    physics=None,
-    data_fidelity=None,
-    lmbd=None,
     train_dataloader=train_dataloader,
     val_dataloader=val_dataloader,
     device=device,

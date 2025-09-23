@@ -24,12 +24,8 @@ from priors.lpn.lpn import LPNPrior
 
 def lpn_training(
     regularizer: LPNPrior,
-    physics,
-    data_fidelity,
-    lmbd,
     train_dataloader,
     val_dataloader,
-    *,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
     num_steps: int = 40000,
     optimizer: str = "adam",
