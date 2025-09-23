@@ -43,6 +43,7 @@ def lpn_training(
     lr: float = 1e-4,
     ckpt_dir: str = "weights",
     loss_type: str = "l2",
+    logger=None,
 ):
     """
     Args:
@@ -80,9 +81,9 @@ def lpn_training(
         for step, batch in enumerate(train_dataloader):
             if validate_every_n_steps > 0 and global_step % validate_every_n_steps == 0:
                 validator.validate(model, global_step)
-                with open(f"{ckpt_dir}/log.txt", "a") as f:
-                    f.write(
-                        f"{global_step=}, PSNR: {np.mean(validator.psnr_list):.4f}, SSIM: {np.mean(validator.ssim_list):.4f}\n"
+                if logger is not None:
+                    logger.info(
+                        f"{global_step=}, PSNR: {np.mean(validator.psnr_list):.4f}, SSIM: {np.mean(validator.ssim_list):.4f}"
                     )
 
             model.train()
