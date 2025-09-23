@@ -35,14 +35,11 @@ torch.random.manual_seed(0)  # make results deterministic
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
-    "--task",
+    "--problem",
     type=str,
-    default="denoising",
-    help="""\
-- 'denoising' for denoising on BSD
-- 'ct_trained_on_bsd' for CT with model trained on BSD
-- 'ct' for CT with model trained on LoDoPaB""",
-)
+    default="Denoising",
+)  # "Denoising" or "CT"
+parser.add_argument("--dataset", type=str, default="BSD")
 parser.add_argument("--pretrained_path", type=str, default=None)
 ##############################################
 # ADMM parameters in CT reconstruction
@@ -57,24 +54,24 @@ args = parser.parse_args()
 
 ############################################################
 # Select default parameters
-task = args.task
-if task == "denoising":
-    problem = "Denoising"
-    pretrained_path = args.pretrained_path or "weights/lpn_64_bsd/LPN.pt"
-elif task == "ct_trained_on_bsd":
-    problem = "CT"
-    pretrained_path = args.pretrained_path or "weights/lpn_64_bsd_noise_0.05/LPN.pt"
-    stepsize = args.stepsize or 0.008
-    beta = args.beta or 1.0
-    max_iter = args.max_iter or 100
-elif task == "ct":
-    problem = "CT"
-    pretrained_path = args.pretrained_path or "weights/lpn_64_ct/LPN.pt"
-    stepsize = args.stepsize or 0.02
-    beta = args.beta or 1.0
-    max_iter = args.max_iter or 100
-else:
-    raise ValueError("Unknown task. Choose 'denoising', 'ct_trained_on_bsd' or 'ct'.")
+problem = args.problem
+if args.pretrained_path is None:
+    if problem == "CT" and args.dataset == "BSD":
+        pretrained_path = args.pretrained_path or "weights/lpn_64_BSD_noise_0.05/LPN.pt"
+        stepsize = args.stepsize or 0.008
+        beta = args.beta or 1.0
+        max_iter = args.max_iter or 100
+    elif problem == "CT" and args.dataset == "LoDoPaB":
+        pretrained_path = args.pretrained_path or "weights/lpn_64_CT_noise_0.1/LPN.pt"
+        stepsize = args.stepsize or 0.02
+        beta = args.beta or 1.0
+        max_iter = args.max_iter or 100
+    elif problem == "Denoising":
+        pretrained_path = "weights/lpn_64_BSD_noise_0.1/LPN.pt"
+    else:
+        raise ValueError(
+            "Unknown task. Choose problem 'Denoising' and dataset 'BSD' or problem 'CT' and dataset in ['BSD', 'LoDoPaB']."
+        )
 
 only_first = (
     args.only_first
@@ -102,12 +99,6 @@ if save_results:
 
 ############################################################
 
-
-#############################################################
-############# Problem setup and evaluation ##################
-############# This should not be changed   ##################
-#############################################################
-
 # Define forward operator
 dataset, physics, data_fidelity = get_evaluation_setting(problem, device)
 if problem == "CT":
@@ -129,7 +120,7 @@ regularizer = LPNPrior(pretrained=pretrained_path, clip=True).to(device)
 regularizer.eval()
 
 
-if task in ["ct_trained_on_bsd", "ct"]:
+if problem == "CT":
     # Use PnP-ADMM for CT reconstruction
     params_algo = {"stepsize": stepsize, "g_param": None, "beta": beta}
 
@@ -182,11 +173,7 @@ def evaluate(
     y_out = None
     recon_out = None
     for i, x in (progress_bar := tqdm(enumerate(dataloader))):
-        if device == "mps":
-            # mps does not support float64
-            x = x.to(torch.float32).to(device)
-        else:
-            x = x.to(device).to(torch.float32)
+        x = x.to(torch.float32).to(device)
         y = physics(x)
 
         t_start = time.time()
