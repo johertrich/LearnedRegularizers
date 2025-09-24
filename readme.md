@@ -56,7 +56,7 @@ recon = reconstruct_nmAPG(y, physics, data_fidelity, regularizer, lmbd, step_siz
 | CRR              | `from priors import WCRR` | `WCRR(sigma=0.1, weak_convexity=0.0)`|
 | WCRR             | `from priors import WCRR` | `WCRR(sigma=0.1, weak_convexity=1.0)` |
 | ICNN             | `from priors import ICNNPrior` | `ICNNPrior(in_channels=1, channels=32, kernel_size=5)` |
-| IDCNN             | `from priors import IDCNNPrior` | `IDCNNPrior(        in_channels=1, channels=32, kernel_size=5, act_name=act_name)` where `act_name = "elu"` for the CT-AR example and `act_name = "smoothed_relu"` otherwise|
+| IDCNN             | `from priors import IDCNNPrior` | `IDCNNPrior(in_channels=1, channels=32, kernel_size=5, act_name=act_name)` where `act_name = "elu"` for the CT-AR example and `act_name = "smoothed_relu"` otherwise|
 | CNN (for AR/LAR) | `from priors import LocalAR` | `LocalAR(in_channels=1, pad=True, use_bias=True, n_patches=-1, output_factor=output_factor)` with `output_factor= n_pixels / 321**2` where `n_pixels` is the number of pixels in the image to which the regularizer is applied|
 | CNN (for bilevel) | `from priors import LocalAR` | `LocalAR(in_channels=1, pad=True, use_bias=False, n_patches=-1, reduction="sum", output_factor=1 / 142 ** 2)`|
 | TDV             | `from priors import TDV` | `TDV(in_channels=1, num_features=32, multiplier=1, num_mb=3, num_scales=3, zero_mean=True)` |
