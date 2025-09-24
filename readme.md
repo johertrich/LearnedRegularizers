@@ -73,7 +73,7 @@ We provide the weights for all experiments done in the chapter. To load the weig
 
 - bilevel-JFB: `path=f"weights/bilevel_{problem}/{regularizer_name}_JFB_for_{problem}.pt"`
 - bilevel-IFT: `path=f"weights/bilevel_{problem}/{regularizer_name}_IFT_for_{problem}.pt"`
-- MAID: TBC
+- MAID: `path=f"weights/bilevel_{problem}/{regularizer_name}_IFT-MAID_for_{problem}.pt"`
 - AR/LAR: `path=f"weights/adversarial_{problem}/{regularizer_name}_for_{problem}_fitted.pt"`
 - other: the PatchNR weights are in the directory `weights/patchnr`, the weights for EPLL are top-level in the `weights` directory. The LPN weights are in the directories `weights/lpn*`
 
