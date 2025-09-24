@@ -1,251 +1,194 @@
-# Learned Variational Regularization: A Comparative Study 
+# Learning Regularization Functionals: A Comparative Study
 
-The code relies on the [DeepInverse package](https://deepinv.github.io), which can be installed as follows:
+This repository contains the implementations for the chapter [Learned Regularization Functionals: A Comparative Study](https://arxiv.org/abs/xxxx.xxxx). If you have any questions or remarks, feel free to open an issue.
 
-```
-pip install deepinv
-```
-Overall to get started using conda, clone the repository and run (may take a few minutes)
+This `readme` file is structured into
+
+1. Installation instructions of the dependencies
+2. An overview of implemented regularizer architectures and instructions how to use them for reconstruction
+3. An overview of implemented training methods
+4. Instructions to reproduce the evaluation runs from the chapter
+5. Instructions to reproduce the training runs from the chapter
+6. Instructions to reproduce the automatic parameter fitting routine (Experiment 2) from the chapter
+7. A `bibtex` citation for the chapter
+
+## 1. Installation
+
+To get started using `conda`, clone the repository and run (may take a few minutes)
 ```
 conda env create --file=environment.yaml
 ```
 
-## Naming and Structure of Training and Evaluation Scripts
+In particular, the code relies on the [DeepInverse library](https://deepinv.github.io), which can be installed as follows:
 
-### Naming
-
-Each training script for denoising should be named by `training_ARCHITECTURE_ALGORITHM.py` specifying architecture and training algorithm. For the CT example the naming should be the same with appending `_CT` at the end. The evaluation scripts should be named `example_ARCHITECTURE_ALGORITHM(_CT).py`. We might replace the part `example` by `inference` at some point, but I think it currently does not matter too much as long as we can see architecture 
-
-### Loading the forward operator and evaluation setting
-
-In order to ensure that all methods work in the same setting please use for training the forward model (`physics` which contains both, the forward operator `physics.A` and its adjoint `physics.A_adjoint`, and the noise model such that `physics(x)` applies the forward operator and the noise level to `x`), dataset and data fidelity term, please load them as follows:
-
-For training:
 ```
-from operators import get_operator
-from dataset import get_dataset
-
-problem = "Denoising" # or "CT"
-device = "cuda" # or whatever is used
-physics, data_fidelity = get_operator(problem, device)
-
-transform = None  # feel free to use transforms for data augmentation etc.
-if problem == "Denoising":
-	train_dataset = get_dataset("BSDS500_gray", test=False, transform=transform) 
-elif problem == "CT":
-	train_dataset = get_dataset("LoDoPaB", test=False, transform=transform) 
+pip install deepinv
 ```
 
-For evaluation:
+## 2. Overview of Regularizers and Reconstruction
+
+The implementation contains several regularizers (see table below) for which we provide trained weights. Creating a regularizer object consists out of three steps:
+
+1. Create the regularizer itself with the import and constructor stated in the first table below.
+2. For all architectures despite PatchNR, EPLL and LPN: use `from priors import ParameterLearningWrapper` and `regularizer = ParameterLearningWrapper(regularizer)` to incorporate learned regularization parameters
+3. Load the weights with `regularizer.load_state_dict(torch.load(path))` with path stated in the second table below.
+
+Then every regularizer has the fields `regularizer.g(x)` to evaluate the regularizer at `x` and `regularizer.grad(x)` to compute the gradient at `x`, where `x` is in the standard image format (batch size x channels x height x width).
+
+Once the regularizer is loaded it can be used to solve an inverse problem using the nonmontonic accelerated (proximal) gradient descent (nmAPG) with the following code, where `physics` and `data_fidelity` provide the forward operator and data fidelity term in the format of the [DeepInverse library](https://deepinv.github.io):
+
 ```
-from operators import get_evaluation_setting
+from evaluation import reconstruct_nmAPG
 
-dataset, physics, data_fidelity = get_evaluation_setting(problem, device)
-```
-
-The regularizers should be evaluated by the prescribed evaluation routine, see below. The function takes the argument `adaptive_range` which determines whether we evaluate the PSNR using a fixed range or a dynamic range (determined by the maximal pixel value in the ground truth image). Please use `adaptive_range=True` for CT and `adaptive_range=False` for denoising:
-```
-from evaluation import evaluate
-
-problem = "Denoising"
-adaptive_range = True if problem == "CT" else False
-
-mean_psnr, x_out, y_out, recon_out = evaluate(
-    physics=physics,
-    data_fidelity=data_fidelity,
-    dataset=dataset,
-    regularizer=regularizer,
-    lmbd=lmbd,
-    NAG_step_size=NAG_step_size,
-    NAG_max_iter=NAG_max_iter,
-    NAG_tol=NAG_tol,
-    device=device,
-    adaptive_range=adaptive_range,
-    verbose=True,
-)
+# x_gt is the ground truth
+y = physics(x_gt)  # y is the observation
+lmbd = 1  # regularization parameter
+step_size = 0.1  # initial step size in the nmAPG
+maxiter = 1000  # maximal number of iterations in the nmAPG
+tol = 1e-4  # stopping criterion
+recon = reconstruct_nmAPG(y, physics, data_fidelity, regularizer, lmbd, step_size, maxiter, tol)
 ```
 
-### Placement in the repo
+### Imports and Constructors
 
-Work in progress scripts can be kept top-level. Once you are happy with the results please move the training and evaluation script to the directories `scripts_denoising_final` or `scripts_CT_final`.
+| Regularizer Name | Import | Constructor |
+| ---------------- | ------ | ------------|
+| CRR              | `from priors import WCRR` | `WCRR(sigma=0.1, weak_convexity=0.0)`|
+| WCRR             | `from priors import WCRR` | `WCRR(sigma=0.1, weak_convexity=1.0)` |
+| ICNN             | `from priors import ICNNPrior` | `ICNNPrior(in_channels=1, channels=32, kernel_size=5)` |
+| IDCNN             | `from priors import IDCNNPrior` | `IDCNNPrior(        in_channels=1, channels=32, kernel_size=5, act_name=act_name)` where `act_name = "elu"` for the CT-AR example and `act_name = "smoothed_relu"` otherwise|
+| CNN (for AR/LAR) | `from priors import LocalAR` | `LocalAR(in_channels=1, pad=True, use_bias=True, n_patches=-1, output_factor=output_factor)` with `output_factor= n_pixels / 321**2` where `n_pixels` is the number of pixels in the image to which the regularizer is applied|
+| CNN (for bilevel) | `from priors import LocalAR` | `LocalAR(in_channels=1, pad=True, use_bias=False, n_patches=-1, reduction="sum", output_factor=1 / 142 ** 2)`|
+| TDV             | `from priors import TDV` | `TDV(in_channels=1, num_features=32, multiplier=1, num_mb=3, num_scales=3, zero_mean=True)` |
+| LSR (despite NETT) | `from priors import LSR` | `LSR(nc=[32, 64, 128, 256], pretrained_denoiser=False, alpha=1.0, sigma=3e-2)` |
+| LSR (for NETT)     | `from priors import NETT` | `NETT(in_channels=1, out_channels=1, hidden_channels=64, padding_mode="zeros")` |
+| EPLL     | `from priors import EPLL` | see below |
+| PatchNR     | `from priors import PatchNR` | see below |
 
-### For Denoising Training and CT Evalutation
+For PatchNR and EPLL the weight files also contain information about the architecture. We refer to the script `variational_reconstruction.py` (line 146 to 178) for an example how to load them.
 
-Please tune the parameter on the following dataset consisting out of five validation images (which are the first five training images from the supervised CT setting):
+### Weight Paths
+
+We provide the weights for all experiments done in the chapter. To load the weights use `torch.load(path)` with `path` defined below, where `problem="Denoising"` or `problem="CT"` and `regularizer_name` is a string which defines the regularizer as in the above table.
+
+- bilevel-JFB: `path=f"weights/bilevel_{problem}/{regularizer_name}_JFB_for_{problem}.pt"`
+- bilevel-IFT: `path=f"weights/bilevel_{problem}/{regularizer_name}_IFT_for_{problem}.pt"`
+- MAID: TBC
+- AR/LAR: `path=f"weights/adversarial_{problem}/{regularizer_name}_for_{problem}_fitted.pt"`
+- other: the PatchNR weights are in the directory `weights/patchnr`, the weights for EPLL are top-level in the `weights` directory. The LPN weights are in the directories `weights/lpn*`
+
+## 3. Overview of Training Methods
+
+We proivde generic scripts for the different training routines. These training routines include:
+
+- Bilevel training with IFT/JFB: use `from training_methods import bilevel_training`, where the arguments are defined in the top of the script `training_methods/bilevel_training.py`
+- Bilevel training with MAID: use `from training_methods import bilevel_training_maid`, where the arguments are defined in the top of the script `training_methods/bilevel_training_maid.py`
+- (Local) Adversarial Regularization: use `from training_methods import ar_training`, where the arguments are defined in the top of the script `training_methods/ar_training.py`
+- Score matching:  use `from training_methods import score_training`, where the arguments are defined in the top of the script `training_methods/score_training.py`
+- Other: Similar there are the training routines for NETT, LPN, EPLL and PatchNR which are tailored to specific regularizers. The corresponding training scripts are top level (using `training_methods/nett_training.py` and `training_methods/lpn_training.py`)
+
+## 4. Reproduce the Evaluation Runs (Experiment 1 and 3)
+
+We describe how the learned regularizers can be evaluated (e.g. to solve the variational problem).
+
+The weights used for generating the numbers in the chapter are contained in the repository. Alternatively, they can be regenerated as described in part 5 of the `readme`.
+
+### Variational Reconstruction (everything despite LPN)
+
+The script `variational_reconstruction.py` provides a unified evaluation routine for most of the regularizers included. An example command is the following:
+
 ```
-from dataset import get_dataset
-
-val_dataset = get_dataset("LoDoPaB_val")
-```
-
-### Example for a training script
-
-The training script should have the same structure as the following example:
-```
-####################################
-# Imports and device specification
-####################################
-from operators import get_operator
-import torch
-from training_methods import bilevel_training
-from dataset import get_dataset
-
-if torch.backends.mps.is_available():
-    device = "mps"
-elif torch.cuda.is_available():
-    device = "cuda"
-else:
-    device = "cpu"
-
-####################################
-# Problem specification
-####################################
-problem = "Denoising" # "CT" for the CT problem
-
-# call unified definition of the forward operator
-physics, data_fidelity = get_operator(problem, device)
-
-
-####################################
-# Load dataset and dataloader
-####################################
-
-# The dataset should always be loaded via the get_dataset function,
-# but you might define customized transforms (crops, data augmentation etc.) and  customized
-# training/validation splits
-transform = CenterCrop(321)
-# "BSDS500_gray" for Denoising, "LoDoPaB" for CT
-train_dataset = get_dataset("BSDS500_gray", test=False, transform=transform) 
-val_dataset = get_dataset("BSDS500_gray", test=False, transform=transform)
-# splitting in training and validation set
-test_ratio = 0.1
-test_len = int(len(train_dataset) * 0.1)
-train_len = len(train_dataset) - test_len
-train_set = torch.utils.data.Subset(train_dataset, range(train_len))
-val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
-
-# create dataloaders
-train_dataloader = torch.utils.data.DataLoader(
-    train_set, batch_size=32, shuffle=True, drop_last=True, num_workers=8
-)
-val_dataloader = torch.utils.data.DataLoader(
-    val_set, batch_size=1, shuffle=False, drop_last=True, num_workers=8
-)
-
-####################################
-# define regularizer and parameters
-####################################
-
-noise_level = 0.1
-lmbd = 1.0
-regularizer = wcrr.WCRR(
-    sigma=noise_level,
-    weak_convexity=0.0,
-).to(device)
-
-####################################
-# Call training script
-####################################
-
-regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
-    regularizer,
-    physics,
-    data_fidelity,
-    lmbd,
-    train_dataloader,
-    val_dataloader,
-    epochs=200,
-    NAG_step_size=1e-1,
-    NAG_max_iter=1000,
-    NAG_tol_train=1e-4,
-    NAG_tol_val=1e-4,
-    lr=0.01,
-    lr_decay=0.99,
-    device=device,
-    verbose=False,
-)
-
-####################################
-# save weights
-####################################
-
-torch.save(regularizer.state_dict(), f"weights/CRR_bilevel.pt")
+python variational_reconstruction.py --problem Denoising --evaluation_mode IFT --regularizer_name CRR
 ```
 
-### Example for a test script
+The arguments can be chosen as follows:
+- `--problem` is set to `Denoising` for experiment 1 and to `CT` for experiment 3
+- `--evaluation_mode` is set to `IFT` for bilevel-IFT, `JFB` for bilevel-JFB,  `IFT-MAID` for MAID, `Score` for score matching and `AR` for (local) adverserial regualrization
+- `--regularizer_name` defines the regularizer architecture. Valid names are `CRR`, `WCRR`, `ICNN`, `IDCNN`, `LAR` (referring to the CNN), `TDV`, `LSR`, `PatchNR`, `EPLL` and `NETT`.
 
-The evaluation scripts should have the same structure as the following example:
+Other comments:
+- for `EPLL` and `PatchNR` use `--evaluation_mode Score` (even though that's not quite accurate)
+- for `NETT` use both `--evaluation_mode NETT` and `--regularizer_name NETT`
+- If you want to save the first 10 reconstruction you can add the flag `--save_results True`
+
+### Learned Proximal Networks
+
+Even though the LPN provably defines a regularizer, evaluating it (or its gradient) requires to solve a (convex) optimization problem. Therefore, we evaluate the LPN in a Plug-and-Play fashion. In the denoising case this is a one-step reconstruction, in the CT case this is based on the ADMM algorithm.
+
+To evaluate experiment 1 run:
+
 ```
-####################################
-# Imports and device and seed specification
-####################################
-from operators import get_evaluation_setting
-from deepinv.utils.plotting import plot
-from evaluation import evaluate
-from dataset import get_dataset
-from priors import WCRR
-import torch
+python eval_LPN.py --problem Denoising --dataset BSD
+```
 
-if torch.backends.mps.is_available():
-    device = "mps"
-elif torch.cuda.is_available():
-    device = "cuda"
-else:
-    device = "cpu"
+To evaluate experiment 3 run:
 
-torch.random.manual_seed(0)  # make results deterministic
+```
+python eval_LPN.py --problem CT --dataset LoDoPaB
+```
 
-############################################################
+## 5. Reproduce the Training Runs (Experiment 1 and 3)
 
-# Problem selection
+To reproduce the training runs, we have unified scripts to reproduce all bilevel methods, all adversarial regularization methods and custom routines for NETT, EPLL, PatchNR and LPN,
 
-problem = "Denoising"  # Select problem setups, which we consider.
-only_first = False  # just evaluate on the first image of the dataset for test purposes
+### Bilevel Learning (BL-IFT, BL-JFB, MAID)
 
-############################################################
-
-# Define regularizer and parameters
-
-weakly = True
-pretrained = "weights/WCRR_bilevel.pt" if weakly else "weights/CRR_bilevel.pt"
-regularizer = WCRR(
-    sigma=0.1, weak_convexity=1.0 if weakly else 0.0, pretrained=pretrained
-).to(device)
-
-# Parameters for the Nesterov Algorithm, might also be problem dependent...
-
-NAG_step_size = 1e-1  # step size in NAG
-NAG_max_iter = 1000  # maximum number of iterations in NAG
-NAG_tol = 1e-4  # tolerance for the relative error (stopping criterion)
+For reproducing the bilevel results, use the script `training_bilevel.py`, e.g., as follows
+```
+python training_bilevel.py --problem Denoising --hypergradient IFT --regularizer_name CRR
+```
+where the arguments can be chosen as
+- `--problem` can be either `Denoising` (experiment 1) or `CT` (experiment 3)
+- `--hypergradient` can be `IFT`, `JFB` or `IFT-MAID`
+- `--regularizer_name` can be `CRR`, `WCRR`, `ICNN`, `IDCNN`, `LAR` (for the CNN column), `TDV` or `LSR`.
 
 
-#############################################################
-############# Problem setup and evaluation ##################
-############# This should not be changed   ##################
-#############################################################
+### Adversarial Regularization (AR/LAR)
 
-# Define forward operator
-dataset, physics, data_fidelity = get_evaluation_setting(problem, device)
+For reproducing the AR/LAR runs, use the script `training_AR.py`, e.g., as follows
+```
+python training_AR.py --problem Denoising --regularizer_name CRR
+```
+where the arguments can be chosen as
+- `--problem` can be either `Denoising` (experiment 1) or `CT` (experiment 3)
+- `--regularizer_name` can be `CRR`, `WCRR`, `ICNN`, `IDCNN`, `LAR` (for the CNN column) or `TDV`.
 
-# Call unified evaluation routine
+### Custom Routines
 
-mean_psnr, x_out, y_out, recon_out = evaluate(
-    physics=physics,
-    data_fidelity=data_fidelity,
-    dataset=dataset,
-    regularizer=regularizer,
-    lmbd=lmbd,
-    NAG_step_size=NAG_step_size,
-    NAG_max_iter=NAG_max_iter,
-    NAG_tol=NAG_tol,
-    only_first=only_first,
-    device=device,
-    verbose=True,
-)
-
-# plot ground truth, observation and reconstruction for the first image from the test dataset
-plot([x_out, y_out, recon_out])
-
+For experiment 1 the EPLL, PatchNR, LPN and NETT can be trained by the commands
+```
+python training_EPLL.py --problem Denoising
+python training_patchnr.py --problem Denoising
+python training_LPN.py --dataset BSD
+python training_nett.py --problem Denoising
+```
+For experiment 3, the commands are
+```
+python training_EPLL.py --problem CT
+python training_patchnr.py --problem CT
+python training_LPN.py --dataset LoDoPaB
+python training_NETT.py --problem CT
 ```
 
 
+## 6. Reproduce Denoising to CT (Experiment 2)
+
+To reproduce the experiment 2 (training for denoising on BSDS and evaluating for CT on LoDoPaB), use the script `parameter_fitting_Denoising_to_CT.py`, e.g., by
+```
+python parameter_fitting_Denoising_to_CT.py --evaluation_mode bilevel-IFT --regularizer_name CRR
+```
+with arguments
+- `--evaluation_mode` can be `bilevel-IFT`, `bilevel-JFB`, `AR`, `Score` or `NETT`. Use `Score` for EPLL and PatchNR (even though it's not quite accurate)
+- `--regularizer_name` can be `CRR`, `WCRR`, `ICNN`, `IDCNN`, `LAR` (for the CNN column), `PatchNR`, `EPLL`, `TDV`, `LSR` or `NETT`
+
+Again, the LPN requires a custom routine. As common for Plug-and-Play methods the noise level during training partially determines the regularization strength. Therefore, we retrain the regularizer on denoising with a smaller noise level and then evaluate it on CT by calling
+```
+python training_LPN.py --dataset BSD --noise_level 0.05
+python eval_LPN.py --problem CT --dataset BSD
+```
+
+## 7. Citation
+
+```
+To be inserted
+```
