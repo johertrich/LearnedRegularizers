@@ -152,10 +152,20 @@ elif (
         lr = 0.1
     regularizer = ParameterLearningWrapper(reg, device=device)
     if evaluation_mode == "Score":
-        weights = torch.load(
-            f"weights/score_parameter_fitting_for_Denoising/{regularizer_name}_fitted_parameters_with_IFT_for_Denoising.pt",
-            map_location=device,
-        )
+        if regularizer_name == "TDV":
+            lr=0.05
+        if regularizer_name == "IDCNN":
+            lr=0.01
+        if regularizer_name == "LAR":  # LAR has no IFT weights
+            weights = torch.load(
+                f"weights/score_parameter_fitting_for_Denoising/{regularizer_name}_fitted_parameters_with_JFB_for_Denoising.pt",
+                map_location=device,
+            )
+        else:
+            weights = torch.load(
+                f"weights/score_parameter_fitting_for_Denoising/{regularizer_name}_fitted_parameters_with_IFT_for_Denoising.pt",
+                map_location=device,
+            )
     elif evaluation_mode == "bilevel-IFT":
         weights = torch.load(
             f"weights/bilevel_Denoising/{regularizer_name}_bilevel_IFT_for_Denoising.pt",
