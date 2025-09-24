@@ -79,7 +79,7 @@ only_first = (
 save_results = args.save_results  # If True, save the first 10 image reconstructions
 
 if save_results:
-    save_path = f"savings/{problem}/{task}_LPN"
+    save_path = f"savings/{problem}/LPN/{args.dataset}"
     logging_path = save_path + "/logging"
     os.makedirs(save_path, exist_ok=True)
     os.makedirs(logging_path, exist_ok=True)
