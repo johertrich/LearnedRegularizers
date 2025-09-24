@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 from tqdm import tqdm
+from deepinv.physics import Denoising
 from deepinv.loss.metric import PSNR
 from torch.utils.data import RandomSampler, Dataset, Subset
 from deepinv.optim.utils import minres
@@ -9,6 +10,7 @@ from PIL import Image
 from collections import deque
 import torch.nn as nn
 import torchvision.transforms as transforms
+import copy
 
 # torch.manual_seed(0)
 # torch.backends.cudnn.deterministic = True
@@ -246,24 +248,24 @@ def bilevel_training_maid(
     STRIDE,
     SUBSET,
     val_dataloader,
-    epochs=50,
-    NAG_step_size=1e-2,
-    NAG_max_iter=400,
+    epochs=100,
+    NAG_step_size=1e-1,
+    NAG_max_iter=1000,
     NAG_tol_train=1e-1,
-    NAG_tol_val=1e-6,
+    NAG_tol_val=1e-4,
     cg_max_iter=1000,
     CG_tol=1e-6,
     lr=1e-3,
     lr_decay=0.5,
-    stopping_criterion=5e-5,
+    stopping_criterion=1e-10,
+    reg=False,
+    reg_para=1e-5,
     device="cuda" if torch.cuda.is_available() else "cpu",
     precondition=False,
     verbose=False,
-    logs_dir=None,
-    val_checkpoint=None,
-    logs=None,
+    validation_epochs=20,
+    logger=None,
     optimizer=None,
-    algorithm="AdaGrad",
 ):
     """
     Bilevel learning using inexact hypegradient methods described in
@@ -271,32 +273,87 @@ def bilevel_training_maid(
     https://arxiv.org/abs/2308.10098
     https://arxiv.org/abs/2412.12049
     """
-
-    def hessian_vector_product(x, v, data_fidelity, y, regularizer, lmbd, physics):
-        """
-        Compute the Hessian vector product of the lower level objective
-        """
+    # Setting the Noise Model of Physics to be deterministic (not redrawn at each call)
+    noise_level = physics.noise_model.sigma
+    physics_train = Denoising(noise_model=GaussianNoise_MAID(sigma=noise_level))
+    
+    def hessian_vector_product(
+        x,
+        v,
+        data_fidelity,
+        y,
+        regularizer,
+        lmbd,
+        physics,
+        diff=False,
+        only_reg=False,
+    ):
         x = x.requires_grad_(True)
-        grad = data_fidelity.grad(x, y, physics) + lmbd * regularizer.grad(x)
+        if only_reg:
+            grad = lmbd * regularizer.grad(x)
+        else:
+            grad = data_fidelity.grad(x, y, physics) + lmbd * regularizer.grad(x)
         dot = torch.dot(grad.view(-1), v.view(-1))
-        hvp = torch.autograd.grad(dot, x, create_graph=False)[0].detach()
+        hvp = torch.autograd.grad(dot, x, create_graph=diff)[0]
+        if diff:
+            return hvp
         return hvp.detach()
 
     def jac_vector_product(x, v, data_fidelity, y, regularizer, lmbd, physics):
-        """
-        Compute the Jacobian (mixed derivative) vector product of the lower level objective
-        and the final approximate hypergradient as the gradient of the regularizer parameters
-        """
         grad_lower_level = lambda x: data_fidelity.grad(
             x, y, physics
         ) + lmbd * regularizer.grad(x)
         for param in regularizer.parameters():
-            dot = torch.dot(grad_lower_level(x).view(-1), v.view(-1))
-            param.grad = -torch.autograd.grad(dot, param, create_graph=False)[
-                0
-            ].detach()
-
+            if param.requires_grad:
+                dot = torch.dot(grad_lower_level(x).view(-1), v.view(-1))
+                if param.grad is None:
+                    param.grad = -torch.autograd.grad(dot, param, create_graph=False)[
+                        0
+                    ].detach()
+                else:
+                    param.grad -= torch.autograd.grad(dot, param, create_graph=False)[
+                        0
+                    ].detach()
         return regularizer
+    
+    def jac_pow_loss(x, M=50, tol=1e-2):
+        hvp = torch.randint(low=0, high=1, size=x.shape).to(x) * 2 - 1
+        hvp_old = hvp.clone()
+        for i in range(M):
+            hvp = hessian_vector_product(
+                x,
+                hvp,
+                data_fidelity,
+                y,
+                regularizer,
+                lmbd,
+                physics_train,
+                diff=False,
+                only_reg=True,
+            ).detach()
+            hvp = torch.nn.functional.normalize(hvp, dim=[-2, -1], out=hvp)
+            if torch.norm(hvp - hvp_old) / x.size(0) < tol:
+                break
+            hvp_old = hvp.clone()
+        hvp = hvp.clone(memory_format=torch.contiguous_format).detach()
+        hvp = hessian_vector_product(
+            x,
+            hvp,
+            data_fidelity,
+            y,
+            regularizer,
+            lmbd,
+            physics_train,
+            diff=True,
+            only_reg=True,
+        )
+        norm_sq = torch.sum(hvp ** 2) / x.size(0)
+        print(f"Jac_Loss: {norm_sq}")
+        if logger is not None:
+            logger.info(
+                f"Jac Loss {norm_sq}"
+            )
+        return torch.clip(norm_sq, min=200, max=None)
 
     # Initialize optimizer for the upper-level
     if optimizer is None:
@@ -330,9 +387,8 @@ def bilevel_training_maid(
         drop_last=True,
         num_workers=8,
     )
-    # Setting the Noise Model of Physics to be deterministic (not redrawn at each call)
-    noise_level = physics.noise_model.sigma
-    physics.noise_model = GaussianNoise_MAID(sigma=noise_level)
+    
+    #physics.noise_model = GaussianNoise_MAID(sigma=noise_level)
     # logging lists and dictionaries
     loss_vals = []
     psnr_vals = []
@@ -340,19 +396,10 @@ def bilevel_training_maid(
     loss_val = []
     psnr_train = []
     psnr_val = []
-    first_run = False
-    if logs is None:  # Initialize logs if not provided else continue with existing logs
-        logs = {
-            "train_loss": [],
-            "psnr": [],
-            "val_loss": [],
-            "val_psnr": [],
-            "eps": [],
-            "lr": [],
-            "grad_norm": [],
-            "algorithm": algorithm,
-        }
-        first_run = True
+    
+    best_val_psnr = -float("inf")
+    best_regularizer_state = copy.deepcopy(regularizer.state_dict())
+    
     # Hyperparameters for the MAID optimizer
     rho_maid = lr_decay
     nu_over = 1.05
@@ -364,39 +411,10 @@ def bilevel_training_maid(
     fixed_eps = False
     fixed_lr = False
 
-    # initialize logs
-    if first_run:
-        logs["eps"].append(eps)
-        logs["lr"].append(optimizer.lr)
-        # Initialising training PSNR and loss values before training starts
-        for img in train_dataloader:
-            img = preprocess(img, device)
-            y = physics(img)
-            loss_vals.append(
-                torch.sum(((y - img) ** 2).view(img.shape[0], -1), -1).mean().item()
-            )
-            psnr_vals.append(psnr(y, img).mean().item())
-
-        logs["train_loss"].append(loss_vals[-1])
-        logs["psnr"].append(psnr_vals[-1])
-        loss_vals_val = []
-        psnr_vals_val = []
-        # Initialising validation PSNR and loss values before training starts
-        for x_val in tqdm(val_dataloader):
-            x_val = preprocess(x_val, device)
-            y = physics(x_val)
-            loss_validation = lambda x_in: torch.sum(
-                ((x_in - x_val) ** 2).view(x_val.shape[0], -1), -1
-            ).mean()
-            loss_vals_val.append(loss_validation(y).item())
-            psnr_vals_val.append(psnr(y, x_val).mean().item())
-
-        mean_psnr_val = np.mean(psnr_vals_val)
-        mean_loss_val = np.mean(loss_vals_val)
-        logs["val_loss"].append(mean_loss_val)
-        logs["val_psnr"].append(mean_psnr_val)
     # Training loop
     for epoch in range(epochs):
+        regularizer.train()
+
         # Check if the data loader is deterministic
         if len(train_dataloader) > 1:
             raise ValueError(
@@ -411,7 +429,7 @@ def bilevel_training_maid(
             )
         for x in tqdm(train_dataloader):
             x = preprocess(x, device)
-            y = physics(x)
+            y = physics_train(x)
             if epoch == 0:
                 x_init = y.detach().clone()
             else:
@@ -421,7 +439,7 @@ def bilevel_training_maid(
             # Solve the lower-level problem to compute the hypergradient
             x_recon, stats = reconstruct_nmAPG(
                 y,
-                physics,
+                physics_train,
                 data_fidelity,
                 optimizer.regularizer,
                 lmbd,
@@ -440,6 +458,13 @@ def bilevel_training_maid(
                 loss_vals.append(loss(x_recon).item())
                 psnr_vals.append(psnr(x_recon, x).mean().item())
                 x_init = x_recon.detach().clone()
+
+            x_recon = x_recon.detach()
+
+            if reg and (epoch % 5) == 1:
+                jac_loss = reg_para * jac_pow_loss(x_recon)
+                jac_loss.backward()
+
             x_recon = x_recon.requires_grad_(True)
             # Computing the gradient of the upper-level objective with respect to the input
             grad_loss = torch.autograd.grad(loss(x_recon), x_recon, create_graph=False)[
@@ -454,7 +479,7 @@ def bilevel_training_maid(
                     y,
                     optimizer.regularizer,
                     lmbd,
-                    physics,
+                    physics_train,
                 ),
                 grad_loss,
                 max_iter=cg_max_iter,
@@ -462,7 +487,7 @@ def bilevel_training_maid(
             )
             # Computing the approximate hypergradient using the Jacobian vector product
             regularizer = jac_vector_product(
-                x_recon, q, data_fidelity, y, optimizer.regularizer, lmbd, physics
+                x_recon, q/q.shape[0], data_fidelity, y, optimizer.regularizer, lmbd, physics_train
             )
 
             def closure(
@@ -499,10 +524,12 @@ def bilevel_training_maid(
                 old_params = [
                     param.detach().clone()
                     for param in optimizer.regularizer.parameters()
+                    if param.grad is not None
                 ]
                 old_grads = [
                     param.grad.detach().clone()
                     for param in optimizer.regularizer.parameters()
+                    if param.grad is not None
                 ]
 
                 def revert(optimizer, params_before, grads_before):
@@ -511,7 +538,7 @@ def bilevel_training_maid(
                     """
                     with torch.no_grad():
                         for param, p_old, g_old in zip(
-                            optimizer.regularizer.parameters(),
+                            [params for params in optimizer.regularizer.parameters() if params.grad is not None],
                             params_before,
                             grads_before,
                         ):
@@ -575,7 +602,6 @@ def bilevel_training_maid(
                                 (grad / denom) ** 2
                             ).sum()  # computes \|hypergrad\|^2_A where A is the AdaGrad preconditioner
                     hypergrad = torch.cat([g.reshape(-1) for g in grad_params])
-                    logs["grad_norm"].append(torch.norm(hypergrad).item())
                     if norm_grad_sq == 0.0:
                         if verbose:
                             print("norm hypergrad: ", torch.norm(hypergrad).item())
@@ -642,8 +668,6 @@ def bilevel_training_maid(
                         loss_old = loss(x_new)
                         loss_vals.append(loss(x_new).item())
                         psnr_vals.append(psnr(x_new, x).mean().item())
-                        logs["train_loss"].append(loss_vals[-1])
-                        logs["psnr"].append(psnr_vals[-1])
                         success_flag = True
                         return loss(x_new), x_new.detach(), success_flag, optimizer
                     optimizer = revert(optimizer, old_params, old_grads)
@@ -664,7 +688,7 @@ def bilevel_training_maid(
                 loss,
                 x_init,
                 y,
-                physics,
+                physics_train,
                 data_fidelity,
                 lmbd,
                 optimizer,
@@ -692,74 +716,70 @@ def bilevel_training_maid(
                 CG_tol = CG_tol * nu_over
                 max_line_search = 10
                 optimizer.lr *= rho_over
-            logs["eps"].append(eps)
-            logs["lr"].append(optimizer.lr)
+            
             if not success:
                 if hasattr(optimizer, "clear_memory"):
                     optimizer.clear_memory()
-        print(
-            "Mean PSNR training in epoch {0}: {1:.2f}".format(epoch + 1, psnr_vals[-1])
-        )
-        print(
-            "Mean loss training in epoch {0}: {1:.2E}".format(epoch + 1, loss_vals[-1])
-        )
-        if val_checkpoint is None or (epoch in val_checkpoint):
-            loss_vals_val = []
-            psnr_vals_val = []
-            for x_val in tqdm(val_dataloader):
-                x_val = preprocess(x_val, device)
-                y = physics(x_val)
-                x_init_val = y
-                x_recon_val = reconstruct_nmAPG(
-                    y,
-                    physics,
-                    data_fidelity,
-                    optimizer.regularizer,
-                    lmbd,
-                    NAG_step_size,
-                    NAG_max_iter,
-                    NAG_tol_val,
-                    verbose=verbose,
-                    x_init=x_init_val,
-                )
-                loss_validation = lambda x_in: torch.sum(
-                    ((x_in - x_val) ** 2).view(x_val.shape[0], -1), -1
-                ).mean()
-                loss_vals_val.append(loss_validation(x_recon_val).item())
-                psnr_vals_val.append(psnr(x_recon_val, x_val).mean().item())
-            mean_psnr_val = np.mean(psnr_vals_val)
-            mean_loss_val = np.mean(loss_vals_val)
-            print(
-                "Average validation psnr in epoch {0}: {1:.2f}".format(
-                    epoch + 1, mean_psnr_val
-                )
-            )
-            print(
-                "Average validation loss in epoch {0}: {1:.2E}".format(
-                    epoch + 1, mean_loss_val
-                )
-            )
-            # save checkpoint if the validation loss is lower than the previous one
-            if len(logs["val_loss"]) > 1 and mean_loss_val < min(logs["val_loss"]):
-                print(
-                    "Validation loss improved from {0:.2E} to {1:.2E}".format(
-                        min(logs["val_loss"]), mean_loss_val
+        
+        print_str = f"[Epoch {epoch+1}] Train Loss: {loss_vals[-1]:.2E}, PSNR: {psnr_vals[-1]:.2f}"
+        print(print_str)
+        if logger is not None:
+            logger.info(print_str)
+        
+        #if val_checkpoint is None or (epoch in val_checkpoint):
+        if (epoch + 1) % validation_epochs == 0:
+            regularizer.eval()
+            with torch.no_grad():
+                loss_vals_val = []
+                psnr_vals_val = []
+                for x_val in tqdm(val_dataloader):
+                    x_val = preprocess(x_val, device)
+                    y = physics(x_val)
+                    x_init_val = y
+                    x_recon_val = reconstruct_nmAPG(
+                        y,
+                        physics,
+                        data_fidelity,
+                        optimizer.regularizer,
+                        lmbd,
+                        NAG_step_size,
+                        NAG_max_iter,
+                        NAG_tol_val,
+                        verbose=verbose,
+                        x_init=x_init_val,
                     )
-                )
-            loss_val.append(mean_loss_val)
-            psnr_val.append(mean_psnr_val)
-            logs["val_loss"].append(mean_loss_val)
-            logs["val_psnr"].append(mean_psnr_val)
-        if not logs_dir is None:
-            torch.save(logs, logs_dir)
+                    loss_validation = lambda x_in: torch.sum(
+                        ((x_in - x_val) ** 2).view(x_val.shape[0], -1), -1
+                    ).mean()
+                    loss_vals_val.append(loss_validation(x_recon_val).item())
+                    psnr_vals_val.append(psnr(x_recon_val, x_val).mean().item())
+                mean_psnr_val = np.mean(psnr_vals_val)
+                mean_loss_val = np.mean(loss_vals_val)
+                loss_val.append(mean_loss_val)
+                psnr_val.append(mean_psnr_val)
+                
+                print_str = f"[Epoch {epoch+1}] Val Loss: {mean_loss_val:.2E}, PSNR: {mean_psnr_val:.2f}"
+                print(print_str)
 
-        if NAG_tol_train < stopping_criterion or optimizer.lr < 1e-7:
+                if logger is not None:
+                    logger.info(print_str)
+
+                # save checkpoint if the validation loss is lower than the previous one
+                if mean_psnr_val > best_val_psnr:
+                    best_val_psnr = mean_psnr_val
+                    best_regularizer_state = copy.deepcopy(optimizer.regularizer.state_dict())
+                    
+        if NAG_tol_train < stopping_criterion or optimizer.lr < 1e-10:
             print(
                 "Stopping criterion reached in epoch {0}: {1:.2E}".format(
                     epoch + 1, NAG_tol_train
                 )
             )
+            regularizer.load_state_dict(best_regularizer_state)
             break
+    
+    regularizer.load_state_dict(best_regularizer_state)
+    
     return (
         optimizer.regularizer,
         loss_train,
@@ -768,6 +788,5 @@ def bilevel_training_maid(
         psnr_val,
         eps,
         optimizer.lr,
-        logs,
         optimizer,
     )
