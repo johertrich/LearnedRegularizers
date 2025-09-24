@@ -74,7 +74,7 @@ def nmAPG(
                 / (dx * (x_bar[idx] - x_bar_old[idx]))
                 .sum((1, 2, 3), keepdim=True)
                 .abs()
-                .clip(min=0.0, max=None),  # alpha_y = <s,r>/<r,r> in paper, Eq 150
+                .clip(min=1e-12, max=None),  # alpha_y = <s,r>/<r,r> in paper, Eq 150
                 min=1.0,
                 max=None,
             )  # clips for stability --> on a long term we can adjust min-clip based on the spectral norm of physics.A
@@ -97,8 +97,9 @@ def nmAPG(
             ):
                 energy_new[idx_sub] = energy_new_
                 break
+    
             energy_new[idx_sub] = energy_new_
-            idx_sub = idx_sub[energy_new_ > bound.squeeze()]
+            idx_sub = idx_sub[energy_new_ > bound.view(-1)]
             idx_search = idx[idx_sub]
             L[idx_search] = L[idx_search] / rho
 
@@ -120,7 +121,7 @@ def nmAPG(
                     / (dx * (x[idx_idx2] - x_bar_old[idx_idx2]))
                     .sum((1, 2, 3), keepdim=True)
                     .abs()
-                    .clip(min=0, max=None),
+                    .clip(min=1e-12, max=None),
                     min=1.0,
                     max=None,
                 )
