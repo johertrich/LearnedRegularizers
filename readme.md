@@ -31,7 +31,7 @@ The implementation contains several regularizers (see table below) for which we 
 
 1. Create the regularizer itself with the import and constructor stated in the first table below.
 2. For all architectures despite PatchNR, EPLL and LPN: use `from priors import ParameterLearningWrapper` and `regularizer = ParameterLearningWrapper(regularizer)` to incorporate learned regularization parameters
-3. Load the weights with `regularizer.load_state_dict(torch.load(path))` with path stated in the second table below.
+3. Load the weights with `regularizer.load_state_dict(torch.load(path))` with path stated in the paragraph "Weight Paths" below.
 
 Then every regularizer has the fields `regularizer.g(x)` to evaluate the regularizer at `x` and `regularizer.grad(x)` to compute the gradient at `x`, where `x` is in the standard image format (batch size x channels x height x width).
 
