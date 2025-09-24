@@ -89,7 +89,7 @@ We proivde generic scripts for the different training routines. These training r
 
 ## 4. Reproduce the Evaluation Runs (Experiment 1 and 3)
 
-We describe how the learned regularizers can be evaluated (e.g. to solve the variational problem).
+We describe how the learned regularizers can be evaluated (e.g. to solve the variational problem). The code for reproducing the baselines is located in the `baselines` directory.
 
 The weights used for generating the numbers in the chapter are contained in the repository. Alternatively, they can be regenerated as described in part 5 of the `readme`.
 
