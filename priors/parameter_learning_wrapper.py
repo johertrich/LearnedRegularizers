@@ -2,8 +2,14 @@ import inspect
 import torch
 from deepinv.optim import Prior
 
+
 class ParameterLearningWrapper(Prior):
-    def __init__(self, regularizer, scale_init=0.0, device="cuda" if torch.cuda.is_available() else "cpu"):
+    def __init__(
+        self,
+        regularizer,
+        scale_init=0.0,
+        device="cuda" if torch.cuda.is_available() else "cpu",
+    ):
         super().__init__()
         self.regularizer = regularizer
         self.add_module("regularizer", self.regularizer)
@@ -27,9 +33,15 @@ class ParameterLearningWrapper(Prior):
     def grad(self, x, get_energy=False):
         if not self.has_get_energy:
             if get_energy:
-                return torch.exp(self.alpha - 2 * self.scale)*self.regularizer.g(torch.exp(self.scale)*x), torch.exp(self.alpha - self.scale) * self.regularizer.grad(torch.exp(self.scale)*x)
+                return torch.exp(self.alpha - 2 * self.scale) * self.regularizer.g(
+                    torch.exp(self.scale) * x
+                ), torch.exp(self.alpha - self.scale) * self.regularizer.grad(
+                    torch.exp(self.scale) * x
+                )
             else:
-                return torch.exp(self.alpha - self.scale) *self.regularizer.grad(torch.exp(self.scale)*x)
+                return torch.exp(self.alpha - self.scale) * self.regularizer.grad(
+                    torch.exp(self.scale) * x
+                )
         reg_out = self.regularizer.grad(
             torch.exp(self.scale) * x, get_energy=get_energy
         )

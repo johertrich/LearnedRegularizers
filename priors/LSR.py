@@ -34,9 +34,9 @@ class LSR(Prior):
             device=device,
         )
 
-        self.model.detach=False
+        self.model.detach = False
 
-        self.sigma=sigma
+        self.sigma = sigma
 
         if pretrained is not None:
             self.load_state_dict(torch.load(pretrained, map_location=device))

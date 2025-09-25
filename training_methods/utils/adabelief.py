@@ -109,9 +109,9 @@ class AdaBelief(Optimizer):
                 grad_residual = grad - exp_avg
                 # Transform the gradient for the second moment
                 if hasattr(p, "reduction_dim"):
-                    grad_reduced = torch.sum(grad_residual ** 2, p.reduction_dim, True)
+                    grad_reduced = torch.sum(grad_residual**2, p.reduction_dim, True)
                 else:
-                    grad_reduced = grad_residual ** 2
+                    grad_reduced = grad_residual**2
                 exp_avg_sq.mul_(beta2).add_(grad_reduced, alpha=1 - beta2)
                 if amsgrad:
                     # Maintains the maximum of all 2nd moment running avg. till now

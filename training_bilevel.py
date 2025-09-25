@@ -162,7 +162,7 @@ if problem == "Denoising":
     train_dataset = get_dataset(
         "BSDS500_gray", test=False, transform=rotation_flip_transform
     )
-    
+
     val_dataset = get_dataset("BSDS500_gray", test=False, transform=CenterCrop(321))
     # splitting in training and validation set
     test_ratio = 0.1

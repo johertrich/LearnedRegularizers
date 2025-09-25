@@ -34,7 +34,9 @@ def score_training(
             weight_decay=weight_decay,
         )
     else:
-        optimizer = torch.optim.Adam(regularizer.parameters(), lr=lr, weight_decay=weight_decay)
+        optimizer = torch.optim.Adam(
+            regularizer.parameters(), lr=lr, weight_decay=weight_decay
+        )
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=lr_decay)
     if dynamic_range_psnr:
         psnr = PSNR(max_pixel=None)

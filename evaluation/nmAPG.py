@@ -97,7 +97,7 @@ def nmAPG(
             ):
                 energy_new[idx_sub] = energy_new_
                 break
-    
+
             energy_new[idx_sub] = energy_new_
             idx_sub = idx_sub[energy_new_ > bound.view(-1)]
             idx_search = idx[idx_sub]

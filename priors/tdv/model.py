@@ -140,11 +140,8 @@ class Softplus_fun2(torch.autograd.Function):
         return F.sigmoid(x) * grad_in1 + softplusg2(x) * grad_in2
 
 
-
 class MicroBlock(nn.Module):
-    def __init__(
-        self, num_features, bound_norm=False, invariant=False
-    ):
+    def __init__(self, num_features, bound_norm=False, invariant=False):
         super(MicroBlock, self).__init__()
 
         self.conv1 = Conv2d(

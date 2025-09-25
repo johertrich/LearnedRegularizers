@@ -90,10 +90,10 @@ elif problem == "CT":
     val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(dataset)))
 
     val_dataloader = torch.utils.data.DataLoader(
-    val_set, batch_size=1, shuffle=True, drop_last=True
+        val_set, batch_size=1, shuffle=True, drop_last=True
     )
-    min_lmbd =280.
-    max_lmbd = 320.
+    min_lmbd = 280.0
+    max_lmbd = 320.0
     patchnr_epochs = 4
     patchnr_batch_size = 2048
 else:
@@ -109,7 +109,7 @@ regularizer = PatchNR(
     sub_net_size=patchnr_subnetsize,
     device=device,
     n_patches=n_patches,
-    pad=True
+    pad=True,
 )
 
 if only_fitting:
@@ -155,7 +155,7 @@ else:
                 )  # x -> z (we never need the other direction)
 
                 # Compute the Kullback Leibler loss
-                logpz = 0.5 * torch.sum(latent_x ** 2, -1)
+                logpz = 0.5 * torch.sum(latent_x**2, -1)
 
                 nll = logpz - logdet
 

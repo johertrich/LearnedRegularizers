@@ -60,7 +60,7 @@ class WCRR(Prior):
         if self.tanh:
             x_abs = torch.abs(x)
             return torch.log((torch.exp(x - x_abs) + torch.exp(-x - x_abs)) / 2) + x_abs
-        return torch.clip(x ** 2, 0.0, 1.0) / 2 + torch.clip(torch.abs(x), 1.0) - 1.0
+        return torch.clip(x**2, 0.0, 1.0) / 2 + torch.clip(torch.abs(x), 1.0) - 1.0
 
     def grad_smooth_l1(self, x):
         if self.tanh:

@@ -276,7 +276,7 @@ def bilevel_training_maid(
     # Setting the Noise Model of Physics to be deterministic (not redrawn at each call)
     noise_level = physics.noise_model.sigma
     physics_train = Denoising(noise_model=GaussianNoise_MAID(sigma=noise_level))
-    
+
     def hessian_vector_product(
         x,
         v,
@@ -315,7 +315,7 @@ def bilevel_training_maid(
                         0
                     ].detach()
         return regularizer
-    
+
     def jac_pow_loss(x, M=50, tol=1e-2):
         hvp = torch.randint(low=0, high=1, size=x.shape).to(x) * 2 - 1
         hvp_old = hvp.clone()
@@ -347,12 +347,10 @@ def bilevel_training_maid(
             diff=True,
             only_reg=True,
         )
-        norm_sq = torch.sum(hvp ** 2) / x.size(0)
+        norm_sq = torch.sum(hvp**2) / x.size(0)
         print(f"Jac_Loss: {norm_sq}")
         if logger is not None:
-            logger.info(
-                f"Jac Loss {norm_sq}"
-            )
+            logger.info(f"Jac Loss {norm_sq}")
         return torch.clip(norm_sq, min=200, max=None)
 
     # Initialize optimizer for the upper-level
@@ -387,8 +385,8 @@ def bilevel_training_maid(
         drop_last=True,
         num_workers=8,
     )
-    
-    #physics.noise_model = GaussianNoise_MAID(sigma=noise_level)
+
+    # physics.noise_model = GaussianNoise_MAID(sigma=noise_level)
     # logging lists and dictionaries
     loss_vals = []
     psnr_vals = []
@@ -396,10 +394,10 @@ def bilevel_training_maid(
     loss_val = []
     psnr_train = []
     psnr_val = []
-    
+
     best_val_psnr = -float("inf")
     best_regularizer_state = copy.deepcopy(regularizer.state_dict())
-    
+
     # Hyperparameters for the MAID optimizer
     rho_maid = lr_decay
     nu_over = 1.05
@@ -487,7 +485,13 @@ def bilevel_training_maid(
             )
             # Computing the approximate hypergradient using the Jacobian vector product
             regularizer = jac_vector_product(
-                x_recon, q/q.shape[0], data_fidelity, y, optimizer.regularizer, lmbd, physics_train
+                x_recon,
+                q / q.shape[0],
+                data_fidelity,
+                y,
+                optimizer.regularizer,
+                lmbd,
+                physics_train,
             )
 
             def closure(
@@ -538,7 +542,11 @@ def bilevel_training_maid(
                     """
                     with torch.no_grad():
                         for param, p_old, g_old in zip(
-                            [params for params in optimizer.regularizer.parameters() if params.grad is not None],
+                            [
+                                params
+                                for params in optimizer.regularizer.parameters()
+                                if params.grad is not None
+                            ],
                             params_before,
                             grads_before,
                         ):
@@ -716,7 +724,7 @@ def bilevel_training_maid(
                 CG_tol = CG_tol * nu_over
                 max_line_search = 10
                 optimizer.lr *= rho_over
-            
+
             if not success:
                 if hasattr(optimizer, "clear_memory"):
                     optimizer.clear_memory()
@@ -724,8 +732,8 @@ def bilevel_training_maid(
         print(print_str)
         if logger is not None:
             logger.info(print_str)
-        
-        #if val_checkpoint is None or (epoch in val_checkpoint):
+
+        # if val_checkpoint is None or (epoch in val_checkpoint):
         if (epoch + 1) % validation_epochs == 0:
             regularizer.eval()
             with torch.no_grad():
@@ -756,7 +764,7 @@ def bilevel_training_maid(
                 mean_loss_val = np.mean(loss_vals_val)
                 loss_val.append(mean_loss_val)
                 psnr_val.append(mean_psnr_val)
-                
+
                 print_str = f"[Epoch {epoch+1}] Val Loss: {mean_loss_val:.2E}, PSNR: {mean_psnr_val:.2f}"
                 print(print_str)
 
@@ -766,8 +774,10 @@ def bilevel_training_maid(
                 # save checkpoint if the validation loss is lower than the previous one
                 if mean_psnr_val > best_val_psnr:
                     best_val_psnr = mean_psnr_val
-                    best_regularizer_state = copy.deepcopy(optimizer.regularizer.state_dict())
-                    
+                    best_regularizer_state = copy.deepcopy(
+                        optimizer.regularizer.state_dict()
+                    )
+
         if lower_level_tol_train < stopping_criterion or optimizer.lr < 1e-10:
             print(
                 "Stopping criterion reached in epoch {0}: {1:.2E}".format(
@@ -776,9 +786,9 @@ def bilevel_training_maid(
             )
             regularizer.load_state_dict(best_regularizer_state)
             break
-    
+
     regularizer.load_state_dict(best_regularizer_state)
-    
+
     return (
         optimizer.regularizer,
         loss_train,

@@ -99,7 +99,7 @@ for j, patch_size in enumerate(patch_sizes):
         )
 
         GMM = GaussianMixtureModel(
-            n_gmm_component, patch_size ** 2 * channels, device=device
+            n_gmm_component, patch_size**2 * channels, device=device
         )
         GMM.fit(patch_dataloader, verbose=True, max_iters=50, stopping_criterion=1e-4)
         logger.info("Fitting GMM done")
@@ -148,7 +148,7 @@ logger.info(
 # Fine tune lambda for the best fitted model with current lambda estimate and current best model
 best_lamb = lmbd
 GMM = GaussianMixtureModel(
-    best_n_gmm_component, best_patch_size ** 2 * channels, device=device
+    best_n_gmm_component, best_patch_size**2 * channels, device=device
 )
 GMM.load_state_dict(best_gmm)
 regularizer = EPLL(

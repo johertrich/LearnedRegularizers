@@ -181,7 +181,7 @@ class PatchNR(Prior):
 
         self.device = device
 
-        dims_in = patch_size ** 2 * channels
+        dims_in = patch_size**2 * channels
         self.normalizing_flow = INN(
             dims_in=dims_in, num_layers=num_layers, sub_net_size=sub_net_size
         )

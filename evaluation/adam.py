@@ -35,7 +35,7 @@ def reconstruct_adam(
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer, T_max=max_iter, eta_min=step_size / 10.0
     )
-    
+
     for i in range(max_iter):
         x_old = x.detach().clone()
         optimizer.zero_grad()

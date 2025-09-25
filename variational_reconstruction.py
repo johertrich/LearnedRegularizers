@@ -122,7 +122,7 @@ elif regularizer_name == "LAR":
             use_bias=False,
             n_patches=-1,
             reduction="sum",
-            output_factor=1 / 142 ** 2,
+            output_factor=1 / 142**2,
             pretrained=None,
         ).to(device)
 elif regularizer_name == "TDV":
@@ -148,7 +148,7 @@ elif regularizer_name == "EPLL":
     setup_data = torch.load(weights_filepath)
     patch_size = setup_data["patch_size"]
     n_gmm_components = setup_data["n_gmm_components"]
-    GMM = GaussianMixtureModel(n_gmm_components, patch_size ** 2, device=device)
+    GMM = GaussianMixtureModel(n_gmm_components, patch_size**2, device=device)
     GMM.load_state_dict(setup_data["weights"])
     regularizer = EPLL(
         device=device,

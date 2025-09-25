@@ -59,7 +59,7 @@ class EPLL(Prior):
         super(EPLL, self).__init__()
         if GMM is None:
             self.GMM = GaussianMixtureModel(
-                n_gmm_components, patch_size ** 2 * channels, device=device
+                n_gmm_components, patch_size**2 * channels, device=device
             )
             self.patch_size = patch_size
             self.n_components = n_gmm_components
@@ -209,7 +209,7 @@ class EPLL(Prior):
 
         if betas is None:
             # default choice for denoising as suggested in Parameswaran et al. "Accelerating GMM-Based Patch Priors for Image Restoration: Three Ingredients for a 100× Speed-Up"
-            betas = [beta / sigma ** 2 for beta in [1.0, 4.0, 8.0, 16.0, 32.0]]
+            betas = [beta / sigma**2 for beta in [1.0, 4.0, 8.0, 16.0, 32.0]]
         if y.shape[0] > 1:
             # vectorization over a batch of images not implemented
             return torch.cat(
@@ -228,7 +228,7 @@ class EPLL(Prior):
         Aty = physics.A_adjoint(y)
         for beta in betas:
             x = self._hqs_reconstruction_step(
-                Aty, x, sigma ** 2, beta, physics, batch_size
+                Aty, x, sigma**2, beta, physics, batch_size
             )
         return x
 

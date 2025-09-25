@@ -63,7 +63,7 @@ elif regularizer_name == "IDCNN":
 elif regularizer_name == "LAR":
     if evaluation_mode == "AR":
         output_factor = (
-            362 ** 2 / 321 ** 2
+            362**2 / 321**2
         )  # due to the mean reduction the regularization constant must be adapted for different image sizes
         reg = LocalAR(
             in_channels=1,
@@ -79,7 +79,7 @@ elif regularizer_name == "LAR":
             use_bias=False,
             n_patches=-1,
             reduction="sum",
-            output_factor=1 / 142 ** 2,
+            output_factor=1 / 142**2,
             pretrained=None,
         ).to(device)
 elif regularizer_name == "TDV":
@@ -101,7 +101,7 @@ elif regularizer_name == "EPLL":
     setup_data = torch.load(weights_filepath)
     patch_size = setup_data["patch_size"]
     n_gmm_components = setup_data["n_gmm_components"]
-    GMM = GaussianMixtureModel(n_gmm_components, patch_size ** 2, device=device)
+    GMM = GaussianMixtureModel(n_gmm_components, patch_size**2, device=device)
     GMM.load_state_dict(setup_data["weights"])
     regularizer = EPLL(
         device=device,
@@ -198,7 +198,8 @@ elif evaluation_mode == "AR":
         cpk = torch.load(pretrained, map_location=device)
         regularizer.load_state_dict(cpk)
     else:
-        raise ValueError(f"no configuration for AR with regularizer {regularizer_name}")"""
+        raise ValueError(f"no configuration for AR with regularizer {regularizer_name}")
+    """
     regularizer = ParameterLearningWrapper(reg, device=device)
     weights = torch.load(
         f"weights/adversarial_Denoising/{regularizer_name}_adversarial_for_Denoising_fitted.pt",
