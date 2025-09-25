@@ -24,6 +24,10 @@ def get_bilevel_hyperparameters(regularizer_name, problem):
         args.do_parameter_fitting = True
         args.pretrain_alpha = True if regularizer_name == "CRR" else False
         args.pretrain_scale = True
+        args.eps = 1e-1 if regularizer_name == "CRR" else 1e-4
+        args.alpha = 1e-1 if regularizer_name == "CRR" else 1e-3
+        args.subset = 160
+        args.epochs_maid = 200
 
         if problem == "Denoising":
             args.pretrain_epochs = 300  # number of epochs in pretraining
@@ -48,6 +52,10 @@ def get_bilevel_hyperparameters(regularizer_name, problem):
         args.pretrain_lr = 1e-3  # learning rate in pretraining
         args.fitting_lr = 0.1  # learning rate in the parameter fitting phase
         args.do_parameter_fitting = False
+        args.eps = 5e-2
+        args.alpha = 5e-2
+        args.subset = 320
+        args.epochs_maid = 400
 
         if problem == "Denoising":
             args.pretrain_epochs = 300  # number of epochs in pretraining

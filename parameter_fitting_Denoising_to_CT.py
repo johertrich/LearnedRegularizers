@@ -1,13 +1,17 @@
 from priors import (
     ParameterLearningWrapper,
+    NETT,
     WCRR,
     ICNNPrior,
     IDCNNPrior,
     LSR,
     TDV,
     LocalAR,
+    EPLL,
+    PatchNR,
 )
 from training_methods import bilevel_training
+from deepinv.optim.utils import GaussianMixtureModel
 import torch
 from operators import get_evaluation_setting
 from dataset import get_dataset
@@ -16,6 +20,7 @@ import argparse
 import os
 import logging
 import datetime
+import numpy as np
 
 if torch.backends.mps.is_available():
     device = "mps"
@@ -50,24 +55,33 @@ elif regularizer_name == "WCRR":
         weak_convexity=1.0,
     ).to(device)
 elif regularizer_name == "ICNN":
-    reg = ICNNPrior(in_channels=1, channels=32, device=device, kernel_size=5).to(
+    reg = ICNNPrior(in_channels=1, channels=32, device=device, kernel_size=5).to(device)
+elif regularizer_name == "IDCNN":
+    reg = IDCNNPrior(in_channels=1, channels=32, device=device, kernel_size=5).to(
         device
     )
-elif regularizer_name == "IDCNN":
-    reg = IDCNNPrior(
-        in_channels=1, channels=32, device=device, kernel_size=5
-    ).to(device)
 elif regularizer_name == "LAR":
-    reg = LocalAR(
-        in_channels=1,
-        pad=True,
-        use_bias=False,
-        n_patches=-1,
-        normalise_grad=False,
-        reduction="sum",
-        output_factor=1 / 142 ** 2,
-        pretrained=None,
-    ).to(device)
+    if evaluation_mode == "AR":
+        output_factor = (
+            362 ** 2 / 321 ** 2
+        )  # due to the mean reduction the regularization constant must be adapted for different image sizes
+        reg = LocalAR(
+            in_channels=1,
+            pad=True,
+            use_bias=True,
+            n_patches=-1,
+            output_factor=output_factor,
+        ).to(device)
+    else:
+        reg = LocalAR(
+            in_channels=1,
+            pad=True,
+            use_bias=False,
+            n_patches=-1,
+            reduction="sum",
+            output_factor=1 / 142 ** 2,
+            pretrained=None,
+        ).to(device)
 elif regularizer_name == "TDV":
     config = dict(
         in_channels=1,
@@ -75,8 +89,6 @@ elif regularizer_name == "TDV":
         multiplier=1,
         num_mb=3,
         num_scales=3,
-        potential="quadratic",
-        activation="softplus",
         zero_mean=True,
     )
     reg = TDV(**config).to(device)
@@ -84,22 +96,81 @@ elif regularizer_name == "LSR":
     reg = LSR(
         nc=[32, 64, 128, 256], pretrained_denoiser=False, alpha=1.0, sigma=3e-2
     ).to(device)
+elif regularizer_name == "EPLL":
+    weights_filepath = f"weights/gmm_Denoising.pt"
+    setup_data = torch.load(weights_filepath)
+    patch_size = setup_data["patch_size"]
+    n_gmm_components = setup_data["n_gmm_components"]
+    GMM = GaussianMixtureModel(n_gmm_components, patch_size ** 2, device=device)
+    GMM.load_state_dict(setup_data["weights"])
+    regularizer = EPLL(
+        device=device,
+        patch_size=patch_size,
+        channels=1,
+        n_gmm_components=n_gmm_components,
+        GMM=GMM,
+        pad=True,
+        batch_size=30000,
+    )
+    lmbd = 500.0
+    lmbd_guesses = [0.8 * lmbd + i * (0.4 * lmbd) / 9 for i in range(10)]
+elif regularizer_name == "PatchNR":
+    weights_filepath = f"weights/patchnr/patchnr_6x6_BSD500_fitted.pt"
+    weights = torch.load(weights_filepath, map_location=device)
+    regularizer = PatchNR(
+        patch_size=6,
+        channels=1,
+        num_layers=5,
+        sub_net_size=weights["patchnr_subnetsize"],
+        device=device,
+        n_patches=weights["n_patches"],
+        pretrained=None,
+        pad=True,
+    )
+    regularizer.load_state_dict(weights["weights"])
+    min_lmbd = 280.0
+    max_lmbd = 320.0
+    lmbd_guesses = np.linspace(min_lmbd, max_lmbd, 15)
+elif regularizer_name == "NETT":
+    reg = NETT(
+        in_channels=1, out_channels=1, hidden_channels=64, padding_mode="zeros"
+    ).to(device)
 
-if (
+if regularizer_name in ["EPLL", "PatchNR"]:
+    pass
+elif (
     evaluation_mode == "bilevel-IFT"
     or evaluation_mode == "bilevel-JFB"
     or evaluation_mode == "Score"
+    or evaluation_mode == "NETT"
 ):
-    if regularizer_name == "IDCNN" or regularizer_name == "LAR":
+    if regularizer_name == "IDCNN":
         mode = "JFB"
+    if regularizer_name == "LAR":
+        lr = 0.01
     if regularizer_name == "LSR":
         lr = 0.1
     regularizer = ParameterLearningWrapper(reg, device=device)
     if evaluation_mode == "Score":
-        weights = torch.load(
-            f"weights/score_parameter_fitting_for_Denoising/{regularizer_name}_fitted_parameters_with_IFT_for_Denoising.pt",
-            map_location=device,
-        )
+        if regularizer_name == "TDV":
+            lr = 0.05
+        if regularizer_name == "IDCNN":
+            lr = 0.01
+        if regularizer_name == "LSR":
+            mode = "JFB"
+            lr = 0.05
+        if regularizer_name == "LAR":  # LAR has no IFT weights
+            mode = "JFB"
+            lr = 0.005
+            weights = torch.load(
+                f"weights/score_parameter_fitting_for_Denoising/{regularizer_name}_fitted_parameters_with_JFB_for_Denoising.pt",
+                map_location=device,
+            )
+        else:
+            weights = torch.load(
+                f"weights/score_parameter_fitting_for_Denoising/{regularizer_name}_fitted_parameters_with_IFT_for_Denoising.pt",
+                map_location=device,
+            )
     elif evaluation_mode == "bilevel-IFT":
         weights = torch.load(
             f"weights/bilevel_Denoising/{regularizer_name}_bilevel_IFT_for_Denoising.pt",
@@ -108,6 +179,11 @@ if (
     elif evaluation_mode == "bilevel-JFB":
         weights = torch.load(
             f"weights/bilevel_Denoising/{regularizer_name}_bilevel_JFB_for_Denoising.pt",
+            map_location=device,
+        )
+    elif evaluation_mode == "NETT":
+        weights = torch.load(
+            f"weights/NETT_Denoising_fitted.pt",
             map_location=device,
         )
     regularizer.load_state_dict(weights)
@@ -125,9 +201,9 @@ elif evaluation_mode == "AR":
         raise ValueError(f"no configuration for AR with regularizer {regularizer_name}")"""
     regularizer = ParameterLearningWrapper(reg, device=device)
     weights = torch.load(
-            f"weights/adversarial_{problem}/{regularizer_name}_adversarial_for_{problem}_fitted.pt",
-            map_location=device,
-        )
+        f"weights/adversarial_Denoising/{regularizer_name}_adversarial_for_Denoising_fitted.pt",
+        map_location=device,
+    )
     regularizer.load_state_dict(weights)
 else:
     raise ValueError("Unknown evaluation mode!")
@@ -163,17 +239,60 @@ else:
     wrapped_regularizer = ParameterLearningWrapper(regularizer, device=device)
 
 if load_fitted_parameters:
-    wrapped_regularizer.load_state_dict(
-        torch.load(
-            f"weights/Denoising_to_CT/{regularizer_name}_with_{evaluation_mode}",
-            map_location=device,
+    if regularizer_name == "EPLL":
+        setup_data = torch.load(f"weights/Denoising_to_CT/EPLL", map_location=device)
+        regularizer.GMM.load_state_dict(setup_data["weights"])
+        lmbd_initial_guess = setup_data["lambda"]
+        wrapped_regularizer = regularizer
+    elif regularizer_name == "PatchNR":
+        weights = torch.load(f"weights/Denoising_to_CT/PatchNR", map_location=device)
+        regularizer.load_state_dict(weights["weights"])
+        lmbd_initial_guess = weights["lambda"]
+        wrapped_regularizer = regularizer
+    else:
+        wrapped_regularizer.load_state_dict(
+            torch.load(
+                f"weights/Denoising_to_CT/{regularizer_name}_with_{evaluation_mode}",
+                map_location=device,
+            )
         )
-    )
+elif regularizer_name in ["EPLL", "PatchNR"]:
+    best_lmbd = -1
+    best_psnr = -999
+    for lmbd in lmbd_guesses:
+        print(lmbd)
+        mean_psnr, x_out, y_out, recon_out = evaluate(
+            physics=physics,
+            data_fidelity=data_fidelity,
+            dataset=validation_dataset,
+            regularizer=regularizer,
+            lmbd=lmbd,
+            NAG_step_size=1e-3,
+            NAG_max_iter=3000,
+            NAG_tol=1e-4,
+            only_first=False,
+            adaptive_range=True,
+            device=device,
+            adam=True,
+            logger=logger,
+        )
+        if mean_psnr > best_psnr:
+            best_psnr = mean_psnr
+            best_lmbd = lmbd
+    lmbd_initial_guess = best_lmbd
+    wrapped_regularizer = regularizer
+    if regularizer_name == "EPLL":
+        setup_data["lambda"] = best_lmbd
+        torch.save(setup_data, f"weights/Denoising_to_CT/EPLL")
+    elif regularizer_name == "PatchNR":
+        weights["lambda"] = best_lmbd
+        torch.save(weights, f"weights/Denoising_to_CT/PatchNR")
 else:
     for p in wrapped_regularizer.parameters():
         p.requires_grad_(False)
     wrapped_regularizer.alpha.requires_grad_(True)
-    wrapped_regularizer.scale.requires_grad_(True)
+    if not regularizer_name == "NETT":
+        wrapped_regularizer.scale.requires_grad_(True)
 
     # parameter search
     wrapped_regularizer, loss_train, loss_val, psnr_train, psnr_val = bilevel_training(
@@ -203,12 +322,14 @@ else:
         f"weights/Denoising_to_CT/{regularizer_name}_with_{evaluation_mode}",
     )
 
-print("Final alpha: ", wrapped_regularizer.alpha)
-print("Final scale: ", wrapped_regularizer.scale)
+if regularizer_name not in ["EPLL", "PatchNR"]:
+    print("Final alpha: ", wrapped_regularizer.alpha)
+    print("Final scale: ", wrapped_regularizer.scale)
+
+    wrapped_regularizer.alpha.requires_grad_(False)
+    wrapped_regularizer.scale.requires_grad_(False)
 
 only_first = False
-wrapped_regularizer.alpha.requires_grad_(False)
-wrapped_regularizer.scale.requires_grad_(False)
 torch.random.manual_seed(0)  # make results deterministic
 print(lmbd_initial_guess)
 
@@ -218,12 +339,13 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
     dataset=dataset,
     regularizer=wrapped_regularizer,
     lmbd=lmbd_initial_guess,
-    step_size=1e-2,
-    max_iter=1000,
+    step_size=1e-3 if regularizer_name in ["EPLL", "PatchNR"] else 1e-2,
+    max_iter=3000 if regularizer_name in ["EPLL", "PatchNR"] else 1000,
     tol=1e-4,
     only_first=only_first,
     device=device,
     verbose=True,
+    adam=regularizer_name in ["EPLL", "PatchNR"],
     adaptive_range=True,
 )
 

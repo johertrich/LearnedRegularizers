@@ -48,7 +48,7 @@ parser.add_argument("--save_results", type=bool, default=False)
 inp = parser.parse_args()
 
 problem = inp.problem  # Denoising or CT
-evaluation_mode = inp.evaluation_mode  # AR, IFT, JFB, NETT or Score
+evaluation_mode = inp.evaluation_mode  # AR, IFT, JFB, IFT-MAID, NETT or Score
 regularizer_name = (
     inp.regularizer_name
 )  # CRR, WCRR, ICNN, IDCNN, TDV, LAR, LSR and NETT

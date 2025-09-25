@@ -162,12 +162,16 @@ if problem == "Denoising":
     train_dataset = get_dataset(
         "BSDS500_gray", test=False, transform=rotation_flip_transform
     )
+    
     val_dataset = get_dataset("BSDS500_gray", test=False, transform=CenterCrop(321))
     # splitting in training and validation set
     test_ratio = 0.1
     test_len = int(len(train_dataset) * 0.1)
     train_len = len(train_dataset) - test_len
     train_set = torch.utils.data.Subset(train_dataset, range(train_len))
+    if hypergradient_computation == "IFT-MAID":
+        train_dataset_MAID = get_dataset("BSDS500_gray", test=False)
+        train_set_MAID = torch.utils.data.Subset(train_dataset_MAID, range(train_len))
     pretrain_dataset = train_set
     val_set = torch.utils.data.Subset(val_dataset, range(train_len, len(train_dataset)))
     train_dataloader = torch.utils.data.DataLoader(
@@ -332,34 +336,31 @@ if not hypergradient_computation == "IFT-MAID":
         validation_epochs=20 if problem == "Denoising" else 1,
     )
 else:
-    # hyperparameters of MAID
-    eps = 1e-1
-    alpha = 1e-1
     # Define patch parameters for data augmentation
-    regularizer, loss_train, loss_val, psnr_train, psnr_val, _, _, _, _ = (
+    regularizer, loss_train, loss_val, psnr_train, psnr_val, _, _, _ = (
         bilevel_training_maid(
             regularizer,
             physics,
             data_fidelity,
             lmbd,
-            train_set,
+            train_set_MAID,
             PATCH_SIZE=64,
             STRIDE=64,
-            SUBSET=32,
+            SUBSET=hyper_params.subset,
             val_dataloader=val_dataloader,
-            epochs=300,
+            epochs=hyper_params.epochs_maid,
             lower_level_step_size=1e-1,
             lower_level_max_iter=1500,
-            lower_level_tol_train=eps,
+            lower_level_tol_train=hyper_params.eps,
             lower_level_tol_val=1e-4,
-            CG_tol=eps,
-            lr=alpha,
-            lr_decay=0.25,
+            CG_tol=hyper_params.eps,
+            lr=hyper_params.alpha,
+            lr_decay=0.5,
             device=device,
             precondition=True,  # Use preconditioned upper-level optimization (AdaGrad)
             verbose=True,
-            logs_dir=f"logs_{regularizer_name}_maid.pt",
-            algorithm="MAID Adagrad",  # Algorithm used for training
+            logger=logger,
+            validation_epochs=20,
         )
     )
 
