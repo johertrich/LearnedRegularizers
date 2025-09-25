@@ -62,7 +62,7 @@ if args.pretrained_path is None:
         beta = args.beta or 1.0
         max_iter = args.max_iter or 100
     elif problem == "CT" and args.dataset == "LoDoPaB":
-        pretrained_path = args.pretrained_path or "weights/lpn_64_CT_noise_0.1/LPN.pt"
+        pretrained_path = args.pretrained_path or "weights/lpn_64_LoDoPaB_noise_0.1/LPN.pt"
         stepsize = args.stepsize or 0.02
         beta = args.beta or 1.0
         max_iter = args.max_iter or 100
