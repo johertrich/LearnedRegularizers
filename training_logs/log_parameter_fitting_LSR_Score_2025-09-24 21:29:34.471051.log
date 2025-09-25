@@ -1,0 +1,130 @@
+2025-09-24 21:30:32,510: [Epoch 1] Train Loss: 4.68E+01, PSNR: 31.28
+2025-09-24 21:31:34,035: maxiter hit in iteration 1
+2025-09-24 21:31:34,115: [Epoch 2] Train Loss: 4.38E+01, PSNR: 31.57
+2025-09-24 21:32:30,608: maxiter hit in iteration 1
+2025-09-24 21:32:30,673: [Epoch 3] Train Loss: 4.07E+01, PSNR: 31.89
+2025-09-24 21:33:18,091: [Epoch 4] Train Loss: 3.91E+01, PSNR: 32.06
+2025-09-24 21:34:13,328: [Epoch 5] Train Loss: 3.71E+01, PSNR: 32.30
+2025-09-24 21:34:58,696: [Epoch 6] Train Loss: 3.58E+01, PSNR: 32.45
+2025-09-24 21:35:45,814: [Epoch 7] Train Loss: 3.59E+01, PSNR: 32.44
+2025-09-24 21:36:35,950: [Epoch 8] Train Loss: 3.62E+01, PSNR: 32.41
+2025-09-24 21:37:24,811: [Epoch 9] Train Loss: 3.47E+01, PSNR: 32.61
+2025-09-24 21:38:27,256: [Epoch 10] Train Loss: 3.59E+01, PSNR: 32.49
+2025-09-24 21:39:12,744: [Epoch 11] Train Loss: 3.70E+01, PSNR: 32.41
+2025-09-24 21:40:03,897: [Epoch 12] Train Loss: 3.78E+01, PSNR: 32.37
+2025-09-24 21:40:47,255: [Epoch 13] Train Loss: 3.94E+01, PSNR: 32.29
+2025-09-24 21:41:35,976: [Epoch 14] Train Loss: 4.06E+01, PSNR: 32.27
+2025-09-24 21:42:14,836: [Epoch 15] Train Loss: 3.99E+01, PSNR: 32.28
+2025-09-24 21:42:54,664: [Epoch 16] Train Loss: 4.21E+01, PSNR: 32.09
+2025-09-24 21:43:41,653: [Epoch 17] Train Loss: 4.13E+01, PSNR: 32.11
+2025-09-24 21:44:30,660: [Epoch 18] Train Loss: 4.31E+01, PSNR: 32.14
+2025-09-24 21:45:12,989: [Epoch 19] Train Loss: 4.00E+01, PSNR: 32.35
+2025-09-24 21:46:02,265: [Epoch 20] Train Loss: 4.20E+01, PSNR: 32.22
+2025-09-24 21:46:52,438: [Epoch 21] Train Loss: 4.12E+01, PSNR: 32.13
+2025-09-24 21:47:40,036: [Epoch 22] Train Loss: 4.43E+01, PSNR: 32.06
+2025-09-24 21:48:31,301: maxiter hit in iteration 1
+2025-09-24 21:48:31,354: [Epoch 23] Train Loss: 4.33E+01, PSNR: 32.08
+2025-09-24 21:49:11,371: [Epoch 24] Train Loss: 4.28E+01, PSNR: 31.95
+2025-09-24 21:49:55,558: [Epoch 25] Train Loss: 4.32E+01, PSNR: 31.95
+2025-09-24 21:50:52,569: maxiter hit in iteration 1
+2025-09-24 21:50:52,631: [Epoch 26] Train Loss: 3.99E+01, PSNR: 32.32
+2025-09-24 21:51:45,751: [Epoch 27] Train Loss: 4.50E+01, PSNR: 31.89
+2025-09-24 21:52:36,517: [Epoch 28] Train Loss: 4.21E+01, PSNR: 32.25
+2025-09-24 21:53:28,366: maxiter hit in iteration 1
+2025-09-24 21:53:28,420: [Epoch 29] Train Loss: 4.32E+01, PSNR: 32.09
+2025-09-24 21:54:18,376: [Epoch 30] Train Loss: 4.80E+01, PSNR: 31.95
+2025-09-24 21:55:13,106: [Epoch 31] Train Loss: 4.75E+01, PSNR: 31.90
+2025-09-24 21:56:06,417: [Epoch 32] Train Loss: 4.72E+01, PSNR: 31.96
+2025-09-24 21:56:53,847: [Epoch 33] Train Loss: 4.67E+01, PSNR: 31.94
+2025-09-24 21:57:39,618: maxiter hit in iteration 1
+2025-09-24 21:57:39,671: [Epoch 34] Train Loss: 5.08E+01, PSNR: 31.60
+2025-09-24 21:58:29,989: [Epoch 35] Train Loss: 4.42E+01, PSNR: 32.23
+2025-09-24 21:59:18,829: [Epoch 36] Train Loss: 4.33E+01, PSNR: 32.19
+2025-09-24 22:00:18,308: [Epoch 37] Train Loss: 4.24E+01, PSNR: 32.20
+2025-09-24 22:01:04,508: maxiter hit in iteration 1
+2025-09-24 22:01:04,566: [Epoch 38] Train Loss: 4.79E+01, PSNR: 31.57
+2025-09-24 22:01:50,042: [Epoch 39] Train Loss: 4.43E+01, PSNR: 31.95
+2025-09-24 22:02:45,505: [Epoch 40] Train Loss: 4.41E+01, PSNR: 31.91
+2025-09-24 22:03:22,127: [Epoch 41] Train Loss: 4.89E+01, PSNR: 31.52
+2025-09-24 22:04:11,644: [Epoch 42] Train Loss: 4.56E+01, PSNR: 31.84
+2025-09-24 22:05:09,476: [Epoch 43] Train Loss: 4.34E+01, PSNR: 32.21
+2025-09-24 22:05:54,866: [Epoch 44] Train Loss: 4.56E+01, PSNR: 31.98
+2025-09-24 22:06:42,298: [Epoch 45] Train Loss: 4.54E+01, PSNR: 32.09
+2025-09-24 22:07:25,752: [Epoch 46] Train Loss: 4.73E+01, PSNR: 32.05
+2025-09-24 22:08:08,948: [Epoch 47] Train Loss: 4.87E+01, PSNR: 31.72
+2025-09-24 22:08:55,116: [Epoch 48] Train Loss: 4.72E+01, PSNR: 31.68
+2025-09-24 22:09:36,998: [Epoch 49] Train Loss: 5.03E+01, PSNR: 31.09
+2025-09-24 22:10:30,874: [Epoch 50] Train Loss: 4.49E+01, PSNR: 31.77
+2025-09-24 22:11:21,556: [Epoch 51] Train Loss: 4.81E+01, PSNR: 31.67
+2025-09-24 22:12:14,657: maxiter hit in iteration 1
+2025-09-24 22:12:14,710: [Epoch 52] Train Loss: 4.41E+01, PSNR: 31.89
+2025-09-24 22:13:11,939: maxiter hit in iteration 1
+2025-09-24 22:13:12,010: [Epoch 53] Train Loss: 4.54E+01, PSNR: 31.96
+2025-09-24 22:14:10,529: maxiter hit in iteration 1
+2025-09-24 22:14:10,584: [Epoch 54] Train Loss: 5.38E+01, PSNR: 31.66
+2025-09-24 22:15:09,152: [Epoch 55] Train Loss: 4.88E+01, PSNR: 31.90
+2025-09-24 22:16:06,263: maxiter hit in iteration 1
+2025-09-24 22:16:06,324: [Epoch 56] Train Loss: 4.59E+01, PSNR: 31.89
+2025-09-24 22:17:01,836: [Epoch 57] Train Loss: 4.43E+01, PSNR: 31.93
+2025-09-24 22:17:55,936: [Epoch 58] Train Loss: 4.84E+01, PSNR: 31.61
+2025-09-24 22:18:46,681: [Epoch 59] Train Loss: 4.94E+01, PSNR: 31.41
+2025-09-24 22:19:40,596: [Epoch 60] Train Loss: 4.62E+01, PSNR: 31.67
+2025-09-24 22:20:27,634: [Epoch 61] Train Loss: 4.71E+01, PSNR: 31.53
+2025-09-24 22:21:15,137: [Epoch 62] Train Loss: 4.32E+01, PSNR: 32.06
+2025-09-24 22:22:12,916: maxiter hit in iteration 1
+2025-09-24 22:22:12,967: [Epoch 63] Train Loss: 4.57E+01, PSNR: 32.04
+2025-09-24 22:23:09,704: [Epoch 64] Train Loss: 4.42E+01, PSNR: 31.89
+2025-09-24 22:24:04,247: [Epoch 65] Train Loss: 4.38E+01, PSNR: 31.93
+2025-09-24 22:24:55,940: [Epoch 66] Train Loss: 4.74E+01, PSNR: 31.65
+2025-09-24 22:25:54,722: [Epoch 67] Train Loss: 4.33E+01, PSNR: 31.83
+2025-09-24 22:26:40,243: [Epoch 68] Train Loss: 4.70E+01, PSNR: 31.54
+2025-09-24 22:27:41,450: maxiter hit in iteration 1
+2025-09-24 22:27:41,501: [Epoch 69] Train Loss: 4.65E+01, PSNR: 31.65
+2025-09-24 22:28:30,990: [Epoch 70] Train Loss: 4.84E+01, PSNR: 31.41
+2025-09-24 22:29:08,398: [Epoch 71] Train Loss: 4.82E+01, PSNR: 31.44
+2025-09-24 22:30:04,277: maxiter hit in iteration 1
+2025-09-24 22:30:04,325: [Epoch 72] Train Loss: 4.84E+01, PSNR: 31.68
+2025-09-24 22:30:58,788: [Epoch 73] Train Loss: 4.49E+01, PSNR: 32.02
+2025-09-24 22:31:51,862: maxiter hit in iteration 1
+2025-09-24 22:31:51,911: [Epoch 74] Train Loss: 4.76E+01, PSNR: 31.80
+2025-09-24 22:32:39,999: [Epoch 75] Train Loss: 4.57E+01, PSNR: 31.90
+2025-09-24 22:33:24,388: [Epoch 76] Train Loss: 4.47E+01, PSNR: 31.74
+2025-09-24 22:34:20,032: [Epoch 77] Train Loss: 4.43E+01, PSNR: 31.76
+2025-09-24 22:35:18,599: maxiter hit in iteration 1
+2025-09-24 22:35:18,657: [Epoch 78] Train Loss: 4.52E+01, PSNR: 31.73
+2025-09-24 22:36:08,642: maxiter hit in iteration 1
+2025-09-24 22:36:08,698: [Epoch 79] Train Loss: 5.36E+01, PSNR: 30.82
+2025-09-24 22:37:03,144: maxiter hit in iteration 1
+2025-09-24 22:37:03,208: [Epoch 80] Train Loss: 4.46E+01, PSNR: 31.85
+2025-09-24 22:37:57,774: [Epoch 81] Train Loss: 4.43E+01, PSNR: 31.93
+2025-09-24 22:38:42,445: [Epoch 82] Train Loss: 4.82E+01, PSNR: 31.74
+2025-09-24 22:39:30,038: [Epoch 83] Train Loss: 5.15E+01, PSNR: 31.25
+2025-09-24 22:40:25,273: [Epoch 84] Train Loss: 4.56E+01, PSNR: 32.01
+2025-09-24 22:41:14,597: [Epoch 85] Train Loss: 5.31E+01, PSNR: 31.35
+2025-09-24 22:42:14,108: maxiter hit in iteration 1
+2025-09-24 22:42:14,167: [Epoch 86] Train Loss: 4.73E+01, PSNR: 31.64
+2025-09-24 22:43:09,468: maxiter hit in iteration 1
+2025-09-24 22:43:09,535: [Epoch 87] Train Loss: 4.94E+01, PSNR: 31.82
+2025-09-24 22:44:04,154: maxiter hit in iteration 1
+2025-09-24 22:44:04,211: [Epoch 88] Train Loss: 4.91E+01, PSNR: 31.71
+2025-09-24 22:44:57,776: maxiter hit in iteration 1
+2025-09-24 22:44:57,826: [Epoch 89] Train Loss: 4.62E+01, PSNR: 31.76
+2025-09-24 22:45:50,556: maxiter hit in iteration 1
+2025-09-24 22:45:50,606: [Epoch 90] Train Loss: 5.02E+01, PSNR: 31.46
+2025-09-24 22:46:41,021: maxiter hit in iteration 1
+2025-09-24 22:46:41,070: [Epoch 91] Train Loss: 5.01E+01, PSNR: 31.55
+2025-09-24 22:47:34,661: [Epoch 92] Train Loss: 4.45E+01, PSNR: 31.89
+2025-09-24 22:48:30,660: [Epoch 93] Train Loss: 4.68E+01, PSNR: 31.74
+2025-09-24 22:49:18,647: [Epoch 94] Train Loss: 4.92E+01, PSNR: 31.49
+2025-09-24 22:50:14,476: maxiter hit in iteration 1
+2025-09-24 22:50:14,533: [Epoch 95] Train Loss: 4.58E+01, PSNR: 31.76
+2025-09-24 22:51:14,853: maxiter hit in iteration 1
+2025-09-24 22:51:14,920: [Epoch 96] Train Loss: 4.42E+01, PSNR: 31.86
+2025-09-24 22:52:03,921: [Epoch 97] Train Loss: 5.18E+01, PSNR: 31.13
+2025-09-24 22:52:41,211: [Epoch 98] Train Loss: 4.92E+01, PSNR: 31.33
+2025-09-24 22:53:36,334: maxiter hit in iteration 1
+2025-09-24 22:53:36,382: [Epoch 99] Train Loss: 4.63E+01, PSNR: 31.88
+2025-09-24 22:54:21,948: maxiter hit in iteration 1
+2025-09-24 22:54:22,002: [Epoch 100] Train Loss: 4.86E+01, PSNR: 31.81
+2025-09-24 22:55:10,250: [Epoch 100] Val Loss: 4.62E+01, PSNR: 31.87
+2025-09-24 23:30:01,906: Mean PSNR: 30.255678683519363
