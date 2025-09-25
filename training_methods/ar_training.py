@@ -243,9 +243,9 @@ def ar_training(
         lmbd = estimate_lmbd(val_dataloader, physics, device)
 
     # Setup reconstruction algorithm parameters
-    NAG_step_size = 1e-2  # Step size for Nesterov accelerated gradient
-    NAG_max_iter = 1000   # Maximum iterations for reconstruction
-    NAG_tol_val = 1e-4    # Tolerance for convergence
+    val_step_size = 1e-2  # Step size for Nesterov accelerated gradient
+    val_max_iter = 1000   # Maximum iterations for reconstruction
+    val_tol = 1e-4    # Tolerance for convergence
 
     # Setup training components
     adversarial_loss = WGAN_loss
@@ -358,9 +358,9 @@ def ar_training(
                         data_fidelity,        # Data fidelity term
                         regularizer,          # Learned regularizer
                         lmbd / lip,          # Scaled regularization parameter
-                        NAG_step_size,       # Step size for optimization
-                        NAG_max_iter,        # Maximum iterations
-                        NAG_tol_val,         # Convergence tolerance
+                        val_step_size,       # Step size for optimization
+                        val_max_iter,        # Maximum iterations
+                        val_tol,         # Convergence tolerance
                         verbose=False,
                         x_init=x_val_noisy,  # Initial estimate
                     )
