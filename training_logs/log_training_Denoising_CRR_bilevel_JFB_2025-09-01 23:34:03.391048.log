@@ -1,7 +1,0 @@
-2025-09-01 23:34:03,391: Train CRR with JFB on Denoising
-2025-09-01 23:34:03,391: The model has 13767 parameters
-2025-09-01 23:34:03,391: Parameters:
-2025-09-01 23:34:03,391: load_pretrain: True, load_parameter_fitting: True, score_sigma: 0.03
-2025-09-01 23:34:03,391: pretrain_epochs: 300, pretrain_lr: 0.01, epochs: 100
-2025-09-01 23:34:03,391: adabelief: True, fitting_lr: 0.1, lr: 0.001
-2025-09-01 23:34:03,391: jacobian_regularization: True, jacobian_regularization_parameter: 1e-06, lmbd: 1.0
