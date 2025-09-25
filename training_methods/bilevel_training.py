@@ -17,10 +17,10 @@ def bilevel_training(
     val_dataloader,
     epochs=100,
     mode="IFT",
-    NAG_step_size=1e-1,
-    NAG_max_iter=1000,
-    NAG_tol_train=1e-4,
-    NAG_tol_val=1e-4,
+    lower_level_step_size=1e-1,
+    lower_level_max_iter=1000,
+    lower_level_tol_train=1e-4,
+    lower_level_tol_val=1e-4,
     minres_max_iter=1000,
     minres_tol=1e-6,
     jfb_step_size_factor=1.0,
@@ -176,9 +176,9 @@ def bilevel_training(
                 data_fidelity,
                 regularizer,
                 lmbd,
-                NAG_step_size,
-                NAG_max_iter,
-                NAG_tol_train,
+                lower_level_step_size,
+                lower_level_max_iter,
+                lower_level_tol_train,
                 verbose=verbose,
                 x_init=x_noisy,
                 return_stats=True,
@@ -191,12 +191,12 @@ def bilevel_training(
             progress_bar.set_description(
                 "used {0} of {1} steps, Loss: {2:.2E}, PSNR: {3:.2f}".format(
                     x_stats["steps"] + 1,
-                    NAG_max_iter,
+                    lower_level_max_iter,
                     train_loss_epoch / train_step,
                     train_psnr_epoch / train_step,
                 )
             )
-            if x_stats["steps"] + 1 == NAG_max_iter:
+            if x_stats["steps"] + 1 == lower_level_max_iter:
                 print("maxiter hit...")
                 if logger is not None:
                     logger.info(f"maxiter hit in iteration {train_step}")
@@ -277,9 +277,9 @@ def bilevel_training(
                         data_fidelity,
                         regularizer,
                         lmbd,
-                        NAG_step_size,
-                        NAG_max_iter,
-                        NAG_tol_val,
+                        lower_level_step_size,
+                        lower_level_max_iter,
+                        lower_level_tol_val,
                         verbose=verbose,
                         x_init=x_val_noisy,
                     )

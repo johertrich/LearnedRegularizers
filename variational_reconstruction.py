@@ -222,11 +222,11 @@ if not regularizer_name in ["EPLL", "PatchNR"]:
 
 # Define forward operator
 dataset, physics, data_fidelity = get_evaluation_setting(problem, device)
-NAG_step_size = (
+step_size = (
     1e-3 if regularizer_name in ["EPLL", "PatchNR"] else 1e-1
-)  # step size in NAG
-NAG_max_iter = 1000  # maximum number of iterations in NAG
-NAG_tol = 1e-4  # tolerance for the relative error (stopping criterion)
+)  # step size in the solver
+max_iter = 1000  # maximum number of iterations in the solver
+tol = 1e-4  # tolerance for the relative error (stopping criterion)
 
 # Call unified evaluation routine
 mean_psnr, x_out, y_out, recon_out = evaluate(
@@ -235,9 +235,9 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
     dataset=dataset,
     regularizer=regularizer,
     lmbd=lmbd,
-    NAG_step_size=NAG_step_size,
-    NAG_max_iter=NAG_max_iter,
-    NAG_tol=NAG_tol,
+    step_size=step_size,
+    max_iter=max_iter,
+    tol=tol,
     only_first=only_first,
     adaptive_range=problem == "CT",
     device=device,

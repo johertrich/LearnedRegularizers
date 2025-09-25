@@ -249,10 +249,10 @@ def bilevel_training_maid(
     SUBSET,
     val_dataloader,
     epochs=100,
-    NAG_step_size=1e-1,
-    NAG_max_iter=1000,
-    NAG_tol_train=1e-1,
-    NAG_tol_val=1e-4,
+    lower_level_step_size=1e-1,
+    lower_level_max_iter=1000,
+    lower_level_tol_train=1e-1,
+    lower_level_tol_val=1e-4,
     cg_max_iter=1000,
     CG_tol=1e-6,
     lr=1e-3,
@@ -405,8 +405,8 @@ def bilevel_training_maid(
     nu_over = 1.05
     nu_under = 0.5
     rho_over = 1.25
-    eps = NAG_tol_train
-    eps_old = NAG_tol_train
+    eps = lower_level_tol_train
+    eps_old = lower_level_tol_train
     max_line_search = 5
     fixed_eps = False
     fixed_lr = False
@@ -443,9 +443,9 @@ def bilevel_training_maid(
                 data_fidelity,
                 optimizer.regularizer,
                 lmbd,
-                NAG_step_size,
-                NAG_max_iter,
-                NAG_tol_train,
+                lower_level_step_size,
+                lower_level_max_iter,
+                lower_level_tol_train,
                 verbose=verbose,
                 x_init=x_init,
                 return_stats=True,
@@ -499,8 +499,8 @@ def bilevel_training_maid(
                 data_fidelity,
                 lmbd,
                 optimizer,
-                NAG_step_size,
-                NAG_max_iter,
+                lower_level_step_size,
+                lower_level_max_iter,
                 rho_maid,
                 eps,
                 eps_old,
@@ -614,8 +614,8 @@ def bilevel_training_maid(
                         data_fidelity,
                         optimizer.regularizer,
                         lmbd,
-                        NAG_step_size,
-                        NAG_max_iter,
+                        lower_level_step_size,
+                        lower_level_max_iter,
                         eps,
                         verbose=verbose,
                         x_init=x_old,
@@ -692,8 +692,8 @@ def bilevel_training_maid(
                 data_fidelity,
                 lmbd,
                 optimizer,
-                NAG_step_size,
-                NAG_max_iter,
+                lower_level_step_size,
+                lower_level_max_iter,
                 rho_maid,
                 eps,
                 eps_old,
@@ -705,14 +705,14 @@ def bilevel_training_maid(
             if not success:
                 print("Line search failed")
                 eps_old = eps
-                NAG_tol_train = NAG_tol_train * nu_under
-                eps = NAG_tol_train
+                lower_level_tol_train = lower_level_tol_train * nu_under
+                eps = lower_level_tol_train
                 CG_tol = CG_tol * nu_under
                 max_line_search += 1
             else:
                 eps_old = eps
-                NAG_tol_train = NAG_tol_train * nu_over
-                eps = NAG_tol_train
+                lower_level_tol_train = lower_level_tol_train * nu_over
+                eps = lower_level_tol_train
                 CG_tol = CG_tol * nu_over
                 max_line_search = 10
                 optimizer.lr *= rho_over
@@ -720,7 +720,6 @@ def bilevel_training_maid(
             if not success:
                 if hasattr(optimizer, "clear_memory"):
                     optimizer.clear_memory()
-        
         print_str = f"[Epoch {epoch+1}] Train Loss: {loss_vals[-1]:.2E}, PSNR: {psnr_vals[-1]:.2f}"
         print(print_str)
         if logger is not None:
@@ -742,9 +741,9 @@ def bilevel_training_maid(
                         data_fidelity,
                         optimizer.regularizer,
                         lmbd,
-                        NAG_step_size,
-                        NAG_max_iter,
-                        NAG_tol_val,
+                        lower_level_step_size,
+                        lower_level_max_iter,
+                        lower_level_tol_val,
                         verbose=verbose,
                         x_init=x_init_val,
                     )
@@ -769,10 +768,10 @@ def bilevel_training_maid(
                     best_val_psnr = mean_psnr_val
                     best_regularizer_state = copy.deepcopy(optimizer.regularizer.state_dict())
                     
-        if NAG_tol_train < stopping_criterion or optimizer.lr < 1e-10:
+        if lower_level_tol_train < stopping_criterion or optimizer.lr < 1e-10:
             print(
                 "Stopping criterion reached in epoch {0}: {1:.2E}".format(
-                    epoch + 1, NAG_tol_train
+                    epoch + 1, lower_level_tol_train
                 )
             )
             regularizer.load_state_dict(best_regularizer_state)
