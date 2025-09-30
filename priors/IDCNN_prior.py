@@ -1,3 +1,14 @@
+"""
+Input Difference-of-Convex Neural Networks (IDCNN) implementation for learned regularization.
+
+This module implements Input Difference-of-Convex Neural Networks that maintain difference-of-convexity 
+with respect to their input.
+
+Based on https://arxiv.org/abs/2502.00240
+
+"""
+
+
 import torch
 import torch.nn as nn
 from deepinv.optim import Prior
@@ -30,6 +41,7 @@ class IDCNNPrior(Prior):
             self.load_state_dict(torch.load(pretrained, map_location=device))
 
     def g(self, x):
+        # difference of two ICNNs
         return self.icnn1(x) - self.icnn2(x)
 
     def grad(self, x, get_energy=False):
