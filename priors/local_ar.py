@@ -153,35 +153,3 @@ class LocalAR(Prior):
             grad = torch.autograd.grad(outputs=nll, inputs=x_, create_graph=True)[0]
 
         return grad
-
-
-if __name__ == "__main__":
-
-    x = torch.randn(8, 1, 16, 16)
-
-    prior = LocalAR(n_patches=10, pad=False)
-
-    out_cnn = prior.cnn(x).mean([1, 2, 3])
-    print(out_cnn.shape)
-    print(out_cnn)
-
-    out = prior.g(x)
-
-    print(out)
-
-    """
-    with torch.no_grad():
-        out = prior.g(x)
-
-        print(x.shape, out.shape)
-
-        print(out)
-
-        prior.n_patches = -1 
-        out = prior.g(x)
-
-        print(x.shape, out.shape)
-
-        print(out)
-
-    """
