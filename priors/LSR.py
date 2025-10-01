@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Mar 26 10:02:24 2025
-
-@author: Sebastian
-"""
-
 import torch
 import torch.nn as nn
 from deepinv.optim import Prior
@@ -14,13 +7,23 @@ from deepinv.models.GSPnP import GSDRUNet
 class LSR(Prior):
     def __init__(
         self,
-        device="cpu",
-        pretrained=None,
-        nc=[64, 128, 256, 512],
-        pretrained_denoiser=True,
-        alpha=1.0,
-        sigma=0.03,
+        device="cpu",  # device for the parameters
+        pretrained=None,  # if a string is given the weights of the corresponding path are loaded
+        nc=[
+            32,
+            64,
+            128,
+            256,
+        ],  # number of channels at the different stages of the DRUNet (cf the deepinv DRUNet documentation)
+        pretrained_denoiser=False,  # set True initialize with the pretrained GSDRUNet weights from deepinv (default False)
+        alpha=1.0,  # scaling factor of the DRUNet (cf the deepinv GSDRUNet documentation)
+        sigma=0.03,  # noise level input for the DRUNet
     ):
+        """
+        Defines the Least Squares Residual regularizer defined by R(x)=||x-D(x)||^2, where D is a DRUNet.
+
+        The input arguments are specified as comments above.
+        """
         super(LSR, self).__init__()
 
         self.model = GSDRUNet(

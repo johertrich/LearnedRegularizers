@@ -1,3 +1,10 @@
+"""
+This file specifies the bilevel-JFB and bilevel-IFT routines for training the learned regularizers.
+The input arguments are defined by the comments in the function header.
+
+We refer to Section 3.1 of the paper and the references therein for theoretical backgrounds.
+"""
+
 import torch
 import numpy as np
 from tqdm import tqdm
@@ -9,35 +16,37 @@ from .utils.adabelief import AdaBelief
 
 
 def bilevel_training(
-    regularizer,
-    physics,
-    data_fidelity,
-    lmbd,
-    train_dataloader,
-    val_dataloader,
-    epochs=100,
-    mode="IFT",
-    lower_level_step_size=1e-1,
-    lower_level_max_iter=1000,
-    lower_level_tol_train=1e-4,
-    lower_level_tol_val=1e-4,
-    minres_max_iter=1000,
-    minres_tol=1e-6,
-    jfb_step_size_factor=1.0,
-    lr=0.005,
-    lr_decay=0.99,
-    momentum_optim=None,
-    reg=False,
-    reg_para=1e-5,
-    reg_reduced=False,
-    adabelief=False,
-    device="cuda" if torch.cuda.is_available() else "cpu",
-    verbose=False,
-    validation_epochs=20,
-    logger=None,
-    dynamic_range_psnr=False,
-    savestr=None,
-    upper_loss=lambda x, y: torch.sum(((x - y) ** 2).view(x.shape[0], -1), -1),
+    regularizer,  # regularizer to be trained
+    physics,  # physics defining the forward operator and noise level (cf deepinv documentation for physics)
+    data_fidelity,  # data fidelity term for the variational problem (cf deepinv documentation for data fidelity terms of type deepinv.optim.data_fidelity)
+    lmbd,  # regularization parameter in the variational problem
+    train_dataloader,  # torch.utils.data.DataLoader object for loading the training data
+    val_dataloader,  # torch.utils.data.DataLoader object for loading the validation data
+    epochs=100,  # number of epochs
+    mode="IFT",  # hypergradient computation mode. Choices are "IFT" and "JFB"
+    lower_level_step_size=1e-1,  # initial step size for the lower level problem
+    lower_level_max_iter=1000,  # maximal number of iterations in the lower level problem
+    lower_level_tol_train=1e-4,  # convergence tolerance for the lower level solver during training
+    lower_level_tol_val=1e-4,  # convergence tolerance for the lower level solver during validation
+    minres_max_iter=1000,  # maximal number of iterations in the linear system solver for mode == "IFT", no effect for mode "JFB"
+    minres_tol=1e-6,  # convergence tolerance in the linear system solver for mode == "IFT", no effect for mode "JFB"
+    jfb_step_size_factor=1.0,  # gradient scaling for mode == "JFB", no effect for mode == "IFT"
+    lr=0.005,  # learning rate
+    lr_decay=0.99,  # exponential learning rate decay factor applied after each epoch
+    momentum_optim=None,  # defines the momentum parameters in the optimizer (None for using the defaults)
+    reg=False,  # If reg is set to True, we apply Jacobian regularization
+    reg_para=1e-5,  # regularization parameter for the Jacobian regularization
+    reg_reduced=False,  # If set to True, the Jacobian regularization is only applied to the regularizer and not to the forward operator (useful if the forward operator is expansive)
+    adabelief=False,  # If True, we use Adabelief instead of Adam as an optimizer
+    device="cuda" if torch.cuda.is_available() else "cpu",  # specifies the used device
+    verbose=False,  # set True for a couple of debug prints during training
+    validation_epochs=20,  # validation is done every validation_epochs epochs
+    logger=None,  # a logger object using the standard Python logging utilities
+    dynamic_range_psnr=False,  # use a PSNR with adaptive range for validation
+    savestr=None,  # specify a path to save checkpoints
+    upper_loss=lambda x, y: torch.sum(
+        ((x - y) ** 2).view(x.shape[0], -1), -1
+    ),  # loss function used in the upper level problem
 ):
     assert validation_epochs <= epochs, (
         "validation_epochs cannot be greater than epochs. "
