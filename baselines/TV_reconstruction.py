@@ -1,5 +1,9 @@
-# Evaluates a TV baseline on the test problems. Consequently it does not use the
-# NAG-based evaluation routine but rather uses a primal-dual hybrid gradient algorithm.
+# Evaluates a TV baseline on the test problems. It uses a primal-dual hybrid gradient algorithm.
+
+import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from operators import get_evaluation_setting
 from deepinv.utils.plotting import plot
@@ -58,7 +62,6 @@ elif problem == "Denoising":
 
 #############################################################
 ############# Problem setup and evaluation ##################
-############# This should not be changed   ##################
 #############################################################
 
 # Define forward operator

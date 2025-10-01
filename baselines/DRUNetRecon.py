@@ -1,3 +1,5 @@
+# evaluates the DRUNet for Denoising
+
 from deepinv.models import DRUNet
 from operators import get_evaluation_setting
 from deepinv.loss.metric import PSNR

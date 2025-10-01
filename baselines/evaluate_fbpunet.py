@@ -74,25 +74,3 @@ dinv.test(
     model, fbp_dataloader, physics, metrics=psnr, show_progress_bar=True, device=device
 )
 
-"""
-with torch.no_grad():
-    ## Evaluate on the test set
-    psnrs = []
-    for i, x in tqdm(enumerate(dataloader), total=len(dataloader)):
-
-        x = x.to(device)
-        y = physics(x)
-
-        x_pred = model(y, physics)
-        
-        #fig, (ax1, ax2, ax3) = plt.subplots(1,3)
-        #ax1.imshow(x[0,0].cpu().numpy(), cmap="gray")
-        #ax2.imshow(x_fbp[0,0].cpu().numpy(), cmap="gray")
-        #ax3.imshow(x_pred[0,0].cpu().numpy(), cmap="gray")
-        #plt.show()
-
-        psnrs.append(psnr(x_pred, x).squeeze().item())
-
-
-print("PSNR: ", np.mean(psnrs))
-"""
