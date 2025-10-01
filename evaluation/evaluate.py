@@ -1,3 +1,10 @@
+"""
+This file provides a unified evaluation routine of a learned regularizer on some dataset by solving the 
+variational problem with nonmonotonic accelerated (proximal) gradient descent or Adam and reporting the 
+mean PSNR (and some other stats).
+The input arguments of the evaluate functions are specified as comments in the function header.
+"""
+
 import numpy as np
 from torch.utils.data import DataLoader
 from .nmAPG import reconstruct_nmAPG
@@ -13,21 +20,21 @@ import time
 
 
 def evaluate(
-    physics,
-    data_fidelity,
-    dataset,
-    regularizer,
-    lmbd,
-    step_size,
-    max_iter,
-    tol,
-    adam=False,
-    only_first=False,
-    adaptive_range=False,
-    device="cuda" if torch.cuda.is_available() else "cpu",
-    verbose=False,
-    save_path=None,
-    logger=None,
+    physics,  # deepinv physics object defining forward operator and noise model
+    data_fidelity,  # deepinv data fidelity object defining the data fidelity term of the variational problem
+    dataset,  # torch dataset object defining the used dataset on which we evaluate the regularizer
+    regularizer,  # used regularizer
+    lmbd,  # regularization parameter
+    step_size,  # initial step size of the nmAPG (or Adam)
+    max_iter,  # maximum number of iterations in the nmAPG (or Adam)
+    tol,  # tolerance used in the stopping criterion of the nmAPG (or Adam)
+    adam=False,  # set to True for using Adam instead of nmAPG
+    only_first=False,  # set to True for only evaluating the first image
+    adaptive_range=False,  # set to True to use a PSNR where the range is choosen adaptively (commenly used for CT)
+    device="cuda" if torch.cuda.is_available() else "cpu",  # device
+    verbose=False,  # set to True to print some stats (e.g. number of iterations used in the solver)
+    save_path=None,  # specify a path to save the images (ground truth, measurements and reconstruction)
+    logger=None,  # specify a Python logging logger to write a log file (e.g. with the PSNRs of the single images in the dataset)
 ):
 
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)

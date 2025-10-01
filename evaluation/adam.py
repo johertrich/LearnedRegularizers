@@ -1,21 +1,27 @@
+"""
+This file provides a function for using Adam to minimize a variational problem 
+data_fideltiy(physics(x),y)+lmbd*regularizer(x)
+with Adam and a cosine scheduler.
+"""
+
 import torch
 from tqdm import tqdm
 import torch.nn.functional as F
 
 
 def reconstruct_adam(
-    y,
-    physics,
-    data_fidelity,
-    regularizer,
-    lamda,
-    step_size,
-    max_iter,
-    tol,
-    x_init=None,
-    detach_grads=True,
-    verbose=False,
-    return_stats=False,
+    y,  # observation in the variational problem
+    physics,  # deepinv physics object defining the forward operator and the noise model
+    data_fidelity,  # deepinv data fidelity object defining the data fidelity term
+    regularizer,  # used regularizer
+    lamda,  # regularization parameter
+    step_size,  # initial step size
+    max_iter,  # maximum number of iterations
+    tol,  # tolerance for the stopping criterion (relative residual)
+    x_init=None,  # initialization (None for physics.A_dagger(y))
+    detach_grads=True,  # detach gradients after each step (should be set to True to prevent memory leakage)
+    verbose=False,  # set to True for some debug logs
+    return_stats=False,  # set to True to return some stats (number of used steps etc) in addition to the reconstruction
 ):
     """wrapper for adam"""
 

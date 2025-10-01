@@ -1,31 +1,41 @@
+"""
+In this file, we implement a solver for the variational problem with a smooth regularizer. To this end, we provide
+two functions. First the function nmAPG is the pure optimization algorithm (basically gradient descent 
++ momentum + line search). Second, the function reconstruct_nmAPG defines the required objects of nmAPG in the
+context of an inverse problem. The input arguments and a brief description are given in the header of these functions.
+
+The implemented algorithm is the nonmonotonic acclerated (proximal) gradient descent as 
+proposed in Algorithm 4 from the supplementary material of
+
+Huan Li, Zhouchen Lin
+Accelerated Proximal Gradient Methods for Nonconvex Programming
+NeurIPS 2015
+
+[1] https://papers.nips.cc/paper_files/paper/2015/hash/f7664060cc52bc6f3d620bcedc94a4b6-Abstract.html
+[2] https://papers.nips.cc/paper_files/paper/2015/file/f7664060cc52bc6f3d620bcedc94a4b6-Supplemental.zip
+"""
+
 import torch
 import numpy as np
 from typing import Callable
 import inspect
 
-# Implements Algorithm 4 from the supplementary material of
-#
-# Huan Li, Zhouchen Lin
-# Accelerated Proximal Gradient Methods for Nonconvex Programming
-# NeurIPS 2015
-#
-# [1] https://papers.nips.cc/paper_files/paper/2015/hash/f7664060cc52bc6f3d620bcedc94a4b6-Abstract.html
-# [2] https://papers.nips.cc/paper_files/paper/2015/file/f7664060cc52bc6f3d620bcedc94a4b6-Supplemental.zip
-
 
 def nmAPG(
-    x0: torch.Tensor,
-    y: torch.Tensor,
-    f: Callable[[torch.Tensor], torch.Tensor],
-    nabla: Callable[[torch.Tensor], torch.Tensor],
-    f_and_nabla: Callable[[torch.Tensor], [torch.Tensor]],
-    max_iter: int = 200,
-    L_init: float = 1,
-    tol: float = 1e-4,
-    rho: float = 0.9,
-    delta: float = 0.1,
-    eta: float = 0.8,
-    verbose: bool = False,
+    x0: torch.Tensor,  # initial point x0
+    y: torch.Tensor,  # additional parameter y of the objective function
+    f: Callable[[torch.Tensor], torch.Tensor],  # objective function
+    nabla: Callable[[torch.Tensor], torch.Tensor],  # gradient of the objective function
+    f_and_nabla: Callable[
+        [torch.Tensor], [torch.Tensor]
+    ],  # callble which returns both, objective function and its gradient
+    max_iter: int = 200,  # maximal number of iterations
+    L_init: float = 1,  # initial guess of the local Lipschitz constant of the gradient (used in the line search)
+    tol: float = 1e-4,  # tolerance for the stopping criterion (relative residual between two iterates)
+    rho: float = 0.9,  # line search paramter
+    delta: float = 0.1,  # line search parameter
+    eta: float = 0.8,  # line search parameter
+    verbose: bool = False,  # set to True for some debug prints
 ):
     """
     Algorithm 4: nonmonotone APG with line search
@@ -178,18 +188,18 @@ def nmAPG(
 
 
 def reconstruct_nmAPG(
-    y,
-    physics,
-    data_fidelity,
-    regularizer,
-    lamda,
-    step_size,
-    max_iter,
-    tol,
-    x_init=None,
-    detach_grads=True,
-    verbose=False,
-    return_stats=False,
+    y,  # observation in the variational problem
+    physics,  # deepinv physics object defining the forward operator and the noise model
+    data_fidelity,  # deepinv data fidelity object defining the data fidelity term
+    regularizer,  # regularizer in the variational problem
+    lamda,  # regularization parameter
+    step_size,  # initial step size for the nmAPG
+    max_iter,  # maximal number of iterations in the nmAPG
+    tol,  # tolerance for the stopping criterion (relative residual) in the nmAPG
+    x_init=None,  # initialization (None for using physics.A_dagger(y))
+    detach_grads=True,  # detach the gradients after each iteration (shoud be set to True)
+    verbose=False,  # set to True for some debug prints
+    return_stats=False,  # return some statistics (like number of used iterations, estimated local Lipschitz constant etc) in addition to the reconstruction
 ):
     """wrapper for nmAPG"""
 
