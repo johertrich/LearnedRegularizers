@@ -1,4 +1,11 @@
-# Training script for the columns BL+IFT, BL+JFB and ML for CRR, WCRR, ICNN, IDCNN, LAR, TDV and LSR
+"""
+This script provides the bilevel training for various regularizers (CRR, WCRR, ICNN, IDCNN, 
+LAR (the CNN architecture from the paper), TDV and LSR) with different hypergradient computation
+routines (IFT, JFB and IFT-MAID).
+
+A description how to use this script (and to define the input arguments) is given in the readme file
+within the section "Reproduce the Training Runs (Experiment 1 and 3)".
+"""
 
 import torch
 from training_methods import bilevel_training, score_training, bilevel_training_maid

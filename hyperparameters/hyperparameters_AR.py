@@ -1,3 +1,8 @@
+"""
+In this file, we define the hyperparameters for the training_bilevel script.
+The hyperparameters might depend on the regularizer and the task.
+"""
+
 import argparse
 
 

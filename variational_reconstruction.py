@@ -1,4 +1,12 @@
-# Evaluation script for the columns BL+IFT, BL+JFB, ML and adversarial for CRR, WCRR, ICNN, IDCNN, TDV, LAR, LSR and NETT. If regularizer_name == "NETT", No need to specify the other parse arguments.
+"""
+This script provides the main evaluation routine of the learned regularizers in the chapter.
+We solve the variational problem
+d(Hx,y)+lmbd*R(x)
+where d is the data fidelity term and R the regularizer.
+
+A description how to use this script (and to define the input arguments) is given in the readme file
+within the section "Reproduce the Evaluation Runs (Experiment 1 and 3)".
+"""
 
 import os
 import sys

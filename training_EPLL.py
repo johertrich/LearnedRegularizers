@@ -1,3 +1,8 @@
+"""
+Fit the GMM for the EPLL prior. See the readme file (section "Reproduce the Training Runs (Experiment 1 and 3)") 
+for details.
+"""
+
 import torch
 from deepinv.datasets import PatchDataset
 from torchvision.transforms import CenterCrop

@@ -1,3 +1,8 @@
+"""
+Training the PatchNR prior. See the readme file (section "Reproduce the Training Runs (Experiment 1 and 3)") 
+for details.
+"""
+
 import torch
 from torch.utils.data import DataLoader
 from deepinv.datasets import PatchDataset

@@ -1,3 +1,8 @@
+"""
+Training NETT. See the readme file (section "Reproduce the Training Runs (Experiment 1 and 3)") 
+for details.
+"""
+
 from priors import NETT, ParameterLearningWrapper, LSR
 import torch
 from deepinv.physics import Denoising, GaussianNoise, Tomography
