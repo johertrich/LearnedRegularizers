@@ -11,7 +11,6 @@ Notes:
 2. Note that IDCNN = the difference of any input weakly convex neural networks (IWCNNs). Technically, one can try any IWCNN variants.  
 """
 
-
 import torch
 import torch.nn as nn
 from deepinv.optim import Prior

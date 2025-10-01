@@ -6,10 +6,25 @@ from deepinv.optim import Prior
 class ParameterLearningWrapper(Prior):
     def __init__(
         self,
-        regularizer,
+        regularizer,  # regularizer which will be equiped with learnable regularization parameter and scaling
         scale_init=0.0,
         device="cuda" if torch.cuda.is_available() else "cpu",
     ):
+        """
+        The parameter class adds a learnable regularization parameter and a learnable scaling factor to
+        a predefined regularizer.
+        More precisely, it defines a regularizer
+
+        R_tilde(x)=exp(alpha)/exp(s)**2 R(exp(s) x)
+
+        for a predefined base regularizer R, where alpha and s are learnable parameters. The exponential function
+        enforces these scaling parameters to be positive.
+
+        Parameters of the Constructor:
+        regularizer - base regularizer R which is used
+        scale_init - initialization of the parameter s (optional, default 0)
+        device - device of the paramterers (optional, default uses cuda if available and cpu otherwise)
+        """
         super().__init__()
         self.regularizer = regularizer
         self.add_module("regularizer", self.regularizer)
