@@ -1,3 +1,7 @@
+"""
+Implements the (Weakly) Convex Ridge Regularizer, which is a special case of a Field-of-Experts regularizer.
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -15,13 +19,13 @@ class ZeroMean(nn.Module):
 class WCRR(Prior):
     def __init__(
         self,
-        sigma,
-        weak_convexity,
-        tanh=False,
-        nb_channels=[1, 4, 8, 64],
-        filter_sizes=[5, 5, 5],
-        device="cuda" if torch.cuda.is_available() else "cpu",
-        pretrained=None,
+        sigma,  # scaling constant (we set it always to 0.1)
+        weak_convexity,  # set to 0.0 for CRR and to 1.0 for WCRR
+        tanh=False,  # whether to use tanh instead of smoothed l1 as potential
+        nb_channels=[1, 4, 8, 64],  # number channels in the multiconv
+        filter_sizes=[5, 5, 5],  # filter sizes of the convolution
+        device="cuda" if torch.cuda.is_available() else "cpu",  # device
+        pretrained=None,  # if a str is given here, the weights from the corresponding path will be loaded
     ):
         super(WCRR, self).__init__()
 
