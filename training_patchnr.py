@@ -128,7 +128,7 @@ else:
     train_imgs = torch.concat(train_imgs)
 
     verbose = True
-    train_dataset = PatchDataset(train_imgs, patch_size=patch_size, transforms=None)
+    train_dataset = PatchDataset(train_imgs, patch_size=patch_size)
 
     patchnr_learning_rate = 5e-4
 
@@ -153,7 +153,7 @@ else:
             for idx, batch in enumerate(patchnr_dataloader):
                 optimizer.zero_grad()
 
-                x = batch[0].to(device)
+                x = batch.to(device)
                 x = x + 1 / 256.0 * torch.rand_like(x)  # add small dequantisation noise
                 latent_x, logdet = regularizer.normalizing_flow(
                     x
