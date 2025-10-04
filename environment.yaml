@@ -10,3 +10,4 @@ dependencies:
     - torch
     - torchvision
     - deepinv
+    - scikit-image
