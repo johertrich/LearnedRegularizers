@@ -51,6 +51,7 @@ def get_operator(problem, device):
             img_width=362,
             circle=False,
             device=device,
+            normalize=False,
             noise_model=GaussianNoise(sigma=noise_level),
         )
 
