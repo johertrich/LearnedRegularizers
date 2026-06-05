@@ -32,6 +32,7 @@ nmAPG's Lipschitz estimate ``L`` (it is *not* a true Lipschitz constant), kept
 in the return tuple so the ``reconstruct`` wrapper can report uniform stats.
 """
 
+from collections import deque
 import torch
 
 
@@ -83,7 +84,9 @@ def lbfgs_batched(
     g_norm_0 = g.flatten(1).norm(dim=1).clamp(min=1e-12)  # (B,)
 
     # L-BFGS history (oldest first). Each S[k], Y[k] is (B,C,H,W); RHO[k] is (B,1,1,1)
-    S, Y, RHO = [], [], []
+    S = deque(maxlen=history_size)
+    Y = deque(maxlen=history_size)
+    RHO = deque(maxlen=history_size)
     gamma = torch.ones(B, *([1] * (x.ndim - 1)), device=x.device, dtype=x.dtype)
 
     converged = torch.zeros(B, dtype=torch.bool, device=x.device)
@@ -156,11 +159,6 @@ def lbfgs_batched(
         S.append(s_k)
         Y.append(y_k)
         RHO.append(rho_k)
-        if len(S) > history_size:
-            S.pop(0)
-            Y.pop(0)
-            RHO.pop(0)
-
         # ---- convergence checks ----
         # (1) non-finite energy: freeze affected samples
         nonfinite = ~f_new.isfinite()
@@ -172,7 +170,7 @@ def lbfgs_batched(
                 )
 
         # (2) relative iterate change
-        num = (x_new - x).flatten(1).norm(dim=1)
+        num = s_k.flatten(1).norm(dim=1)
         den = x_new.flatten(1).norm(dim=1).clamp_min(1e-12)
         step_res = num / den
         res = torch.where(converged, res, step_res)

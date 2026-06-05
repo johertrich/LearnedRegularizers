@@ -102,7 +102,7 @@ def reconstruct(
         l-bfgs / cg
             All kwargs are merged into the ``options`` dict passed to
             ``minimize``.
-            ``history_size`` : int (l-bfgs only), default 10
+            ``history_size`` : int (l-bfgs only), default 15
                 L-BFGS memory size.
             ``lr`` : float (l-bfgs only), default 1.0
                 Initial step length for the line search.
@@ -111,9 +111,9 @@ def reconstruct(
                 line search.
             ``c2`` : float (l-bfgs only), default 0.9
                 Curvature condition constant for the strong-Wolfe line search.
-            ``tolerance_change`` : float (l-bfgs only), default 1e-9
+            ``tolerance_change`` : float (l-bfgs only), default 1e-6
                 Line-search bracket width below which the search terminates.
-            ``max_ls`` : int (l-bfgs only), default 20
+            ``max_ls`` : int (l-bfgs only), default 25
                 Maximum number of strong-Wolfe line search iterations.
             ``gtol`` : float, default 1e-5
                 Relative gradient-norm tolerance: ``‖g_k‖ / ‖g_0‖ ≤ gtol``.

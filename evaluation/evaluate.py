@@ -18,7 +18,6 @@ from deepinv.loss.metric import PSNR
 from tqdm import tqdm
 from torchvision.utils import save_image
 import os
-from PIL import Image
 import time
 
 
@@ -88,7 +87,7 @@ def evaluate(
         adam
             (none beyond ``step_size``)
         l-bfgs / cg
-            ``history_size`` (l-bfgs only, default 10), ``lr``,
+            ``history_size`` (l-bfgs only, default 15), ``lr``,
             ``c1``, ``c2``, ``tolerance_change``, ``max_ls``
             (all l-bfgs only), ``gtol`` (relative: ``‖g_k‖/‖g_0‖``), ``gtd_tol`` (l-bfgs only)
 

@@ -36,9 +36,10 @@ def adam(
     )
 
     converged = torch.zeros(x.shape[0], dtype=torch.bool, device=x.device)
+    x_prev = x.detach().clone()
     i = 0
     for i in range(max_iter):
-        x_old = x.detach().clone()
+        x_prev.copy_(x.detach())
         optimizer.zero_grad()
         loss = energy(x, y).reshape(-1).sum()
         loss.backward()
@@ -46,7 +47,7 @@ def adam(
         scheduler.step()
         with torch.no_grad():
             x.data.clamp_(min=0)
-        residual = torch.norm(x - x_old) / torch.norm(x_old).clamp_min(1e-12)
+            residual = (x - x_prev).norm() / x.norm().clamp_min(1e-12)
         if residual < tol:
             if verbose:
                 print(

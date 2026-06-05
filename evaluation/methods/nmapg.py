@@ -28,7 +28,7 @@ The objective is supplied as three callables that all share the signature
 """
 
 import torch
-import numpy as np
+import math
 from typing import Callable, Tuple
 
 
@@ -46,6 +46,7 @@ def nmAPG(
     rho: float = 0.9,  # line search parameter
     delta: float = 0.1,  # line search parameter
     eta: float = 0.8,  # line search parameter
+    max_ls_inner: int = 150,  # max iterations for each inner line search
     verbose: bool = False,  # set to True for some debug prints
 ):
     """
@@ -65,7 +66,6 @@ def nmAPG(
     q = 1.0  # q1
     c = f(x, y)  # c1
     L = torch.full((x.shape[0], 1, 1, 1), L_init, dtype=x.dtype, device=x.device)
-    L_old = L.clone()
     res = (tol + 1) * torch.ones(x.shape[0], device=x.device, dtype=x.dtype)
     idx = torch.arange(0, x.shape[0], device=x.device)
     grad = torch.zeros_like(x)  # nabla F(x)
@@ -75,9 +75,8 @@ def nmAPG(
 
     # Main loop
     for i in range(max_iter):
-        assert not torch.any(
-            torch.isnan(x)
-        ), "Numerical errors! Some values became NaN!"
+        if torch.any(torch.isnan(x)):
+            raise RuntimeError("Numerical errors! Some values became NaN!")
         x_bar[idx] = (
             x[idx]
             + t_old / t * (z[idx] - x[idx])
@@ -104,7 +103,7 @@ def nmAPG(
         idx_sub = torch.arange(0, idx.shape[0], device=x.device)
         energy_new = energy.clone()
         dx = z[idx] - x_bar[idx]
-        for ii in range(150):
+        for ii in range(max_ls_inner):
             z[idx_search] = (
                 x_bar[idx_search] - grad[idx_search] / L[idx_search]
             )  # Eq 151, 1/L = alpha_y
@@ -146,10 +145,8 @@ def nmAPG(
                     min=1.0,
                     max=None,
                 )
-            L_old.copy_(L)
-
             # Line search on v
-            for ii in range(150):
+            for ii in range(max_ls_inner):
                 v = x[idx_idx2] - gradx / L[idx_idx2]
                 dx = v - x[idx_idx2]
                 bound = c[idx_idx2, None, None, None] - delta * (dx * dx).sum(
@@ -176,7 +173,7 @@ def nmAPG(
             f_x = energy_new
 
         t_old = t
-        t = (np.sqrt(4.0 * t_old**2 + 1.0) + 1.0) / 2.0  # Eq 159
+        t = (math.sqrt(4.0 * t_old**2 + 1.0) + 1.0) / 2.0  # Eq 159
         q_old = q
         q = eta * q + 1.0  # Eq 160
         c[idx] = (eta * q_old * c[idx] + f_x) / q  # Eq 161
@@ -185,9 +182,8 @@ def nmAPG(
             res[idx] = torch.norm(x[idx] - x_old[idx], p=2, dim=(1, 2, 3)) / torch.norm(
                 x[idx], p=2, dim=(1, 2, 3)
             )
-        assert not torch.any(
-            torch.isnan(res)
-        ), "Numerical errors! Some values became NaN!"
+        if torch.any(torch.isnan(res)):
+            raise RuntimeError("Numerical errors! Some values became NaN!")
         condition = res >= tol
         idx = condition.nonzero().view(-1)  # Update which data to still iterate on
 
