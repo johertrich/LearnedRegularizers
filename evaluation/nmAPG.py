@@ -32,7 +32,7 @@ def nmAPG(
     max_iter: int = 200,  # maximal number of iterations
     L_init: float = 1,  # initial guess of the local Lipschitz constant of the gradient (used in the line search)
     tol: float = 1e-4,  # tolerance for the stopping criterion (relative residual between two iterates)
-    rho: float = 0.9,  # line search paramter
+    rho: float = 0.9,  # line search parameter
     delta: float = 0.1,  # line search parameter
     eta: float = 0.8,  # line search parameter
     verbose: bool = False,  # set to True for some debug prints
@@ -53,7 +53,7 @@ def nmAPG(
     t_old = 0.0  # t0
     q = 1.0  # q1
     c = f(x, y)  # c1
-    L = torch.full((x.shape[0], 1, 1, 1), L_init, dtype=torch.float32, device=x.device)
+    L = torch.full((x.shape[0], 1, 1, 1), L_init, dtype=x.dtype, device=x.device)
     L_old = L.clone()
     res = (tol + 1) * torch.ones(x.shape[0], device=x.device, dtype=x.dtype)
     idx = torch.arange(0, x.shape[0], device=x.device)
@@ -157,8 +157,12 @@ def nmAPG(
             idx3 = (energy_new2 <= energy_new[idx2]).nonzero().view(-1)
             tmp = idx_idx2[idx3]
             x[tmp] = v[idx3]
+            # assemble f(new x) from already-computed values
+            f_x = energy_new.clone()
+            f_x[idx2[idx3]] = energy_new2[idx3]
         else:
             x[idx] = z[idx]
+            f_x = energy_new
 
         if i > 0:
             res[idx] = torch.norm(x[idx] - x_old[idx], p=2, dim=(1, 2, 3)) / torch.norm(
@@ -178,7 +182,7 @@ def nmAPG(
         t = (np.sqrt(4.0 * t_old**2 + 1.0) + 1.0) / 2.0  # Eq 159
         q_old = q
         q = eta * q + 1.0  # Eq 160
-        c[idx] = (eta * q_old * c[idx] + f(x[idx], y[idx])) / q  # Eq 161
+        c[idx] = (eta * q_old * c[idx] + f_x) / q  # Eq 161
         x_bar_old.copy_(x_bar)
         grad_old.copy_(grad)
     if verbose and (torch.max(res) >= tol):
