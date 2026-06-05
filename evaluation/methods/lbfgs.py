@@ -51,7 +51,7 @@ class L_BFGS:
 def _minimize_lbfgs(
     x0,
     lr=1.0,
-    history_size=15,
+    history_size=10,
     max_iter=200,
     fun_and_grad=None,
     tol=1e-4,
@@ -77,7 +77,7 @@ def _minimize_lbfgs(
         Step size for parameter updates. If using line search, this will be
         used as the initial step size for the search.
     history_size : int
-        Number of curvature pairs kept in the L-BFGS memory. Default 15.
+        Number of curvature pairs kept in the L-BFGS memory. Default 10.
     max_iter : int, optional
         Maximum number of iterations to perform. Defaults to 200.
     tol : float

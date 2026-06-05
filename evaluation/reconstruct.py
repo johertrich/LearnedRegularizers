@@ -102,7 +102,7 @@ def reconstruct(
         l-bfgs / cg
             All kwargs are merged into the ``options`` dict passed to
             ``minimize``.
-            ``history_size`` : int (l-bfgs only), default 15
+            ``history_size`` : int (l-bfgs only), default 10
                 L-BFGS memory size.
             ``lr`` : float (l-bfgs only), default 1.0
                 Initial step length for the line search.

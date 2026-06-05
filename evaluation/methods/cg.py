@@ -38,8 +38,7 @@ def _minimize_cg(
         ``fun_and_grad(x) -> (scalar tensor, grad tensor)`` — joint value +
         gradient evaluation.
     max_iter : int
-        Maximum number of iterations to perform. Defaults to
-        ``200 * x0.numel()``.
+        Maximum number of iterations to perform. Default 200.
     tol : float
         Relative iterate-change stopping tolerance.
     gtol : float
@@ -52,26 +51,26 @@ def _minimize_cg(
         If True, print status messages.
     """
     if max_iter is None:
-        max_iter = x0.numel() * 200
+        max_iter = 200
 
     # Construct scalar objective function
     sf = ScalarFunction(x0.shape, fun_and_grad)
-    closure = sf.closure
-    dir_evaluate = sf.dir_evaluate
 
     # initialize
-    x = x0.detach().flatten()
-    f, g = closure(x)
+    x = x0.detach().flatten().clone()
+    f, g = sf.closure(x)
     if verbose:
         print("initial fval: %0.4f" % f)
     d = g.neg()
     grad_norm = g.norm()
     g_norm_0 = grad_norm.clone().clamp(min=1e-12)
-    old_f = f + g.norm() / 2  # Sets the initial step guess to dx ~ 1
+    old_f = f + grad_norm.item() / 2  # Sets the initial step guess to dx ~ 1
 
+    cached_step = [None]
     for niter in range(1, max_iter + 1):
+        cached_step[0] = None
         # delta/gtd
-        delta = dot(g, g)
+        delta = grad_norm.pow(2)
         gtd = dot(g, d)
 
         # compute initial step guess based on (f - old_f) / gtd
@@ -82,13 +81,10 @@ def _minimize_cg(
             break
         old_f = f
 
-        # buffer to store next direction vector
-        cached_step = [None]
-
         def polak_ribiere_powell_step(t, g_next):
             y = g_next - g
             beta = torch.clamp(dot(y, g_next) / delta, min=0)
-            d_next = -g_next + d.mul(beta)
+            d_next = g_next.neg().add_(d, alpha=beta.item())
             torch.norm(g_next, out=grad_norm)
             return t, d_next
 
@@ -102,18 +98,18 @@ def _minimize_cg(
             cond1 = grad_norm / g_norm_0 <= gtol
 
             # Accept step if sufficient descent condition applies.
-            cond2 = dot(d_next, g_next) <= -0.01 * dot(g_next, g_next)
+            cond2 = dot(d_next, g_next) <= -0.01 * grad_norm.pow(2)
 
             return cond1 | cond2
 
         # Perform CG step
         f, g, t = strong_wolfe(
-            dir_evaluate, x, t0, d, f, g, gtd, c2=0.4, extra_condition=descent_condition
+            sf.dir_evaluate, x, t0, d, f, g, gtd, c2=0.4, extra_condition=descent_condition
         )
 
         # Update x and then update d (in that order)
         step = d.mul(t)
-        x = x + step
+        x.add_(step)
         if t == cached_step[0]:
             # Reuse already computed results if possible
             d = cached_step[1]

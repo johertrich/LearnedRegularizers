@@ -234,7 +234,7 @@ step_size = (
     1e-3 if regularizer_name in ["EPLL", "PatchNR"] else 1e-1
 )  # step size in the solver
 max_iter = 1000  # maximum number of iterations in the solver
-tol = 1e-4  # tolerance for the relative error (stopping criterion)
+tol = 1e-6  # tolerance for the relative error (stopping criterion)
 
 # Call unified evaluation routine
 mean_psnr, x_out, y_out, recon_out = evaluate(
@@ -249,7 +249,7 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
     only_first=only_first,
     adaptive_range=problem == "CT",
     device=device,
-    method="adam" if regularizer_name in ["EPLL", "PatchNR"] else "nmapg",
+    method="adam" if regularizer_name in ["EPLL", "PatchNR"] else "cg",
     verbose=True,
     save_path=save_path if save_results else None,
     logger=logger if save_results else None,
