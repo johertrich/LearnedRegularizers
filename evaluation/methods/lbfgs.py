@@ -100,8 +100,6 @@ def _minimize_lbfgs(
     result : OptimizeResult
         Result of the optimization routine.
     """
-    lr = float(lr)
-
     sf = ScalarFunction(x0.shape, fun_and_grad)
 
     x = x0.detach().view(-1).clone(memory_format=torch.contiguous_format)

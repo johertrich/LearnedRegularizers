@@ -249,7 +249,7 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
     only_first=only_first,
     adaptive_range=problem == "CT",
     device=device,
-    method="adam" if regularizer_name in ["EPLL", "PatchNR"] else "cg",
+    method="adam" if regularizer_name in ["EPLL", "PatchNR"] else "l-bfgs",
     verbose=True,
     save_path=save_path if save_results else None,
     logger=logger if save_results else None,

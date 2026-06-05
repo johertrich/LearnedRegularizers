@@ -187,7 +187,42 @@ python training_LPN.py --dataset BSD --noise_level 0.05
 python eval_LPN.py --problem CT --dataset BSD
 ```
 
-## 7. Citation
+## 7. Evaluation Folder — Solver Reference
+
+The `evaluation/` folder contains a lean, self-contained stack of gradient-based
+optimisation methods for variational reconstruction, plus the `reconstruct` /
+`evaluate` driver layer.
+
+### Available solvers
+
+| method | origin | batching |
+|---|---|---|
+| `nmapg` | custom — Li & Lin, NeurIPS 2015, Algorithm 4 | native, per-sample state |
+| `adam` | custom — `torch.optim.Adam` + cosine annealing, projects to non-negative orthant | single shared optimiser |
+| `l-bfgs` | trimmed fork of **pytorch-minimize** (MIT, © 2021 Reuben Feinman) | looped per sample |
+| `cg` | trimmed fork of **pytorch-minimize** — Polak-Ribière+ nonlinear CG | looped per sample |
+| `lbfgs_batched` ⚠ | experimental, **untested** — natively batched L-BFGS, masked Armijo backtracking | native, per-sample state |
+
+`nmapg` and `adam` are the primary solvers. `l-bfgs` and `cg` are ported from pytorch-minimize.
+
+### What changed vs upstream pytorch-minimize
+
+- Removed full BFGS (stored the dense inverse Hessian); `bfgs.py` renamed to `lbfgs.py`.
+- Removed all second-order and constrained solvers (`newton-cg`, trust-region family,
+  `minimize_constr`, L-BFGS-B, Frank-Wolfe) and the nonlinear least-squares module.
+- Removed the torch.optim-style Optimizer API (`Minimizer` / `ScipyMinimizer`).
+- `ScalarFunction` reduced to first-order only.
+- All tolerances made relative: `tol` = `‖x_k − x_{k−1}‖ / ‖x_k‖`, `gtol` = `‖g_k‖ / ‖g_0‖`.
+
+### TODOs
+
+- [ ] Native batching for `l-bfgs` and `cg` (currently looped per sample in `reconstruct.py`)
+- [ ] Additional step-size rules for nonlinear CG (currently only strong-Wolfe line search)
+- [ ] Validate and test `lbfgs_batched`
+
+---
+
+## 8. Citation
 
 ```
 @incollection{LearnedRegularizers,
