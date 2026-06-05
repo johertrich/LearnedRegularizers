@@ -158,7 +158,7 @@ def nmAPG(
             tmp = idx_idx2[idx3]
             x[tmp] = v[idx3]
             # assemble f(new x) from already-computed values
-            f_x = energy_new.clone()
+            f_x = energy_new
             f_x[idx2[idx3]] = energy_new2[idx3]
         else:
             x[idx] = z[idx]
