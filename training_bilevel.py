@@ -1,5 +1,5 @@
 """
-This script provides the bilevel training for various regularizers (CRR, WCRR, ICNN, IDCNN, 
+This script provides the bilevel training for various regularizers (CRR, WCRR, ICNN, IDCNN,
 LAR (the CNN architecture from the paper), TDV and LSR) with different hypergradient computation
 routines (IFT, JFB and IFT-MAID).
 

@@ -1,7 +1,7 @@
 """
 Input Convex Neural Networks (ICNN) implementation for learned regularization.
 
-This module implements Input Convex Neural Networks that maintain convexity 
+This module implements Input Convex Neural Networks that maintain convexity
 with respect to their input.
 
 Based on https://arxiv.org/abs/1609.07152

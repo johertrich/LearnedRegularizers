@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Training of post-processing UNet 
+Training of post-processing UNet
 
 @author: Alexander
 """

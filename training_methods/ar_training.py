@@ -1,9 +1,9 @@
 """
 Adversarial Regularization (AR) Training Module.
 
-This module implements adversarial training for learned regularizers using a 
-Wasserstein GAN with gradient penalty (WGAN-GP) framework. The regularizer 
-is trained to distinguish between clean and noisy/corrupted images while 
+This module implements adversarial training for learned regularizers using a
+Wasserstein GAN with gradient penalty (WGAN-GP) framework. The regularizer
+is trained to distinguish between clean and noisy/corrupted images while
 maintaining appropriate regularization properties.
 
 The training follows the adversarial regularization approach where:
@@ -11,7 +11,7 @@ The training follows the adversarial regularization approach where:
 - Gradient penalty ensures Lipschitz constraint satisfaction
 - Validation is performed using iterative reconstruction algorithms
 
-Based on: 
+Based on:
     https://arxiv.org/abs/1805.11572
     https://arxiv.org/abs/2008.02839
 
@@ -27,7 +27,7 @@ import torch
 import copy
 from tqdm import tqdm
 import numpy as np
-from evaluation import reconstruct_nmAPG
+from evaluation import reconstruct
 from deepinv.utils import patch_extractor
 from deepinv.loss.metric import PSNR
 
@@ -356,7 +356,7 @@ def ar_training(
                     x_val_noisy = physics.A_dagger(y_val)  # Initial estimate
 
                     # Perform iterative reconstruction with learned regularizer
-                    x_recon_val = reconstruct_nmAPG(
+                    x_recon_val = reconstruct(
                         y_val,  # Measurements
                         physics,  # Forward model
                         data_fidelity,  # Data fidelity term

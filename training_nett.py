@@ -1,25 +1,17 @@
 """
-Training NETT. See the readme file (section "Reproduce the Training Runs (Experiment 1 and 3)") 
+Training NETT. See the readme file (section "Reproduce the Training Runs (Experiment 1 and 3)")
 for details.
 """
 
 from priors import NETT, ParameterLearningWrapper, LSR
 import torch
-from deepinv.physics import Denoising, GaussianNoise, Tomography
 from training_methods import NETT_training, bilevel_training
-from deepinv.optim import L2, L1
 from dataset import get_dataset
 from operators import get_operator
 from torchvision.transforms import (
-    RandomCrop,
-    RandomAutocontrast,
-    CenterCrop,
-    Resize,
     RandomHorizontalFlip,
     RandomVerticalFlip,
-    RandomRotation,
 )
-from torch.utils.data import Subset as subset
 from torchvision import transforms
 import logging
 import datetime

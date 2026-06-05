@@ -1,5 +1,5 @@
 """
-This script provides the adversarial regularization training for various regularizers (CRR, WCRR, ICNN, IDCNN, 
+This script provides the adversarial regularization training for various regularizers (CRR, WCRR, ICNN, IDCNN,
 LAR (the CNN architecture from the paper) and TDV).
 
 A description how to use this script (and to define the input arguments) is given in the readme file

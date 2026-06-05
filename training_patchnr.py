@@ -1,5 +1,5 @@
 """
-Training the PatchNR prior. See the readme file (section "Reproduce the Training Runs (Experiment 1 and 3)") 
+Training the PatchNR prior. See the readme file (section "Reproduce the Training Runs (Experiment 1 and 3)")
 for details.
 """
 
@@ -12,12 +12,11 @@ import numpy as np
 import os
 import argparse
 from dataset import get_dataset
-from torchvision.transforms import RandomCrop, CenterCrop
+from torchvision.transforms import RandomCrop
 from evaluation import evaluate
 
-from priors import ParameterLearningWrapper, PatchNR
+from priors import PatchNR
 from operators import get_operator
-from training_methods import bilevel_training
 import logging
 import datetime
 

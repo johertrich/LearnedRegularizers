@@ -5,7 +5,7 @@ from deepinv.physics import Denoising
 from deepinv.loss.metric import PSNR
 from torch.utils.data import RandomSampler, Dataset, Subset
 from deepinv.optim.utils import minres
-from evaluation import reconstruct_nmAPG
+from evaluation import reconstruct
 from PIL import Image
 from collections import deque
 import torch.nn as nn
@@ -435,7 +435,7 @@ def bilevel_training_maid(
                 if success:
                     x_init = x_recon.detach().clone()
             # Solve the lower-level problem to compute the hypergradient
-            x_recon, stats = reconstruct_nmAPG(
+            x_recon, stats = reconstruct(
                 y,
                 physics_train,
                 data_fidelity,
@@ -616,7 +616,7 @@ def bilevel_training_maid(
                     else:
                         if verbose:
                             print("norm hypergrad: ", torch.sqrt(norm_grad_sq).item())
-                    x_new, stats = reconstruct_nmAPG(
+                    x_new, stats = reconstruct(
                         y,
                         physics,
                         data_fidelity,
@@ -743,7 +743,7 @@ def bilevel_training_maid(
                     x_val = preprocess(x_val, device)
                     y = physics(x_val)
                     x_init_val = y
-                    x_recon_val = reconstruct_nmAPG(
+                    x_recon_val = reconstruct(
                         y,
                         physics,
                         data_fidelity,

@@ -1,5 +1,5 @@
 """
-Train LPN by prox matching for denoising on BSD or LoDoPaB. 
+Train LPN by prox matching for denoising on BSD or LoDoPaB.
 See the readme file (section "Reproduce the Training Runs (Experiment 1 and 3)") for details.
 """
 

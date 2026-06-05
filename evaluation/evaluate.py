@@ -1,18 +1,21 @@
 """
-This file provides a unified evaluation routine of a learned regularizer on some dataset by solving the 
-variational problem with nonmonotonic accelerated (proximal) gradient descent or Adam and reporting the 
-mean PSNR (and some other stats).
-The input arguments of the evaluate functions are specified as comments in the function header.
+This file provides a unified evaluation routine of a learned regularizer on some dataset by solving the
+variational problem and reporting the mean PSNR (and some other stats).
+
+The optimiser is chosen via the ``method`` argument and dispatched through the unified
+``reconstruct`` function:
+
+    'nmapg', 'lbfgs_batched'   -- natively batched solvers (one call per batch)
+    'adam'                     -- Adam with cosine-annealing schedule
+    'l-bfgs', 'cg'             -- generic optimisers, looped per sample
 """
 
 import numpy as np
 from torch.utils.data import DataLoader
-from .nmAPG import reconstruct_nmAPG
-from .adam import reconstruct_adam
+from .reconstruct import reconstruct
 import torch
 from deepinv.loss.metric import PSNR
 from tqdm import tqdm
-
 from torchvision.utils import save_image
 import os
 from PIL import Image
@@ -20,23 +23,83 @@ import time
 
 
 def evaluate(
-    physics,  # deepinv physics object defining forward operator and noise model
-    data_fidelity,  # deepinv data fidelity object defining the data fidelity term of the variational problem
-    dataset,  # torch dataset object defining the used dataset on which we evaluate the regularizer
-    regularizer,  # used regularizer
-    lmbd,  # regularization parameter
-    step_size,  # initial step size of the nmAPG (or Adam)
-    max_iter,  # maximum number of iterations in the nmAPG (or Adam)
-    tol,  # tolerance used in the stopping criterion of the nmAPG (or Adam)
-    adam=False,  # set to True for using Adam instead of nmAPG
-    only_first=False,  # set to True for only evaluating the first image
-    adaptive_range=False,  # set to True to use a PSNR where the range is choosen adaptively (commenly used for CT)
-    device="cuda" if torch.cuda.is_available() else "cpu",  # device
-    verbose=False,  # set to True to print some stats (e.g. number of iterations used in the solver)
-    save_path=None,  # specify a path to save the images (ground truth, measurements and reconstruction)
-    logger=None,  # specify a Python logging logger to write a log file (e.g. with the PSNRs of the single images in the dataset)
+    physics,
+    data_fidelity,
+    dataset,
+    regularizer,
+    lmbd,
+    step_size,
+    max_iter,
+    tol,
+    method="nmapg",
+    only_first=False,
+    adaptive_range=False,
+    device="cuda" if torch.cuda.is_available() else "cpu",
+    verbose=False,
+    save_path=None,
+    logger=None,
+    **kwargs,
 ):
+    """Evaluate a learned regularizer on a dataset and report mean PSNR.
 
+    Parameters
+    ----------
+    physics : deepinv physics object
+        Defines the forward operator and noise model.
+    data_fidelity : deepinv data fidelity object
+        Data fidelity term of the variational problem.
+    dataset : torch Dataset
+        Test dataset; images are loaded one at a time (batch size 1).
+    regularizer : object
+        Regularizer passed to ``reconstruct``.
+    lmbd : float
+        Regularisation weight.
+    step_size : float
+        Initial step size; see ``reconstruct`` for per-method semantics.
+    max_iter : int
+        Maximum solver iterations per image.
+    tol : float
+        Relative iterate-change stopping tolerance.
+    method : str
+        Solver to use: ``'nmapg'``, ``'adam'``, ``'lbfgs_batched'``,
+        ``'l-bfgs'``, or ``'cg'``.
+    only_first : bool
+        If True, evaluate only the first image (useful for quick checks).
+    adaptive_range : bool
+        If True, PSNR range is chosen adaptively (common for CT data).
+    device : str
+        Torch device string.
+    verbose : bool
+        Print per-iteration solver progress.
+    save_path : str, optional
+        Directory in which to save ground-truth, measurement, and
+        reconstruction images (first 10 images only).
+    logger : logging.Logger, optional
+        Python logger for writing per-image PSNR records.
+    **kwargs
+        Additional method-specific hyperparameters forwarded verbatim to
+        ``reconstruct``.  See ``reconstruct`` docstring for the full list of
+        accepted keys per method:
+
+        nmapg
+            ``L_init``, ``rho``, ``delta``, ``eta``
+        lbfgs_batched
+            ``history_size``, ``c1``, ``backtrack``, ``max_ls``
+        adam
+            (none beyond ``step_size``)
+        l-bfgs / cg
+            ``history_size`` (l-bfgs only, default 10), ``lr``,
+            ``c1``, ``c2``, ``tolerance_change``, ``max_ls``
+            (all l-bfgs only), ``gtol``, ``xtol``, ``gtd_tol``
+            (l-bfgs only), ``normp``
+
+    Returns
+    -------
+    mean_psnr : float
+    x_out : Tensor  -- first ground-truth image
+    y_out : Tensor  -- first measurement
+    recon_out : Tensor  -- first reconstruction
+    """
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
     if logger is not None:
         logger.info(f"Number of test images: {len(dataloader)}.")
@@ -44,11 +107,9 @@ def evaluate(
         psnr = PSNR(max_pixel=None)
     else:
         psnr = PSNR()
-
     regularizer.eval()
     for p in regularizer.parameters():
         p.requires_grad_(False)
-
     ## Evaluate on the test set
     psnrs = []
     iters = []
@@ -60,56 +121,41 @@ def evaluate(
     for i, x in (progress_bar := tqdm(enumerate(dataloader), total=len(dataloader))):
         x = x.to(torch.float32).to(device)
         y = physics(x)
-
         t_start = time.time()
-        if adam:
-            recon, stats = reconstruct_adam(
-                y,
-                physics,
-                data_fidelity,
-                regularizer,
-                lmbd,
-                step_size,
-                max_iter,
-                tol,
-                verbose=verbose,
-                return_stats=True,
-            )
-            stats["L"] = torch.tensor(0.0, dtype=torch.float, device=device)
-        else:
-            recon, stats = reconstruct_nmAPG(
-                y,
-                physics,
-                data_fidelity,
-                regularizer,
-                lmbd,
-                step_size,
-                max_iter,
-                tol,
-                return_stats=True,
-                verbose=False,
-            )
+        recon, stats = reconstruct(
+            y,
+            physics,
+            data_fidelity,
+            regularizer,
+            lmbd,
+            step_size,
+            max_iter,
+            tol,
+            method=method,
+            return_stats=True,
+            verbose=verbose,
+            **kwargs,
+        )
         t_end = time.time()
         times.append(t_end - t_start)
         iters.append(stats["steps"])
-        Lip.append(stats["L"].cpu())
+        if (
+            stats["L"] is not None
+        ):  # some methods (e.g. Adam) report no Lipschitz estimate
+            Lip.append(stats["L"].cpu())
         psnrs.append(psnr(recon, x).squeeze().item())
-
         if logger is not None:
             logger.info(f"Image {i} reconstructed, PSNR: {psnrs[-1]:.2f}")
-
         if save_path is not None and (i < 10):
             save_image(x, os.path.join(save_path, f"ground_truth_{i}.png"), padding=0)
             save_image(y, os.path.join(save_path, f"measurement_{i}.png"), padding=0)
             save_image(
                 recon, os.path.join(save_path, f"reconstruction_{i}.png"), padding=0
             )
-
         if i == 0:
             y_out = y
             x_out = x
             recon_out = recon
-
         progress_bar.set_description(
             f"Mean PSNR: {np.mean(psnrs):.2f}, Last PSNR: {psnrs[-1]:.2f}, steps: {iters[-1]}"
         )
@@ -121,7 +167,7 @@ def evaluate(
     mean_iters = np.mean(iters)
     print_iters = "Mean iterations over the test set: {0:.2f}".format(mean_iters)
     print(print_iters)
-    if not adam:
+    if Lip:
         mean_Lip = np.mean(Lip)
         print_Lip = "Mean L over the test set: {0:.2f}".format(mean_Lip)
         print(print_Lip)
@@ -130,12 +176,10 @@ def evaluate(
         mean_time
     )
     print(print_time)
-
     if logger is not None:
         logger.info(print_psnr)
         logger.info(print_iters)
-        if not adam:
+        if Lip:
             logger.info(print_Lip)
         logger.info(print_time)
-
     return mean_psnr, x_out, y_out, recon_out

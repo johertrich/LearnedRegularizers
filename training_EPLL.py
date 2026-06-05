@@ -1,5 +1,5 @@
 """
-Fit the GMM for the EPLL prior. See the readme file (section "Reproduce the Training Runs (Experiment 1 and 3)") 
+Fit the GMM for the EPLL prior. See the readme file (section "Reproduce the Training Runs (Experiment 1 and 3)")
 for details.
 """
 
@@ -12,7 +12,6 @@ from priors.epll import EPLL
 from dataset import get_dataset
 from operators import get_operator
 from pathlib import Path
-import os
 import argparse
 import logging
 import datetime

@@ -1,14 +1,14 @@
 """
 Input Difference-of-Convex Neural Networks (IDCNN) implementation for learned regularization.
 
-This module implements Input Difference-of-Convex Neural Networks that maintain difference-of-convexity 
+This module implements Input Difference-of-Convex Neural Networks that maintain difference-of-convexity
 with respect to their input.
 
 Based on https://arxiv.org/abs/2502.00240
 
 Notes:
 1. For simplicity, IDCNN uses the same ICNN architecture as the ICNN prior used in this codebase. Technically, one can try any ICNN variants.
-2. Note that IDCNN = the difference of any input weakly convex neural networks (IWCNNs). Technically, one can try any IWCNN variants.  
+2. Note that IDCNN = the difference of any input weakly convex neural networks (IWCNNs). Technically, one can try any IWCNN variants.
 """
 
 import torch

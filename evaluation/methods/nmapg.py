@@ -1,24 +1,35 @@
-"""
-In this file, we implement a solver for the variational problem with a smooth regularizer. To this end, we provide
-two functions. First the function nmAPG is the pure optimization algorithm (basically gradient descent 
-+ momentum + line search). Second, the function reconstruct_nmAPG defines the required objects of nmAPG in the
-context of an inverse problem. The input arguments and a brief description are given in the header of these functions.
+"""Nonmonotone accelerated (proximal) gradient (nmAPG) solver.
 
-The implemented algorithm is the nonmonotonic acclerated (proximal) gradient descent as 
-proposed in Algorithm 4 from the supplementary material of
+Pure optimization algorithm (gradient descent + momentum + line search). The
+reconstruction wrapper that builds the inverse-problem objective lives in
+``evaluation/reconstruct.py``.
 
-Huan Li, Zhouchen Lin
-Accelerated Proximal Gradient Methods for Nonconvex Programming
-NeurIPS 2015
+Implements Algorithm 4 from the supplementary material of
+
+    Huan Li, Zhouchen Lin
+    Accelerated Proximal Gradient Methods for Nonconvex Programming
+    NeurIPS 2015
 
 [1] https://papers.nips.cc/paper_files/paper/2015/hash/f7664060cc52bc6f3d620bcedc94a4b6-Abstract.html
 [2] https://papers.nips.cc/paper_files/paper/2015/file/f7664060cc52bc6f3d620bcedc94a4b6-Supplemental.zip
+
+This is a *natively batched* solver: it operates on tensors with a leading
+batch dimension ``(B, C, H, W)`` and keeps per-sample state (the Lipschitz
+estimate ``L`` is ``(B, 1, 1, 1)``). An ``idx`` active-set mask drops samples
+that have already converged, so converged images are skipped in subsequent
+iterations.
+
+The objective is supplied as three callables that all share the signature
+``(x, y)`` and return per-sample quantities:
+
+* ``f(x, y) -> (B,)``             -- energy per sample
+* ``nabla(x, y) -> (B, C, H, W)`` -- gradient
+* ``f_and_nabla(x, y) -> ((B,), (B, C, H, W))`` -- value + gradient
 """
 
 import torch
 import numpy as np
-from typing import Callable
-import inspect
+from typing import Callable, Tuple
 
 
 def nmAPG(
@@ -169,7 +180,7 @@ def nmAPG(
         q_old = q
         q = eta * q + 1.0  # Eq 160
         c[idx] = (eta * q_old * c[idx] + f_x) / q  # Eq 161
-        
+
         if i > 0:
             res[idx] = torch.norm(x[idx] - x_old[idx], p=2, dim=(1, 2, 3)) / torch.norm(
                 x[idx], p=2, dim=(1, 2, 3)
@@ -184,80 +195,10 @@ def nmAPG(
             if verbose:
                 print(f"Converged in iter {i}, tol {torch.max(res).item():.6f}")
             break
-        
+
         x_bar_old.copy_(x_bar)
         grad_old.copy_(grad)
     if verbose and (torch.max(res) >= tol):
         print(f"max iter reached, tol {torch.max(res).item():.6f}")
     converged = res < tol
     return x, L, i, converged
-
-
-def reconstruct_nmAPG(
-    y,  # observation in the variational problem
-    physics,  # deepinv physics object defining the forward operator and the noise model
-    data_fidelity,  # deepinv data fidelity object defining the data fidelity term
-    regularizer,  # regularizer in the variational problem
-    lamda,  # regularization parameter
-    step_size,  # initial step size for the nmAPG
-    max_iter,  # maximal number of iterations in the nmAPG
-    tol,  # tolerance for the stopping criterion (relative residual) in the nmAPG
-    x_init=None,  # initialization (None for using physics.A_dagger(y))
-    detach_grads=True,  # detach the gradients after each iteration (shoud be set to True)
-    verbose=False,  # set to True for some debug prints
-    return_stats=False,  # return some statistics (like number of used iterations, estimated local Lipschitz constant etc) in addition to the reconstruction
-):
-    """wrapper for nmAPG"""
-
-    if x_init is not None:
-        # User-defined initialization or warm start
-        x = torch.clone(x_init).detach()
-    else:
-        x = physics.A_dagger(y)
-
-    def energy(val, y_in):
-        with torch.no_grad():
-            fun = data_fidelity(val, y_in, physics) + lamda * regularizer.g(val)
-        if detach_grads:
-            fun = fun.detach()
-        return fun.reshape(-1)
-
-    def energy_grad(val, y_in):
-        grad = data_fidelity.grad(val, y_in, physics) + lamda * regularizer.grad(val)
-        if detach_grads:
-            grad = grad.detach()
-        return grad
-
-    # check if energy can be accessed during grad evaluation
-    signature = inspect.signature(regularizer.grad)
-    argument_names = [param.name for param in signature.parameters.values()]
-    if "get_energy" in argument_names:
-
-        def energy_and_grad(val, y_in):
-            fun, grad = regularizer.grad(val, get_energy=True)
-            fun = data_fidelity(val, y_in, physics) + lamda * fun
-            grad = data_fidelity.grad(val, y_in, physics) + lamda * grad
-            if detach_grads:
-                fun = fun.detach()
-                grad = grad.detach()
-            return fun.reshape(-1), grad
-
-    else:
-        energy_and_grad = lambda val, y_in: (energy(val, y_in), energy_grad(val, y_in))
-
-    # example energies
-    rec, L, steps, converged = nmAPG(
-        x0=x,
-        y=y,
-        max_iter=max_iter,
-        f=energy,
-        nabla=energy_grad,
-        f_and_nabla=energy_and_grad,
-        L_init=1 / step_size,
-        tol=tol,
-        verbose=verbose,
-    )
-    stats = dict(L=L.detach(), steps=steps, converged=converged)
-    if return_stats:
-        return rec, stats
-    return rec

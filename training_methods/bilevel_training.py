@@ -10,7 +10,7 @@ import numpy as np
 from tqdm import tqdm
 from deepinv.loss.metric import PSNR
 from deepinv.optim.utils import minres
-from evaluation import reconstruct_nmAPG
+from evaluation import reconstruct
 import copy
 from .utils.adabelief import AdaBelief
 
@@ -129,7 +129,7 @@ def bilevel_training(
             y = physics(x)
             x_noisy = physics.A_dagger(y)
 
-            x_recon, x_stats = reconstruct_nmAPG(
+            x_recon, x_stats = reconstruct(
                 y,
                 physics,
                 data_fidelity,
@@ -240,7 +240,7 @@ def bilevel_training(
                     y_val = physics(x_val)
                     x_val_noisy = physics.A_dagger(y_val)
 
-                    x_recon_val = reconstruct_nmAPG(
+                    x_recon_val = reconstruct(
                         y_val,
                         physics,
                         data_fidelity,

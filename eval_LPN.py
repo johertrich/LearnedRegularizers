@@ -1,7 +1,7 @@
 """
 Evaluation script for LPN.
 
-See the readme file within the sections "Reproduce the Evaluation Runs (Experiment 1 and 3)" and 
+See the readme file within the sections "Reproduce the Evaluation Runs (Experiment 1 and 3)" and
 "Reproduce Denoising to CT (Experiment 2)" for a description how to use it.
 """
 
