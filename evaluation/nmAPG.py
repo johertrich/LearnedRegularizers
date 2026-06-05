@@ -164,6 +164,12 @@ def nmAPG(
             x[idx] = z[idx]
             f_x = energy_new
 
+        t_old = t
+        t = (np.sqrt(4.0 * t_old**2 + 1.0) + 1.0) / 2.0  # Eq 159
+        q_old = q
+        q = eta * q + 1.0  # Eq 160
+        c[idx] = (eta * q_old * c[idx] + f_x) / q  # Eq 161
+        
         if i > 0:
             res[idx] = torch.norm(x[idx] - x_old[idx], p=2, dim=(1, 2, 3)) / torch.norm(
                 x[idx], p=2, dim=(1, 2, 3)
@@ -178,11 +184,7 @@ def nmAPG(
             if verbose:
                 print(f"Converged in iter {i}, tol {torch.max(res).item():.6f}")
             break
-        t_old = t
-        t = (np.sqrt(4.0 * t_old**2 + 1.0) + 1.0) / 2.0  # Eq 159
-        q_old = q
-        q = eta * q + 1.0  # Eq 160
-        c[idx] = (eta * q_old * c[idx] + f_x) / q  # Eq 161
+        
         x_bar_old.copy_(x_bar)
         grad_old.copy_(grad)
     if verbose and (torch.max(res) >= tol):
