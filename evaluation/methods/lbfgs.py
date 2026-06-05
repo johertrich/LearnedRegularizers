@@ -1,5 +1,5 @@
 # Derived from pytorch-minimize (MIT, (c) 2021 Reuben Feinman); see LICENSE.
-from abc import ABC, abstractmethod
+from collections import deque
 import torch
 from scipy.optimize import OptimizeResult
 
@@ -7,64 +7,42 @@ from .function import ScalarFunction
 from .wolfe_line_search import strong_wolfe
 
 _status_message = {
-    'success':       'Optimization terminated successfully.',
-    'maxiter':       'Maximum number of iterations has been exceeded.',
-    'pr_loss':       'Desired error not necessarily achieved due to precision loss.',
-    'callback_stop': 'Stopped by the user through the callback function.',
+    "success": "Optimization terminated successfully.",
+    "maxiter": "Maximum number of iterations has been exceeded.",
+    "pr_loss": "Desired error not necessarily achieved due to precision loss.",
+    "callback_stop": "Stopped by the user through the callback function.",
 }
 
 
-class HessianUpdateStrategy(ABC):
-    def __init__(self):
-        self.n_updates = 0
-
-    @abstractmethod
-    def solve(self, grad):
-        pass
-
-    @abstractmethod
-    def _update(self, s, y, rho_inv):
-        pass
-
-    def update(self, s, y):
-        rho_inv = y.dot(s)
-        if rho_inv <= 1e-10:
-            # curvature is negative; do not update
-            return
-        self._update(s, y, rho_inv)
-        self.n_updates += 1
-
-
-class L_BFGS(HessianUpdateStrategy):
+class L_BFGS:
     def __init__(self, x, history_size=10):
-        super().__init__()
-        self.y = []
-        self.s = []
-        self.rho = []
+        self.s = deque(maxlen=history_size)
+        self.y = deque(maxlen=history_size)
+        self.rho = deque(maxlen=history_size)
         self.H_diag = 1.0
-        self.alpha = x.new_empty(history_size)
-        self.history_size = history_size
+        self._alpha = x.new_empty(history_size)
 
     def solve(self, grad):
         mem_size = len(self.y)
         d = grad.neg()
-        for i in reversed(range(mem_size)):
-            self.alpha[i] = self.s[i].dot(d) * self.rho[i]
-            d.add_(self.y[i], alpha=-self.alpha[i])
+        for i, (s_i, y_i, rho_i) in enumerate(
+            zip(reversed(self.s), reversed(self.y), reversed(self.rho))
+        ):
+            a = rho_i * s_i.dot(d)
+            self._alpha[mem_size - 1 - i] = a
+            d.add_(y_i, alpha=-a.item())
         d.mul_(self.H_diag)
-        for i in range(mem_size):
-            beta_i = self.y[i].dot(d) * self.rho[i]
-            d.add_(self.s[i], alpha=self.alpha[i] - beta_i)
-
+        for i, (s_i, y_i, rho_i) in enumerate(zip(self.s, self.y, self.rho)):
+            beta_i = rho_i * y_i.dot(d)
+            d.add_(s_i, alpha=(self._alpha[i] - beta_i).item())
         return d
 
-    def _update(self, s, y, rho_inv):
-        if len(self.y) == self.history_size:
-            self.y.pop(0)
-            self.s.pop(0)
-            self.rho.pop(0)
-        self.y.append(y)
+    def update(self, s, y):
+        rho_inv = y.dot(s)
+        if rho_inv <= 1e-10:
+            return
         self.s.append(s)
+        self.y.append(y)
         self.rho.append(rho_inv.reciprocal())
         self.H_diag = rho_inv / y.dot(y)
 
@@ -99,7 +77,7 @@ def _minimize_lbfgs(
         Step size for parameter updates. If using line search, this will be
         used as the initial step size for the search.
     history_size : int
-        Number of curvature pairs kept in the L-BFGS memory. Default 10.
+        Number of curvature pairs kept in the L-BFGS memory. Default 15.
     max_iter : int, optional
         Maximum number of iterations to perform. Defaults to 200.
     tol : float
@@ -124,25 +102,19 @@ def _minimize_lbfgs(
     """
     lr = float(lr)
 
-    # construct scalar objective function
     sf = ScalarFunction(x0.shape, fun_and_grad)
-    closure = sf.closure
-    dir_evaluate = sf.dir_evaluate
 
-    # compute initial f(x) and f'(x)
     x = x0.detach().view(-1).clone(memory_format=torch.contiguous_format)
-    f, g = closure(x)
+    f, g = sf.closure(x)
     g_norm_0 = g.norm().clamp(min=1e-12)
     if verbose:
         print("initial fval: %0.4f" % f)
 
-    # initial settings
     hess = L_BFGS(x, history_size)
     d = g.neg()
     t = min(1.0, g.norm(p=1).reciprocal()) * lr
     n_iter = 0
 
-    # L-BFGS iterations
     for n_iter in range(1, max_iter + 1):
 
         # ==================================
@@ -165,44 +137,51 @@ def _minimize_lbfgs(
         #   update parameter
         # ======================
 
-        f_new, g_new, t, ls_evals = strong_wolfe(
-            dir_evaluate, x, t, d, f, g, gtd,
-            c1=c1, c2=c2, tolerance_change=tolerance_change, max_ls=max_ls,
+        f_new, g_new, t = strong_wolfe(
+            sf.dir_evaluate,
+            x,
+            t,
+            d,
+            f,
+            g,
+            gtd,
+            c1=c1,
+            c2=c2,
+            tolerance_change=tolerance_change,
+            max_ls=max_ls,
         )
-        x_new = x + d.mul(t)
-
         if verbose:
             print("iter %3d - fval: %0.4f" % (n_iter, f_new))
-        if callback is not None:
-            if callback(x_new):
-                warnflag = 5
-                msg = _status_message["callback_stop"]
-                break
 
         # ================================
         #   update hessian approximation
         # ================================
 
-        s = x_new.sub(x)
+        s = d.mul(t)
         y = g_new.sub(g)
-
         hess.update(s, y)
 
         # =========================================
-        #   check conditions and update buffers
+        #   commit state and check convergence
         # =========================================
 
+        # x updated in-place so x_new is never materialised; state is current
+        # on any break so the returned result always reflects the final iterate
+        f[...] = f_new
+        x.add_(s)
+        g = g_new
+        t = lr
+
+        if callback is not None and callback(x):
+            warnflag = 5
+            msg = _status_message["callback_stop"]
+            break
+
         # convergence by relative iterate change
-        if s.norm() / x_new.norm().clamp(min=1e-12) <= tol:
+        if s.norm() / x.norm().clamp(min=1e-12) <= tol:
             warnflag = 0
             msg = _status_message["success"]
             break
-
-        # update state
-        f[...] = f_new
-        x.copy_(x_new)
-        g.copy_(g_new)
-        t = lr
 
         # convergence by 1st-order optimality (relative to initial gradient)
         if g.norm() / g_norm_0 <= gtol:

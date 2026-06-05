@@ -167,11 +167,13 @@ def lbfgs_batched(
         if bool(nonfinite.any()):
             converged = converged | nonfinite
             if verbose:
-                print(f"iter {it}: non-finite energy in {int(nonfinite.sum())} sample(s)")
+                print(
+                    f"iter {it}: non-finite energy in {int(nonfinite.sum())} sample(s)"
+                )
 
         # (2) relative iterate change
-        num = (x_new - x).flatten(1).norm( dim=1)
-        den = x_new.flatten(1).norm( dim=1).clamp_min(1e-12)
+        num = (x_new - x).flatten(1).norm(dim=1)
+        den = x_new.flatten(1).norm(dim=1).clamp_min(1e-12)
         step_res = num / den
         res = torch.where(converged, res, step_res)
         converged = converged | (step_res < tol)

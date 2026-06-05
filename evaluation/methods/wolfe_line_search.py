@@ -51,13 +51,13 @@ def strong_wolfe(
     if gtd is None:
         gtd = g.mul(d).sum()
     f, t = float(f), float(t)
-    x, d, g = x.view(-1), d.view(-1), g.view(-1)
+    # clone g to avoid aliasing the caller's tensor; x and d are read-only
+    g = g.clone(memory_format=torch.contiguous_format)
 
     if extra_condition is None:
         extra_condition = lambda *args: True
 
     d_norm = d.abs().max()
-    g = g.clone(memory_format=torch.contiguous_format)
     f_new, g_new = obj_func(x, t, d)
     ls_func_evals = 1
     gtd_new = g_new.dot(d)
@@ -70,7 +70,7 @@ def strong_wolfe(
         if f_new > (f + c1 * t * gtd) or (ls_iter > 1 and f_new >= f_prev):
             bracket = [t_prev, t]
             bracket_f = [f_prev, f_new]
-            bracket_g = [g_prev, g_new.clone(memory_format=torch.contiguous_format)]
+            bracket_g = [g_prev, g_new]
             bracket_gtd = [gtd_prev, gtd_new]
             break
 
@@ -84,7 +84,7 @@ def strong_wolfe(
         if gtd_new >= 0:
             bracket = [t_prev, t]
             bracket_f = [f_prev, f_new]
-            bracket_g = [g_prev, g_new.clone(memory_format=torch.contiguous_format)]
+            bracket_g = [g_prev, g_new]
             bracket_gtd = [gtd_prev, gtd_new]
             break
 
@@ -96,7 +96,7 @@ def strong_wolfe(
         )
         t_prev = tmp
         f_prev = f_new
-        g_prev = g_new.clone(memory_format=torch.contiguous_format)
+        g_prev = g_new  # g_new is a fresh tensor each call; no clone needed
         gtd_prev = gtd_new
         f_new, g_new = obj_func(x, t, d)
         ls_func_evals += 1
@@ -107,12 +107,14 @@ def strong_wolfe(
         bracket = [0, t]
         bracket_f = [f, f_new]
         bracket_g = [g, g_new]
+        bracket_gtd = [gtd, gtd_new]  # initialise so zoom phase is always safe
 
     insuf_progress = False
     low_pos, high_pos = (0, 1) if bracket_f[0] <= bracket_f[-1] else (1, 0)
 
     while not done and ls_iter < max_ls:
-        if abs(bracket[1] - bracket[0]) * d_norm < tolerance_change:
+        b_min, b_max = min(bracket), max(bracket)
+        if (b_max - b_min) * d_norm < tolerance_change:
             break
 
         t = _cubic_interpolate(
@@ -124,13 +126,13 @@ def strong_wolfe(
             bracket_gtd[1],
         )
 
-        eps = 0.1 * (max(bracket) - min(bracket))
-        if min(max(bracket) - t, t - min(bracket)) < eps:
-            if insuf_progress or t >= max(bracket) or t <= min(bracket):
-                if abs(t - max(bracket)) < abs(t - min(bracket)):
-                    t = max(bracket) - eps
+        eps = 0.1 * (b_max - b_min)
+        if min(b_max - t, t - b_min) < eps:
+            if insuf_progress or t >= b_max or t <= b_min:
+                if abs(t - b_max) < abs(t - b_min):
+                    t = b_max - eps
                 else:
-                    t = min(bracket) + eps
+                    t = b_min + eps
                 insuf_progress = False
             else:
                 insuf_progress = True
@@ -145,7 +147,7 @@ def strong_wolfe(
         if f_new > (f + c1 * t * gtd) or f_new >= bracket_f[low_pos]:
             bracket[high_pos] = t
             bracket_f[high_pos] = f_new
-            bracket_g[high_pos] = g_new.clone(memory_format=torch.contiguous_format)
+            bracket_g[high_pos] = g_new
             bracket_gtd[high_pos] = gtd_new
             low_pos, high_pos = (0, 1) if bracket_f[0] <= bracket_f[1] else (1, 0)
         else:
@@ -159,16 +161,11 @@ def strong_wolfe(
 
             bracket[low_pos] = t
             bracket_f[low_pos] = f_new
-            bracket_g[low_pos] = g_new.clone(memory_format=torch.contiguous_format)
+            bracket_g[low_pos] = g_new
             bracket_gtd[low_pos] = gtd_new
 
     t = bracket[low_pos]
     f_new = bracket_f[low_pos]
     g_new = bracket_g[low_pos]
 
-    return (
-        torch.as_tensor(f_new, dtype=x.dtype, device=x.device),
-        g_new,
-        t,
-        ls_func_evals,
-    )
+    return torch.as_tensor(f_new, dtype=x.dtype, device=x.device), g_new, t

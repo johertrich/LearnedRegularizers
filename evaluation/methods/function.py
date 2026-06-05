@@ -28,8 +28,7 @@ class ScalarFunction:
     def closure(self, x):
         """Return (f, grad) at x.  Core call used by quasi-Newton / CG loops."""
         self.nfev += 1
-        with torch.no_grad():
-            f, grad = self._fun_and_grad(x.detach().reshape(self._x_shape))
+        f, grad = self._fun_and_grad(x.detach().reshape(self._x_shape))
         return de_value(
             f=f.reshape(-1).sum().detach(),
             grad=grad.reshape(-1).detach(),
@@ -38,8 +37,7 @@ class ScalarFunction:
     def dir_evaluate(self, x, t, d):
         """Return (f, grad) at x + t*d.  Used by the strong-Wolfe line search."""
         self.nfev += 1
-        with torch.no_grad():
-            f, grad = self._fun_and_grad((x + d.mul(t)).detach().reshape(self._x_shape))
+        f, grad = self._fun_and_grad((x + d.mul(t)).detach().reshape(self._x_shape))
         return de_value(
             f=float(f.reshape(-1).sum()),
             grad=grad.reshape(-1),

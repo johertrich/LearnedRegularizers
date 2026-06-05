@@ -107,7 +107,7 @@ def _minimize_cg(
             return cond1 | cond2
 
         # Perform CG step
-        f, g, t, ls_evals = strong_wolfe(
+        f, g, t = strong_wolfe(
             dir_evaluate, x, t0, d, f, g, gtd, c2=0.4, extra_condition=descent_condition
         )
 
