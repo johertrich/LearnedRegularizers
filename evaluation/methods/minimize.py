@@ -3,8 +3,8 @@ from .lbfgs import _minimize_lbfgs
 from .cg import _minimize_cg
 
 _tolerance_keys = {
-    "l-bfgs": "gtol",
-    "cg": "gtol",
+    "l-bfgs": "tol",
+    "cg": "tol",
 }
 
 

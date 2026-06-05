@@ -116,14 +116,10 @@ def reconstruct(
             ``max_ls`` : int (l-bfgs only), default 20
                 Maximum number of strong-Wolfe line search iterations.
             ``gtol`` : float, default 1e-5
-                Gradient-norm convergence tolerance (overrides ``tol``).
-            ``xtol`` : float (l-bfgs only), default 1e-8
-                Iterate-change convergence tolerance.
+                Relative gradient-norm tolerance: ``‖g_k‖ / ‖g_0‖ ≤ gtol``.
             ``gtd_tol`` : float (l-bfgs only), default 1e-10
                 Minimum directional derivative; guards against near-zero
                 descent directions.
-            ``normp`` : float, default inf
-                Norm order used for convergence checks.
     """
     x = torch.clone(x_init).detach() if x_init is not None else physics.A_dagger(y)
 

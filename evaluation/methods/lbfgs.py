@@ -7,10 +7,10 @@ from .function import ScalarFunction
 from .wolfe_line_search import strong_wolfe
 
 _status_message = {
-    "success": "Optimization terminated successfully.",
-    "maxiter": "Maximum number of iterations has been exceeded.",
-    "pr_loss": "Desired error not necessarily achieved due to precision loss.",
-    "callback_stop": "Stopped by the user through the callback function.",
+    'success':       'Optimization terminated successfully.',
+    'maxiter':       'Maximum number of iterations has been exceeded.',
+    'pr_loss':       'Desired error not necessarily achieved due to precision loss.',
+    'callback_stop': 'Stopped by the user through the callback function.',
 }
 
 
@@ -73,18 +73,17 @@ class L_BFGS(HessianUpdateStrategy):
 def _minimize_lbfgs(
     x0,
     lr=1.0,
-    history_size=10,
+    history_size=15,
     max_iter=200,
     fun_and_grad=None,
+    tol=1e-4,
     gtol=1e-5,
-    xtol=1e-3,
     gtd_tol=1e-10,
-    normp=float("inf"),
     callback=None,
     verbose=False,
     c1=1e-4,
     c2=0.9,
-    tolerance_change=1e-9,
+    tolerance_change=1e-6,
     max_ls=25,
 ):
     """Minimize a multivariate function with L-BFGS.
@@ -103,17 +102,15 @@ def _minimize_lbfgs(
         Number of curvature pairs kept in the L-BFGS memory. Default 10.
     max_iter : int, optional
         Maximum number of iterations to perform. Defaults to 200.
+    tol : float
+        Relative iterate-change stopping tolerance.
     gtol : float
-        Termination tolerance on 1st-order optimality (gradient norm).
-    xtol : float
-        Termination tolerance on function/parameter changes.
+        Relative gradient-norm stopping tolerance: converges when
+        ``‖g_k‖ / ‖g_0‖ ≤ gtol``.
     gtd_tol : float
         Tolerance used to verify that the search direction is a descent
         direction. The directional derivative ``gtd`` should be negative for
         descent; this check ensures that ``gtd < -gtd_tol``.
-    normp : Number or str
-        The norm type to use for termination conditions. Can be any value
-        supported by ``torch.norm`` p argument.
     callback : callable, optional
         Function to call after each iteration with the current parameter
         state, e.g. ``callback(x)``.
@@ -135,6 +132,7 @@ def _minimize_lbfgs(
     # compute initial f(x) and f'(x)
     x = x0.detach().view(-1).clone(memory_format=torch.contiguous_format)
     f, g = closure(x)
+    g_norm_0 = g.norm().clamp(min=1e-12)
     if verbose:
         print("initial fval: %0.4f" % f)
 
@@ -168,17 +166,8 @@ def _minimize_lbfgs(
         # ======================
 
         f_new, g_new, t, ls_evals = strong_wolfe(
-            dir_evaluate,
-            x,
-            t,
-            d,
-            f,
-            g,
-            gtd,
-            c1=c1,
-            c2=c2,
-            tolerance_change=tolerance_change,
-            max_ls=max_ls,
+            dir_evaluate, x, t, d, f, g, gtd,
+            c1=c1, c2=c2, tolerance_change=tolerance_change, max_ls=max_ls,
         )
         x_new = x + d.mul(t)
 
@@ -203,8 +192,8 @@ def _minimize_lbfgs(
         #   check conditions and update buffers
         # =========================================
 
-        # convergence by insufficient progress
-        if (s.norm(p=normp) <= xtol) | ((f_new - f).abs() <= xtol):
+        # convergence by relative iterate change
+        if s.norm() / x_new.norm().clamp(min=1e-12) <= tol:
             warnflag = 0
             msg = _status_message["success"]
             break
@@ -215,8 +204,8 @@ def _minimize_lbfgs(
         g.copy_(g_new)
         t = lr
 
-        # convergence by 1st-order optimality
-        if g.norm(p=normp) <= gtol:
+        # convergence by 1st-order optimality (relative to initial gradient)
+        if g.norm() / g_norm_0 <= gtol:
             warnflag = 0
             msg = _status_message["success"]
             break

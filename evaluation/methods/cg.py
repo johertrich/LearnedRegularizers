@@ -20,8 +20,8 @@ def _minimize_cg(
     x0,
     max_iter=None,
     fun_and_grad=None,
+    tol=1e-4,
     gtol=1e-5,
-    normp=float("inf"),
     callback=None,
     verbose=False,
 ):
@@ -40,11 +40,11 @@ def _minimize_cg(
     max_iter : int
         Maximum number of iterations to perform. Defaults to
         ``200 * x0.numel()``.
+    tol : float
+        Relative iterate-change stopping tolerance.
     gtol : float
-        Termination tolerance on 1st-order optimality (gradient norm).
-    normp : float
-        The norm type to use for termination conditions. Can be any value
-        supported by :func:`torch.norm`.
+        Relative gradient-norm stopping tolerance: converges when
+        ``‖g_k‖ / ‖g_0‖ ≤ gtol``.
     callback : callable, optional
         Function to call after each iteration with the current parameter
         state, e.g. ``callback(x)``
@@ -65,7 +65,8 @@ def _minimize_cg(
     if verbose:
         print("initial fval: %0.4f" % f)
     d = g.neg()
-    grad_norm = g.norm(p=normp)
+    grad_norm = g.norm()
+    g_norm_0 = grad_norm.clone().clamp(min=1e-12)
     old_f = f + g.norm() / 2  # Sets the initial step guess to dx ~ 1
 
     for niter in range(1, max_iter + 1):
@@ -88,7 +89,7 @@ def _minimize_cg(
             y = g_next - g
             beta = torch.clamp(dot(y, g_next) / delta, min=0)
             d_next = -g_next + d.mul(beta)
-            torch.norm(g_next, p=normp, out=grad_norm)
+            torch.norm(g_next, out=grad_norm)
             return t, d_next
 
         def descent_condition(t, f_next, g_next):
@@ -98,7 +99,7 @@ def _minimize_cg(
             t, d_next = cached_step
 
             # Accept step if it leads to convergence.
-            cond1 = grad_norm <= gtol
+            cond1 = grad_norm / g_norm_0 <= gtol
 
             # Accept step if sufficient descent condition applies.
             cond2 = dot(d_next, g_next) <= -0.01 * dot(g_next, g_next)
@@ -111,7 +112,8 @@ def _minimize_cg(
         )
 
         # Update x and then update d (in that order)
-        x = x + d.mul(t)
+        step = d.mul(t)
+        x = x + step
         if t == cached_step[0]:
             # Reuse already computed results if possible
             d = cached_step[1]
@@ -126,8 +128,14 @@ def _minimize_cg(
                 msg = _status_message["callback_stop"]
                 break
 
-        # check optimality
-        if grad_norm <= gtol:
+        # check relative iterate change
+        if step.norm() / x.norm().clamp(min=1e-12) <= tol:
+            warnflag = 0
+            msg = _status_message["success"]
+            break
+
+        # convergence by 1st-order optimality (relative to initial gradient)
+        if grad_norm / g_norm_0 <= gtol:
             warnflag = 0
             msg = _status_message["success"]
             break

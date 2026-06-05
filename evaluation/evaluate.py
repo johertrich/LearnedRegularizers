@@ -90,8 +90,7 @@ def evaluate(
         l-bfgs / cg
             ``history_size`` (l-bfgs only, default 10), ``lr``,
             ``c1``, ``c2``, ``tolerance_change``, ``max_ls``
-            (all l-bfgs only), ``gtol``, ``xtol``, ``gtd_tol``
-            (l-bfgs only), ``normp``
+            (all l-bfgs only), ``gtol`` (relative: ``‖g_k‖/‖g_0‖``), ``gtd_tol`` (l-bfgs only)
 
     Returns
     -------

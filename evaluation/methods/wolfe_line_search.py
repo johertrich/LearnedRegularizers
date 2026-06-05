@@ -37,7 +37,7 @@ def strong_wolfe(
     gtd=None,
     c1=1e-4,
     c2=0.9,
-    tolerance_change=1e-9,
+    tolerance_change=1e-6,
     max_ls=25,
     extra_condition=None,
 ):

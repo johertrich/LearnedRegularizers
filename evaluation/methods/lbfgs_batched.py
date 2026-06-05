@@ -46,7 +46,6 @@ def lbfgs_batched(
     step_size: float = 1.0,  # only scales the first (steepest-descent) step
     tol: float = 1e-4,  # iterate-change stopping tolerance (xtol)
     gtol: float = 1e-5,  # gradient-norm stopping tolerance
-    normp: float = float("inf"),  # norm order used for convergence checks
     history_size: int = 10,
     c1: float = 1e-4,  # Armijo sufficient-decrease constant
     backtrack: float = 0.5,  # step shrink factor
@@ -63,11 +62,9 @@ def lbfgs_batched(
     tol : float
         Relative iterate-change stopping tolerance (xtol).
     gtol : float
-        Per-sample gradient-norm stopping tolerance; a sample is considered
-        converged when ``‖g‖_normp <= gtol``.  Checked after the iterate-change
-        criterion so it adds no extra function evaluations.
-    normp : float
-        Norm order used for both convergence checks (default: inf-norm).
+        Relative gradient-norm stopping tolerance; a sample is considered
+        converged when ``‖g_k‖ / ‖g_0‖ ≤ gtol``.  Checked after the
+        iterate-change criterion so it adds no extra function evaluations.
     """
     x = x0.clone()
     B = x.shape[0]
@@ -83,6 +80,7 @@ def lbfgs_batched(
 
     f_val, g = f_and_nabla(x, y)  # (B,), (B,C,H,W)
     f_val = f_val.reshape(B)
+    g_norm_0 = g.flatten(1).norm(dim=1).clamp(min=1e-12)  # (B,)
 
     # L-BFGS history (oldest first). Each S[k], Y[k] is (B,C,H,W); RHO[k] is (B,1,1,1)
     S, Y, RHO = [], [], []
@@ -163,13 +161,24 @@ def lbfgs_batched(
             Y.pop(0)
             RHO.pop(0)
 
-        # ---- convergence (relative iterate change, like nmAPG) ----
-        num = (x_new - x).flatten(1).norm(dim=1)
-        den = x_new.flatten(1).norm(dim=1).clamp_min(1e-12)
+        # ---- convergence checks ----
+        # (1) non-finite energy: freeze affected samples
+        nonfinite = ~f_new.isfinite()
+        if bool(nonfinite.any()):
+            converged = converged | nonfinite
+            if verbose:
+                print(f"iter {it}: non-finite energy in {int(nonfinite.sum())} sample(s)")
+
+        # (2) relative iterate change
+        num = (x_new - x).flatten(1).norm( dim=1)
+        den = x_new.flatten(1).norm( dim=1).clamp_min(1e-12)
         step_res = num / den
-        # only update residual for not-yet-converged samples
         res = torch.where(converged, res, step_res)
         converged = converged | (step_res < tol)
+
+        # (3) gradient-norm criterion (relative to initial gradient)
+        g_norm = g_new.flatten(1).norm(dim=1)
+        converged = converged | (g_norm / g_norm_0 <= gtol)
 
         # commit
         x = x_new
