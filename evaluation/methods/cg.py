@@ -12,13 +12,10 @@ _status_message = {
 }
 
 
-dot = lambda u, v: torch.dot(u.view(-1), v.view(-1))
-
-
 @torch.no_grad()
 def _minimize_cg(
     x0,
-    max_iter=None,
+    max_iter=200,
     fun_and_grad=None,
     tol=1e-4,
     gtol=1e-5,
@@ -50,20 +47,17 @@ def _minimize_cg(
     verbose : bool
         If True, print status messages.
     """
-    if max_iter is None:
-        max_iter = 200
-
     # Construct scalar objective function
     sf = ScalarFunction(x0.shape, fun_and_grad)
 
     # initialize
-    x = x0.detach().flatten().clone()
+    x = x0.flatten().clone()
     f, g = sf.closure(x)
     if verbose:
         print("initial fval: %0.4f" % f)
     d = g.neg()
     grad_norm = g.norm()
-    g_norm_0 = grad_norm.clone().clamp(min=1e-12)
+    g_norm_0 = grad_norm.clamp(min=1e-12)
     old_f = f + grad_norm.item() / 2  # Sets the initial step guess to dx ~ 1
 
     cached_step = [None]
@@ -71,7 +65,7 @@ def _minimize_cg(
         cached_step[0] = None
         # delta/gtd
         delta = grad_norm.pow(2)
-        gtd = dot(g, d)
+        gtd = g.dot(d)
 
         # compute initial step guess based on (f - old_f) / gtd
         t0 = torch.clamp(2.02 * (f - old_f) / gtd, max=1.0)
@@ -83,7 +77,7 @@ def _minimize_cg(
 
         def polak_ribiere_powell_step(t, g_next):
             y = g_next - g
-            beta = torch.clamp(dot(y, g_next) / delta, min=0)
+            beta = torch.clamp(y.dot(g_next) / delta, min=0)
             d_next = g_next.neg().add_(d, alpha=beta.item())
             torch.norm(g_next, out=grad_norm)
             return t, d_next
@@ -98,13 +92,21 @@ def _minimize_cg(
             cond1 = grad_norm / g_norm_0 <= gtol
 
             # Accept step if sufficient descent condition applies.
-            cond2 = dot(d_next, g_next) <= -0.01 * grad_norm.pow(2)
+            cond2 = d_next.dot(g_next) <= -0.01 * grad_norm.pow(2)
 
             return cond1 | cond2
 
         # Perform CG step
         f, g, t = strong_wolfe(
-            sf.dir_evaluate, x, t0, d, f, g, gtd, c2=0.4, extra_condition=descent_condition
+            sf.dir_evaluate,
+            x,
+            t0,
+            d,
+            f,
+            g,
+            gtd,
+            c2=0.4,
+            extra_condition=descent_condition,
         )
 
         # Update x and then update d (in that order)
@@ -147,7 +149,7 @@ def _minimize_cg(
         print("         Iterations: %d" % niter)
         print("         Function evaluations: %d" % sf.nfev)
 
-    result = OptimizeResult(
+    return OptimizeResult(
         fun=f,
         x=x.view_as(x0),
         grad=g.view_as(x0),
@@ -157,4 +159,3 @@ def _minimize_cg(
         nit=niter,
         nfev=sf.nfev,
     )
-    return result

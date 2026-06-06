@@ -15,35 +15,28 @@ _status_message = {
 
 
 class L_BFGS:
-    def __init__(self, x, history_size=10):
-        self.s = deque(maxlen=history_size)
-        self.y = deque(maxlen=history_size)
-        self.rho = deque(maxlen=history_size)
+    def __init__(self, history_size=10):
+        self.history = deque(maxlen=history_size)
         self.H_diag = 1.0
-        self._alpha = x.new_empty(history_size)
 
     def solve(self, grad):
-        mem_size = len(self.y)
         d = grad.neg()
-        for i, (s_i, y_i, rho_i) in enumerate(
-            zip(reversed(self.s), reversed(self.y), reversed(self.rho))
-        ):
+        alphas = []
+        for s_i, y_i, rho_i in reversed(self.history):
             a = rho_i * s_i.dot(d)
-            self._alpha[mem_size - 1 - i] = a
+            alphas.append(a)
             d.add_(y_i, alpha=-a.item())
         d.mul_(self.H_diag)
-        for i, (s_i, y_i, rho_i) in enumerate(zip(self.s, self.y, self.rho)):
+        for (s_i, y_i, rho_i), a in zip(self.history, reversed(alphas)):
             beta_i = rho_i * y_i.dot(d)
-            d.add_(s_i, alpha=(self._alpha[i] - beta_i).item())
+            d.add_(s_i, alpha=(a - beta_i).item())
         return d
 
     def update(self, s, y):
         rho_inv = y.dot(s)
         if rho_inv <= 1e-10:
             return
-        self.s.append(s)
-        self.y.append(y)
-        self.rho.append(rho_inv.reciprocal())
+        self.history.append((s, y, 1.0 / rho_inv))
         self.H_diag = rho_inv / y.dot(y)
 
 
@@ -102,39 +95,30 @@ def _minimize_lbfgs(
     """
     sf = ScalarFunction(x0.shape, fun_and_grad)
 
-    x = x0.detach().view(-1).clone(memory_format=torch.contiguous_format)
+    x = x0.flatten().clone()
     f, g = sf.closure(x)
     g_norm_0 = g.norm().clamp(min=1e-12)
     if verbose:
         print("initial fval: %0.4f" % f)
 
-    hess = L_BFGS(x, history_size)
+    hess = L_BFGS(history_size)
     d = g.neg()
-    t = min(1.0, g.norm(p=1).reciprocal()) * lr
+    t = min(1.0, 1.0 / g.norm(p=1)) * lr
     n_iter = 0
 
     for n_iter in range(1, max_iter + 1):
 
-        # ==================================
-        #   compute Quasi-Newton direction
-        # ==================================
-
+        # --- Quasi-Newton direction ---
         if n_iter > 1:
             d = hess.solve(g)
 
-        # directional derivative
-        gtd = g.dot(d)
-
-        # check if directional derivative is below tolerance
+        gtd = g.dot(d)  # directional derivative; must be negative for descent
         if gtd > -gtd_tol:
             warnflag = 4
             msg = "A non-descent direction was encountered."
             break
 
-        # ======================
-        #   update parameter
-        # ======================
-
+        # --- line search ---
         f_new, g_new, t = strong_wolfe(
             sf.dir_evaluate,
             x,
@@ -151,20 +135,14 @@ def _minimize_lbfgs(
         if verbose:
             print("iter %3d - fval: %0.4f" % (n_iter, f_new))
 
-        # ================================
-        #   update hessian approximation
-        # ================================
-
+        # --- Hessian update ---
         s = d.mul(t)
         y = g_new.sub(g)
         hess.update(s, y)
 
-        # =========================================
-        #   commit state and check convergence
-        # =========================================
-
-        # x updated in-place so x_new is never materialised; state is current
-        # on any break so the returned result always reflects the final iterate
+        # --- commit state ---
+        # f updated in-place: keeps the scalar tensor alive so the returned result
+        # always reflects the final iterate without materialising a new tensor
         f[...] = f_new
         x.add_(s)
         g = g_new
@@ -188,7 +166,7 @@ def _minimize_lbfgs(
             break
 
         # precision loss; exit
-        if ~f.isfinite():
+        if not f.isfinite():
             warnflag = 2
             msg = _status_message["pr_loss"]
             break

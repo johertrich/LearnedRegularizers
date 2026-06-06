@@ -4,9 +4,12 @@
 # _cubic_interpolate is ported from:
 #   https://github.com/torch/optim/blob/master/polyinterp.lua
 #   Copyright (c) 2016 Facebook, Inc. (BSD license)
+from collections import namedtuple
 import torch
 
 __all__ = ["strong_wolfe"]
+
+_BP = namedtuple("_BP", ["t", "f", "g", "gtd"])
 
 
 def _cubic_interpolate(x1, f1, g1, x2, f2, g2, bounds=None):
@@ -50,89 +53,69 @@ def strong_wolfe(
     """
     if gtd is None:
         gtd = g.mul(d).sum()
-    f, t = float(f), float(t)
+    f = float(f)
     # clone g to avoid aliasing the caller's tensor; x and d are read-only
     g = g.clone(memory_format=torch.contiguous_format)
 
-    if extra_condition is None:
-        extra_condition = lambda *args: True
-
     d_norm = d.abs().max()
     f_new, g_new = obj_func(x, t, d)
-    ls_func_evals = 1
     gtd_new = g_new.dot(d)
 
-    t_prev, f_prev, g_prev, gtd_prev = 0, f, g, gtd
+    prev = _BP(0, f, g, gtd)
+    curr = _BP(t, f_new, g_new, gtd_new)
     done = False
     ls_iter = 0
 
     while ls_iter < max_ls:
-        if f_new > (f + c1 * t * gtd) or (ls_iter > 1 and f_new >= f_prev):
-            bracket = [t_prev, t]
-            bracket_f = [f_prev, f_new]
-            bracket_g = [g_prev, g_new]
-            bracket_gtd = [gtd_prev, gtd_new]
+        if curr.f > (f + c1 * curr.t * gtd) or (ls_iter > 1 and curr.f >= prev.f):
+            lo, hi = (prev, curr) if prev.f <= curr.f else (curr, prev)
             break
 
-        if abs(gtd_new) <= -c2 * gtd and extra_condition(t, f_new, g_new):
-            bracket = [t]
-            bracket_f = [f_new]
-            bracket_g = [g_new]
+        if abs(curr.gtd) <= -c2 * gtd and (
+            extra_condition is None or extra_condition(curr.t, curr.f, curr.g)
+        ):
+            lo = curr
             done = True
             break
 
-        if gtd_new >= 0:
-            bracket = [t_prev, t]
-            bracket_f = [f_prev, f_new]
-            bracket_g = [g_prev, g_new]
-            bracket_gtd = [gtd_prev, gtd_new]
+        if curr.gtd >= 0:
+            lo, hi = (prev, curr) if prev.f <= curr.f else (curr, prev)
             break
 
-        min_step = t + 0.01 * (t - t_prev)
-        max_step = t * 10
-        tmp = t
+        min_step = curr.t + 0.01 * (curr.t - prev.t)
+        max_step = curr.t * 10
         t = _cubic_interpolate(
-            t_prev, f_prev, gtd_prev, t, f_new, gtd_new, bounds=(min_step, max_step)
+            prev.t,
+            prev.f,
+            prev.gtd,
+            curr.t,
+            curr.f,
+            curr.gtd,
+            bounds=(min_step, max_step),
         )
-        t_prev = tmp
-        f_prev = f_new
-        g_prev = g_new  # g_new is a fresh tensor each call; no clone needed
-        gtd_prev = gtd_new
+        prev = curr
         f_new, g_new = obj_func(x, t, d)
-        ls_func_evals += 1
         gtd_new = g_new.dot(d)
+        curr = _BP(t, f_new, g_new, gtd_new)
         ls_iter += 1
 
     if ls_iter == max_ls:
-        bracket = [0, t]
-        bracket_f = [f, f_new]
-        bracket_g = [g, g_new]
-        bracket_gtd = [gtd, gtd_new]  # initialise so zoom phase is always safe
+        st = _BP(0, f, g, gtd)
+        lo, hi = (st, curr) if st.f <= curr.f else (curr, st)
 
     insuf_progress = False
-    low_pos, high_pos = (0, 1) if bracket_f[0] <= bracket_f[-1] else (1, 0)
 
     while not done and ls_iter < max_ls:
-        b_min, b_max = min(bracket), max(bracket)
+        b_min, b_max = min(lo.t, hi.t), max(lo.t, hi.t)
         if (b_max - b_min) * d_norm < tolerance_change:
             break
 
-        t = _cubic_interpolate(
-            bracket[0],
-            bracket_f[0],
-            bracket_gtd[0],
-            bracket[1],
-            bracket_f[1],
-            bracket_gtd[1],
-        )
+        t = _cubic_interpolate(lo.t, lo.f, lo.gtd, hi.t, hi.f, hi.gtd)
 
         eps = 0.1 * (b_max - b_min)
         if min(b_max - t, t - b_min) < eps:
             if insuf_progress or t >= b_max or t <= b_min:
-                if abs(t - b_max) < abs(t - b_min):
-                    t = b_max - eps
-                else:
-                    t = b_min + eps
+                t = (b_max - eps) if abs(t - b_max) < abs(t - b_min) else (b_min + eps)
                 insuf_progress = False
             else:
                 insuf_progress = True
@@ -140,32 +123,20 @@ def strong_wolfe(
             insuf_progress = False
 
         f_new, g_new = obj_func(x, t, d)
-        ls_func_evals += 1
         gtd_new = g_new.dot(d)
         ls_iter += 1
 
-        if f_new > (f + c1 * t * gtd) or f_new >= bracket_f[low_pos]:
-            bracket[high_pos] = t
-            bracket_f[high_pos] = f_new
-            bracket_g[high_pos] = g_new
-            bracket_gtd[high_pos] = gtd_new
-            low_pos, high_pos = (0, 1) if bracket_f[0] <= bracket_f[1] else (1, 0)
+        if f_new > (f + c1 * t * gtd) or f_new >= lo.f:
+            hi = _BP(t, f_new, g_new, gtd_new)
+            if hi.f < lo.f:
+                lo, hi = hi, lo
         else:
-            if abs(gtd_new) <= -c2 * gtd and extra_condition(t, f_new, g_new):
+            if abs(gtd_new) <= -c2 * gtd and (
+                extra_condition is None or extra_condition(t, f_new, g_new)
+            ):
                 done = True
-            elif gtd_new * (bracket[high_pos] - bracket[low_pos]) >= 0:
-                bracket[high_pos] = bracket[low_pos]
-                bracket_f[high_pos] = bracket_f[low_pos]
-                bracket_g[high_pos] = bracket_g[low_pos]
-                bracket_gtd[high_pos] = bracket_gtd[low_pos]
+            elif gtd_new * (hi.t - lo.t) >= 0:
+                hi = lo
+            lo = _BP(t, f_new, g_new, gtd_new)
 
-            bracket[low_pos] = t
-            bracket_f[low_pos] = f_new
-            bracket_g[low_pos] = g_new
-            bracket_gtd[low_pos] = gtd_new
-
-    t = bracket[low_pos]
-    f_new = bracket_f[low_pos]
-    g_new = bracket_g[low_pos]
-
-    return torch.as_tensor(f_new, dtype=x.dtype, device=x.device), g_new, t
+    return torch.as_tensor(lo.f, dtype=x.dtype, device=x.device), lo.g, lo.t

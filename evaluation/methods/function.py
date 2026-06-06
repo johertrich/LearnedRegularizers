@@ -1,9 +1,4 @@
-from collections import namedtuple
-
 __all__ = ["ScalarFunction"]
-
-
-de_value = namedtuple("de_value", ["f", "grad"])
 
 
 class ScalarFunction:
@@ -28,16 +23,10 @@ class ScalarFunction:
         """Return (f, grad) at x.  Core call used by quasi-Newton / CG loops."""
         self.nfev += 1
         f, grad = self._fun_and_grad(x.detach().reshape(self._x_shape))
-        return de_value(
-            f=f.reshape(-1).sum().detach(),
-            grad=grad.reshape(-1).detach(),
-        )
+        return f.reshape(-1).sum(), grad.reshape(-1)
 
     def dir_evaluate(self, x, t, d):
         """Return (f, grad) at x + t*d.  Used by the strong-Wolfe line search."""
         self.nfev += 1
         f, grad = self._fun_and_grad((x + d.mul(t)).detach().reshape(self._x_shape))
-        return de_value(
-            f=float(f.reshape(-1).sum()),
-            grad=grad.reshape(-1),
-        )
+        return f.reshape(-1).sum(), grad.reshape(-1)
