@@ -162,24 +162,16 @@ def evaluate(
         if only_first:
             break
     mean_psnr = np.mean(psnrs)
-    print_psnr = "Mean PSNR over the test set: {0:.2f}".format(mean_psnr)
-    print(print_psnr)
     mean_iters = np.mean(iters)
-    print_iters = "Mean iterations over the test set: {0:.2f}".format(mean_iters)
-    print(print_iters)
-    if Lip:
-        mean_Lip = np.mean(Lip)
-        print_Lip = "Mean L over the test set: {0:.2f}".format(mean_Lip)
-        print(print_Lip)
     mean_time = np.mean(times)
-    print_time = "Mean reconstruction time over the test set: {0:.2f} seconds".format(
-        mean_time
-    )
-    print(print_time)
-    if logger is not None:
-        logger.info(print_psnr)
-        logger.info(print_iters)
-        if Lip:
-            logger.info(print_Lip)
-        logger.info(print_time)
+    lines = [
+        f"Mean PSNR over the test set: {mean_psnr:.2f}",
+        f"Mean iterations over the test set: {mean_iters:.2f}",
+        f"Mean reconstruction time over the test set: {mean_time:.2f} seconds",
+        *((f"Mean L over the test set: {np.mean(Lip):.2f}") if Lip else ()),
+    ]
+    for line in lines:
+        print(line)
+        if logger is not None:
+            logger.info(line)
     return mean_psnr, x_out, y_out, recon_out

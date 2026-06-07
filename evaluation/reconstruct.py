@@ -2,7 +2,9 @@ import inspect
 
 import torch
 
-from .methods import minimize, nmAPG, lbfgs_batched, adam
+from .methods import nmAPG, lbfgs_batched, adam
+from .methods.lbfgs import lbfgs as lbfgs_solver
+from .methods.nonlinear_cg import nonlinear_cg as cg_solver
 
 _PER_SAMPLE = ("l-bfgs", "cg")
 
@@ -102,8 +104,6 @@ def reconstruct(
             No additional kwargs beyond the shared ``step_size``.
 
         l-bfgs / cg
-            All kwargs are merged into the ``options`` dict passed to
-            ``minimize``.
             ``history_size`` : int (l-bfgs only), default 10
                 L-BFGS memory size.
             ``lr`` : float (l-bfgs only), default 1.0
@@ -124,6 +124,10 @@ def reconstruct(
             ``gtd_tol`` : float (l-bfgs only), default 1e-10
                 Minimum directional derivative; guards against near-zero
                 descent directions.
+            ``damping_eps`` : float or None (l-bfgs only), default auto
+                Powell damping threshold (Nocedal & Wright §18.3). Auto-selected
+                based on ``line_search_variant``: disabled for ``'strong'`` Wolfe,
+                set to 0.2 for ``'weak'`` Wolfe. Pass an explicit value to override.
     """
     x = torch.clone(x_init).detach() if x_init is not None else physics.A_dagger(y)
 
@@ -202,18 +206,19 @@ def reconstruct(
         recs, steps, conv = [], [], []
         for b in range(y.shape[0]):
             y_b = y[b : b + 1]
-            res = minimize(
+            _solver = lbfgs_solver if method == "l-bfgs" else cg_solver
+            fag = lambda x, y_b=y_b: energy_and_grad(x, y_b)
+            x_b, nit, success = _solver(
+                fag,
                 x[b : b + 1],
-                method=method,
-                fun_and_grad=lambda x, y_b=y_b: energy_and_grad(x, y_b),
-                max_iter=max_iter,
                 tol=tol,
-                options=dict(kwargs),
+                max_iter=max_iter,
                 verbose=verbose,
+                **kwargs,
             )
-            recs.append(res.x.reshape(x[b : b + 1].shape))
-            steps.append(int(getattr(res, "nit", 0)))
-            conv.append(bool(getattr(res, "success", False)))
+            recs.append(x_b.reshape(x[b : b + 1].shape))
+            steps.append(int(nit))
+            conv.append(bool(success))
         rec = torch.cat(recs)
         converged = torch.tensor(conv, device=y.device)
 
