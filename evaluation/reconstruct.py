@@ -106,8 +106,6 @@ def reconstruct(
         l-bfgs / cg
             ``history_size`` : int (l-bfgs only), default 10
                 L-BFGS memory size.
-            ``lr`` : float (l-bfgs only), default 1.0
-                Initial step length for the line search.
             ``line_search_variant`` : str (l-bfgs only), default ``'strong'``
                 Line search algorithm: ``'strong'`` (strong Wolfe conditions)
                 or ``'weak'`` (weak Wolfe conditions).

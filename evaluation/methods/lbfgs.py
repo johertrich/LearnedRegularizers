@@ -61,7 +61,6 @@ class _LBFGSHessian:
 def lbfgs(
     fun_and_grad,
     x0,
-    lr=1.0,
     history_size=10,
     max_iter=200,
     tol=1e-4,
@@ -105,7 +104,7 @@ def lbfgs(
 
     hess = _LBFGSHessian(history_size)
     d = g.neg()
-    t = min(1.0, 1.0 / g.abs().sum()) * lr
+    t = min(1.0, 1.0 / g.abs().sum())
     n_iter = 0
     converged = False
 
@@ -144,7 +143,7 @@ def lbfgs(
         f = f_new
         x.add_(s)
         g = g_new
-        t = lr
+        t = 1.0
 
         if s.norm() / x.norm().clamp(min=1e-12) <= tol:
             converged = True
