@@ -179,9 +179,9 @@ def nmAPG(
         c[idx] = (eta * q_old * c[idx] + f_x) / q  # Eq 161
 
         if i > 0:
-            res[idx] = torch.norm(x[idx] - x_old[idx], p=2, dim=(1, 2, 3)) / torch.norm(
-                x[idx], p=2, dim=(1, 2, 3)
-            )
+            res[idx] = (x[idx] - x_old[idx]).flatten(1).norm(dim=1) / x[idx].flatten(
+                1
+            ).norm(dim=1).clamp_min(1e-12)
         if torch.any(torch.isnan(res)):
             raise RuntimeError("Numerical errors! Some values became NaN!")
         condition = res >= tol

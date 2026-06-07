@@ -56,7 +56,4 @@ def adam(
             converged[:] = True
             break
 
-    del optimizer
-    del scheduler
-
     return x.detach(), i + 1, converged

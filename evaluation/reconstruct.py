@@ -204,9 +204,9 @@ def reconstruct(
     elif method in _PER_SAMPLE:
         # no natural batching: optimise each sample independently
         recs, steps, conv = [], [], []
+        _solver = lbfgs_solver if method == "l-bfgs" else cg_solver
         for b in range(y.shape[0]):
             y_b = y[b : b + 1]
-            _solver = lbfgs_solver if method == "l-bfgs" else cg_solver
             fag = lambda x, y_b=y_b: energy_and_grad(x, y_b)
             x_b, nit, success = _solver(
                 fag,
@@ -216,7 +216,7 @@ def reconstruct(
                 verbose=verbose,
                 **kwargs,
             )
-            recs.append(x_b.reshape(x[b : b + 1].shape))
+            recs.append(x_b)
             steps.append(int(nit))
             conv.append(bool(success))
         rec = torch.cat(recs)

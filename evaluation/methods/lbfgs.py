@@ -105,7 +105,7 @@ def lbfgs(
 
     hess = _LBFGSHessian(history_size)
     d = g.neg()
-    t = min(1.0, 1.0 / g.norm(p=1)) * lr
+    t = min(1.0, 1.0 / g.abs().sum()) * lr
     n_iter = 0
     converged = False
 
@@ -135,8 +135,6 @@ def lbfgs(
             tolerance_change=tolerance_change,
             max_ls=max_ls,
         )
-        if verbose:
-            print("iter %3d - fval: %0.4f" % (n_iter, f_new))
 
         # --- Hessian update ---
         s = d.mul(t)

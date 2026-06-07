@@ -34,10 +34,10 @@ def nonlinear_cg(
     g_norm_0 = grad_norm.clamp(min=1e-12)
     old_f = f + grad_norm.item() / 2  # Sets the initial step guess to dx ~ 1
 
-    cached_step = [None]
+    cached_step = None
     converged = False
     for niter in range(1, max_iter + 1):
-        cached_step[0] = None
+        cached_step = None
         delta = grad_norm.pow(2)
         gtd = g.dot(d)
 
@@ -53,13 +53,14 @@ def nonlinear_cg(
             y = g_next - g
             beta = torch.clamp(y.dot(g_next) / delta, min=0)
             d_next = g_next.neg().add_(d, alpha=beta.item())
-            torch.norm(g_next, out=grad_norm)
+            grad_norm.copy_(g_next.norm())
             return t, d_next
 
         def descent_condition(t, _f_next, g_next):
+            nonlocal cached_step
             # Polak-Ribiere+ needs an explicit check of a sufficient
             # descent condition, which is not guaranteed by strong Wolfe.
-            cached_step[:] = polak_ribiere_powell_step(t, g_next)
+            cached_step = polak_ribiere_powell_step(t, g_next)
             t, d_next = cached_step
 
             # Accept step if it leads to convergence.
@@ -84,13 +85,10 @@ def nonlinear_cg(
 
         step = d.mul(t)
         x.add_(step)
-        if t == cached_step[0]:
+        if cached_step is not None and t == cached_step[0]:
             d = cached_step[1]
         else:
             d = polak_ribiere_powell_step(t, g)[1]
-
-        if verbose:
-            print("iter %3d - fval: %0.4f" % (niter, f))
 
         if step.norm() / x.norm().clamp(min=1e-12) <= tol:
             converged = True

@@ -140,9 +140,12 @@ def lbfgs_batched(
             x_new = x + t * d
             f_new = f(x_new, y).reshape(B)
 
-        # gradient at the accepted point
-        f_new, g_new = f_and_nabla(x_new, y)
-        f_new = f_new.reshape(B)
+        # gradient at the accepted point (f_new already known from line search)
+        if nabla is not None:
+            g_new = nabla(x_new, y)
+        else:
+            f_new, g_new = f_and_nabla(x_new, y)
+            f_new = f_new.reshape(B)
 
         # ---- curvature pair (per sample) ----
         s_k = x_new - x

@@ -108,8 +108,7 @@ def evaluate(
     else:
         psnr = PSNR()
     regularizer.eval()
-    for p in regularizer.parameters():
-        p.requires_grad_(False)
+    regularizer.requires_grad_(False)
     ## Evaluate on the test set
     psnrs = []
     iters = []
@@ -168,7 +167,7 @@ def evaluate(
         f"Mean PSNR over the test set: {mean_psnr:.2f}",
         f"Mean iterations over the test set: {mean_iters:.2f}",
         f"Mean reconstruction time over the test set: {mean_time:.2f} seconds",
-        *((f"Mean L over the test set: {np.mean(Lip):.2f}") if Lip else ()),
+        *([f"Mean L over the test set: {np.mean(Lip):.2f}"] if Lip else []),
     ]
     for line in lines:
         print(line)
