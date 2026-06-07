@@ -51,6 +51,7 @@ parser = argparse.ArgumentParser(description="Choosing evaluation setting")
 parser.add_argument("--evaluation_mode", type=str, default="IFT")
 parser.add_argument("--problem", type=str, default="Denoising")
 parser.add_argument("--regularizer_name", type=str, default="CRR")
+parser.add_argument("--rec_method", type=str, default="nmapg")
 parser.add_argument("--only_first", type=bool, default=False)
 parser.add_argument("--save_results", type=bool, default=False)
 inp = parser.parse_args()
@@ -60,6 +61,7 @@ evaluation_mode = inp.evaluation_mode  # AR, IFT, JFB, IFT-MAID, NETT or Score
 regularizer_name = (
     inp.regularizer_name
 )  # CRR, WCRR, ICNN, IDCNN, TDV, LAR, LSR and NETT
+rec_method = inp.rec_method
 only_first = inp.only_first
 save_results = inp.save_results  # If True, save the first 10 image reconstructions
 
@@ -249,7 +251,7 @@ mean_psnr, x_out, y_out, recon_out = evaluate(
     only_first=only_first,
     adaptive_range=problem == "CT",
     device=device,
-    method="adam" if regularizer_name in ["EPLL", "PatchNR"] else "l-bfgs",
+    method="adam" if regularizer_name in ["EPLL", "PatchNR"] else rec_method,
     verbose=True,
     save_path=save_path if save_results else None,
     logger=logger if save_results else None,

@@ -5,6 +5,7 @@ from scipy.optimize import OptimizeResult
 
 from .function import ScalarFunction
 from .wolfe_line_search import strong_wolfe
+from .weak_wolfe_line_search import weak_wolfe
 
 _status_message = {
     "success": "Optimization terminated successfully.",
@@ -32,8 +33,35 @@ class L_BFGS:
             d.add_(s_i, alpha=(a - beta_i).item())
         return d
 
-    def update(self, s, y):
+    def update(self, s, y, g_old, t, damping_eps=0.2):
+        """Update curvature history with pair (s, y).
+
+        Parameters
+        ----------
+        s : Tensor
+            Iterate change ``x_{k+1} - x_k``.
+        y : Tensor
+            Gradient change ``g_{k+1} - g_k``.
+        g_old : Tensor
+            Gradient at ``x_k`` (before the step).  Used to form the exact
+            ``B s = -t g_old`` (valid because the L-BFGS direction satisfies
+            ``B d = -g``, so ``B s = B(td) = -t g``).
+        t : float
+            Accepted step size from the line search.
+        damping_eps : float or None
+            Powell damping threshold (Nocedal & Wright §18.3, recommended 0.2).
+            When ``y^T s < damping_eps * s^T B s``, ``y`` is blended toward
+            ``Bs`` so the curvature condition is met instead of skipping the
+            pair.  Set to ``None`` to disable damping and use the plain skip.
+        """
         rho_inv = y.dot(s)
+        if damping_eps is not None:
+            Bs = g_old.mul(-t)
+            sBs = s.dot(Bs)
+            if rho_inv < damping_eps * sBs:
+                theta = (1.0 - damping_eps) * sBs / (sBs - rho_inv)
+                y = theta * y + (1.0 - theta) * Bs
+                rho_inv = y.dot(s)
         if rho_inv <= 1e-10:
             return
         self.history.append((s, y, 1.0 / rho_inv))
@@ -56,6 +84,8 @@ def _minimize_lbfgs(
     c2=0.9,
     tolerance_change=1e-6,
     max_ls=25,
+    line_search_variant="strong",
+    damping_eps=None,
 ):
     """Minimize a multivariate function with L-BFGS.
 
@@ -87,12 +117,33 @@ def _minimize_lbfgs(
         state, e.g. ``callback(x)``.
     verbose : bool
         If True, print status messages.
+    line_search_variant : str
+        Line search algorithm: ``'strong'`` (strong Wolfe conditions,
+        recommended for full-batch deterministic optimization) or
+        ``'weak'`` (weak Wolfe conditions, recommended for stochastic and
+        non-convex optimization). Default: ``'strong'``.
+    damping_eps : float or None
+        Powell damping threshold (Nocedal & Wright §18.3).  Auto-selected
+        based on ``line_search_variant`` if ``None``: disabled for strong
+        Wolfe (damping rarely triggers), enabled (0.2) for weak Wolfe
+        (essential for weak curvature pairs).  Pass an explicit value to
+        override.
 
     Returns
     -------
     result : OptimizeResult
         Result of the optimization routine.
     """
+    # Auto-select damping based on line search variant
+    if damping_eps is None:
+        damping_eps = None if line_search_variant == "strong" else 0.2
+
+    if line_search_variant not in ("strong", "weak"):
+        raise ValueError(
+            f"Invalid line_search_variant: {line_search_variant}. "
+            "Must be 'strong' or 'weak'."
+        )
+    ls_func = strong_wolfe if line_search_variant == "strong" else weak_wolfe
     sf = ScalarFunction(x0.shape, fun_and_grad)
 
     x = x0.flatten().clone()
@@ -119,7 +170,7 @@ def _minimize_lbfgs(
             break
 
         # --- line search ---
-        f_new, g_new, t = strong_wolfe(
+        f_new, g_new, t = ls_func(
             sf.dir_evaluate,
             x,
             t,
@@ -138,7 +189,7 @@ def _minimize_lbfgs(
         # --- Hessian update ---
         s = d.mul(t)
         y = g_new.sub(g)
-        hess.update(s, y)
+        hess.update(s, y, g, t, damping_eps=damping_eps)
 
         # --- commit state ---
         # f updated in-place: keeps the scalar tensor alive so the returned result

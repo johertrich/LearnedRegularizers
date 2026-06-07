@@ -83,13 +83,15 @@ def evaluate(
         nmapg
             ``L_init``, ``rho``, ``delta``, ``eta``
         lbfgs_batched
-            ``history_size``, ``c1``, ``backtrack``, ``max_ls``
+            ``history_size``, ``c1``, ``backtrack``, ``max_ls``, ``gtol``
         adam
             (none beyond ``step_size``)
         l-bfgs / cg
-            ``history_size`` (l-bfgs only, default 15), ``lr``,
-            ``c1``, ``c2``, ``tolerance_change``, ``max_ls``
-            (all l-bfgs only), ``gtol`` (relative: ``‖g_k‖/‖g_0‖``), ``gtd_tol`` (l-bfgs only)
+            ``history_size`` (l-bfgs only, default 10), ``lr``,
+            ``line_search_variant`` (l-bfgs only, ``'strong'`` or ``'weak'``,
+            default ``'strong'``), ``c1``, ``c2``, ``tolerance_change``,
+            ``max_ls`` (all l-bfgs only), ``gtol`` (relative: ``‖g_k‖/‖g_0‖``),
+            ``gtd_tol`` (l-bfgs only)
 
     Returns
     -------

@@ -95,6 +95,8 @@ def reconstruct(
                 Step shrink factor per backtracking trial.
             ``max_ls`` : int, default 25
                 Maximum backtracking evaluations per iteration.
+            ``gtol`` : float, default 1e-5
+                Relative gradient-norm tolerance: ``‖g_k‖ / ‖g_0‖ ≤ gtol``.
 
         adam
             No additional kwargs beyond the shared ``step_size``.
@@ -106,15 +108,17 @@ def reconstruct(
                 L-BFGS memory size.
             ``lr`` : float (l-bfgs only), default 1.0
                 Initial step length for the line search.
+            ``line_search_variant`` : str (l-bfgs only), default ``'strong'``
+                Line search algorithm: ``'strong'`` (strong Wolfe conditions)
+                or ``'weak'`` (weak Wolfe conditions).
             ``c1`` : float (l-bfgs only), default 1e-4
-                Armijo sufficient-decrease constant for the strong-Wolfe
-                line search.
+                Armijo sufficient-decrease constant for the Wolfe line search.
             ``c2`` : float (l-bfgs only), default 0.9
-                Curvature condition constant for the strong-Wolfe line search.
+                Curvature condition constant for the Wolfe line search.
             ``tolerance_change`` : float (l-bfgs only), default 1e-6
                 Line-search bracket width below which the search terminates.
             ``max_ls`` : int (l-bfgs only), default 25
-                Maximum number of strong-Wolfe line search iterations.
+                Maximum number of Wolfe line search iterations.
             ``gtol`` : float, default 1e-5
                 Relative gradient-norm tolerance: ``‖g_k‖ / ‖g_0‖ ≤ gtol``.
             ``gtd_tol`` : float (l-bfgs only), default 1e-10
