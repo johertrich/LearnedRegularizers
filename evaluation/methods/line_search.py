@@ -28,6 +28,63 @@ def _cubic_interpolate(x1, f1, g1, x2, f2, g2, bounds=None):
         return (xmin_bound + xmax_bound) / 2.0
 
 
+def _zoom(
+    obj_func,
+    x,
+    d,
+    f,
+    gtd,
+    c1,
+    d_norm,
+    tolerance_change,
+    lo,
+    hi,
+    extra_condition,
+    curvature_cond,
+    budget,
+):
+    """Bracket-narrowing zoom phase shared by strong and weak Wolfe line searches.
+
+    ``curvature_cond(gtd_new) -> bool`` encodes the variant-specific curvature
+    check; everything else is identical between the two variants.
+    """
+    insuf_progress = False
+    for _ in range(budget):
+        b_min, b_max = min(lo.t, hi.t), max(lo.t, hi.t)
+        if (b_max - b_min) * d_norm < tolerance_change:
+            break
+
+        t = _cubic_interpolate(lo.t, lo.f, lo.gtd, hi.t, hi.f, hi.gtd)
+
+        eps = 0.1 * (b_max - b_min)
+        if min(b_max - t, t - b_min) < eps:
+            if insuf_progress or t >= b_max or t <= b_min:
+                t = (b_max - eps) if abs(t - b_max) < abs(t - b_min) else (b_min + eps)
+                insuf_progress = False
+            else:
+                insuf_progress = True
+        else:
+            insuf_progress = False
+
+        f_new, g_new = obj_func(x, t, d)
+        gtd_new = g_new.dot(d)
+
+        if f_new > (f + c1 * t * gtd) or f_new >= lo.f:
+            hi = _BP(t, f_new, g_new, gtd_new)
+            if hi.f < lo.f:
+                lo, hi = hi, lo
+        else:
+            accept = curvature_cond(gtd_new) and (
+                extra_condition is None or extra_condition(t, f_new, g_new)
+            )
+            if not accept and gtd_new * (hi.t - lo.t) >= 0:
+                hi = lo  # uses old lo, before the update below
+            lo = _BP(t, f_new, g_new, gtd_new)
+            if accept:
+                break
+    return lo
+
+
 def strong_wolfe(
     obj_func,
     x,
@@ -100,42 +157,22 @@ def strong_wolfe(
         st = _BP(0, f, g, gtd)
         lo, hi = (st, curr) if st.f <= curr.f else (curr, st)
 
-    insuf_progress = False
-
-    while not done and ls_iter < max_ls:
-        b_min, b_max = min(lo.t, hi.t), max(lo.t, hi.t)
-        if (b_max - b_min) * d_norm < tolerance_change:
-            break
-
-        t = _cubic_interpolate(lo.t, lo.f, lo.gtd, hi.t, hi.f, hi.gtd)
-
-        eps = 0.1 * (b_max - b_min)
-        if min(b_max - t, t - b_min) < eps:
-            if insuf_progress or t >= b_max or t <= b_min:
-                t = (b_max - eps) if abs(t - b_max) < abs(t - b_min) else (b_min + eps)
-                insuf_progress = False
-            else:
-                insuf_progress = True
-        else:
-            insuf_progress = False
-
-        f_new, g_new = obj_func(x, t, d)
-        gtd_new = g_new.dot(d)
-        ls_iter += 1
-
-        if f_new > (f + c1 * t * gtd) or f_new >= lo.f:
-            hi = _BP(t, f_new, g_new, gtd_new)
-            if hi.f < lo.f:
-                lo, hi = hi, lo
-        else:
-            if abs(gtd_new) <= -c2 * gtd and (
-                extra_condition is None or extra_condition(t, f_new, g_new)
-            ):
-                done = True
-            elif gtd_new * (hi.t - lo.t) >= 0:
-                hi = lo
-            lo = _BP(t, f_new, g_new, gtd_new)
-
+    if not done:
+        lo = _zoom(
+            obj_func,
+            x,
+            d,
+            f,
+            gtd,
+            c1,
+            d_norm,
+            tolerance_change,
+            lo,
+            hi,
+            extra_condition,
+            curvature_cond=lambda gtd_new: abs(gtd_new) <= -c2 * gtd,
+            budget=max_ls - ls_iter,
+        )
     return torch.as_tensor(lo.f, dtype=x.dtype, device=x.device), lo.g, lo.t
 
 
@@ -163,8 +200,8 @@ def weak_wolfe(
       - Strong: ``|g_new^T d| <= -c2 * g^T d``
       - Weak:   ``g_new^T d >= c2 * g^T d``
 
-    Weak Wolfe is preferred for stochastic and non-convex optimization
-    because it permits weaker curvature, which is paired well with Powell
+    Weak Wolfe is preferred for non-convex optimization because
+    it permits weaker curvature, which is paired well with Powell
     damping to ensure positive-definite Hessian updates.
     """
     if gtd is None:
@@ -194,10 +231,6 @@ def weak_wolfe(
             done = True
             break
 
-        if curr.gtd >= 0:
-            lo, hi = (prev, curr) if prev.f <= curr.f else (curr, prev)
-            break
-
         min_step = curr.t + 0.01 * (curr.t - prev.t)
         max_step = curr.t * 10
         t = _cubic_interpolate(
@@ -219,41 +252,20 @@ def weak_wolfe(
         st = _BP(0, f, g, gtd)
         lo, hi = (st, curr) if st.f <= curr.f else (curr, st)
 
-    insuf_progress = False
-
-    while not done and ls_iter < max_ls:
-        b_min, b_max = min(lo.t, hi.t), max(lo.t, hi.t)
-        if (b_max - b_min) * d_norm < tolerance_change:
-            break
-
-        t = _cubic_interpolate(lo.t, lo.f, lo.gtd, hi.t, hi.f, hi.gtd)
-
-        eps = 0.1 * (b_max - b_min)
-        if min(b_max - t, t - b_min) < eps:
-            if insuf_progress or t >= b_max or t <= b_min:
-                t = (b_max - eps) if abs(t - b_max) < abs(t - b_min) else (b_min + eps)
-                insuf_progress = False
-            else:
-                insuf_progress = True
-        else:
-            insuf_progress = False
-
-        f_new, g_new = obj_func(x, t, d)
-        gtd_new = g_new.dot(d)
-        ls_iter += 1
-
-        if f_new > (f + c1 * t * gtd) or f_new >= lo.f:
-            hi = _BP(t, f_new, g_new, gtd_new)
-            if hi.f < lo.f:
-                lo, hi = hi, lo
-        else:
-            # Weak curvature for zoom phase
-            if gtd_new >= c2 * gtd and (
-                extra_condition is None or extra_condition(t, f_new, g_new)
-            ):
-                done = True
-            elif gtd_new * (hi.t - lo.t) >= 0:
-                hi = lo
-            lo = _BP(t, f_new, g_new, gtd_new)
-
+    if not done:
+        lo = _zoom(
+            obj_func,
+            x,
+            d,
+            f,
+            gtd,
+            c1,
+            d_norm,
+            tolerance_change,
+            lo,
+            hi,
+            extra_condition,
+            curvature_cond=lambda gtd_new: gtd_new >= c2 * gtd,
+            budget=max_ls - ls_iter,
+        )
     return torch.as_tensor(lo.f, dtype=x.dtype, device=x.device), lo.g, lo.t

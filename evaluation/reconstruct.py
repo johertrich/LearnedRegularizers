@@ -14,7 +14,7 @@ def reconstruct(
     physics,
     data_fidelity,
     regularizer,
-    lamda,
+    lmbd,
     step_size,
     max_iter,
     tol,
@@ -25,7 +25,7 @@ def reconstruct(
     return_stats=False,
     **kwargs,
 ):
-    """Minimise ``data_fidelity(x, y; physics) + lamda * regularizer(x)``.
+    """Minimise ``data_fidelity(x, y; physics) + lmbd * regularizer(x)``.
 
     Dispatches to the chosen optimiser:
 
@@ -49,7 +49,7 @@ def reconstruct(
         Must expose ``g(x)`` (value) and ``grad(x)`` (gradient). If
         ``grad`` also accepts ``get_energy=True`` it is used to obtain value
         and gradient in a single call.
-    lamda : float
+    lmbd : float
         Regularisation weight.
     step_size : float
         Initial step size.  Interpretation is method-specific: for *nmapg*
@@ -131,11 +131,11 @@ def reconstruct(
 
     def energy(val, y_in):
         with torch.no_grad():
-            fun = data_fidelity(val, y_in, physics) + lamda * regularizer.g(val)
+            fun = data_fidelity(val, y_in, physics) + lmbd * regularizer.g(val)
         return (fun.detach() if detach_grads else fun).reshape(-1)
 
     def energy_grad(val, y_in):
-        grad = data_fidelity.grad(val, y_in, physics) + lamda * regularizer.grad(val)
+        grad = data_fidelity.grad(val, y_in, physics) + lmbd * regularizer.grad(val)
         return grad.detach() if detach_grads else grad
 
     # check if value and gradient can be obtained in a single regularizer call
@@ -144,8 +144,8 @@ def reconstruct(
     def energy_and_grad(val, y_in):
         if has_get_energy:
             reg_f, grad = regularizer.grad(val, get_energy=True)
-            fun = data_fidelity(val, y_in, physics) + lamda * reg_f
-            grad = data_fidelity.grad(val, y_in, physics) + lamda * grad
+            fun = data_fidelity(val, y_in, physics) + lmbd * reg_f
+            grad = data_fidelity.grad(val, y_in, physics) + lmbd * grad
             if detach_grads:
                 fun, grad = fun.detach(), grad.detach()
             return fun.reshape(-1), grad
@@ -172,7 +172,7 @@ def reconstruct(
         # Adam differentiates through the energy, so it needs a graph-building
         # objective (no torch.no_grad / detach here).
         def energy_diff(val, y_in):
-            return data_fidelity(val, y_in, physics) + lamda * regularizer.g(val)
+            return data_fidelity(val, y_in, physics) + lmbd * regularizer.g(val)
 
         rec, steps, converged = adam(
             x0=x,
