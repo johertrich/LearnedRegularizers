@@ -66,11 +66,11 @@ def lbfgs(
             for s_i, y_i, rho_i in reversed(history):
                 a = rho_i * s_i.dot(d)
                 alphas.append(a)
-                d.add_(y_i, alpha=-a.item())
+                d.addcmul_(y_i, a, value=-1.0)  # d -= a * y_i (in-place, no sync)
             d.mul_(H_diag)
             for (s_i, y_i, rho_i), a in zip(history, reversed(alphas)):
                 beta_i = rho_i * y_i.dot(d)
-                d.add_(s_i, alpha=(a - beta_i).item())
+                d.addcmul_(s_i, a - beta_i)  # d += (a - beta_i) * s_i
 
         gtd = g.dot(d)  # directional derivative; must be negative for descent
         if gtd > -gtd_tol:

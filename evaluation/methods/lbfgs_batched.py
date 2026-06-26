@@ -70,29 +70,28 @@ def lbfgs_batched(
 
     for n_iter in range(1, max_iter + 1):
         # --- Quasi-Newton direction (two-loop recursion: d = -H g) ---
-        # Same recursion as the unbatched solver, but with per-sample dot
-        # products (red) and broadcasting in place of scalar in-place updates.
+        # Same recursion and in-place updates as the unbatched solver, but with
+        # per-sample dot products via red() (a/beta_i broadcast over the batch).
         if n_iter > 1:
             d = g.neg()
             alphas = []
             for s_i, y_i, rho_i in reversed(history):
                 a = rho_i * red(s_i * d)
                 alphas.append(a)
-                d = d - a * y_i
-            d = d * H_diag
+                d.addcmul_(y_i, a, value=-1.0)  # d -= a * y_i (in-place, no temp)
+            d.mul_(H_diag)
             for (s_i, y_i, rho_i), a in zip(history, reversed(alphas)):
                 beta_i = rho_i * red(y_i * d)
-                d = d + (a - beta_i) * s_i
+                d.addcmul_(s_i, a - beta_i)  # d += (a - beta_i) * s_i
 
         gtd = red(g * d)  # directional derivative; must be negative for descent
         # The unbatched solver breaks on a non-descent direction; here we fall
         # back to steepest descent for any offending sample instead.
+        # Unconditional so it stays a single GPU op (no host sync): a no-op
+        # where nothing ascends.
         ascent = (gtd >= 0).reshape(B)
-        if bool(ascent.any()):
-            if verbose:
-                print("A non-descent direction was encountered.")
-            d = torch.where(kd(ascent), g.neg(), d)
-            gtd = red(g * d)
+        d = torch.where(kd(ascent), g.neg(), d)
+        gtd = red(g * d)
 
         # --- line search (masked Armijo backtracking) ---
         t = torch.where(kd(converged), torch.zeros_like(t), t)  # freeze converged
@@ -109,7 +108,7 @@ def lbfgs_batched(
             x_new = x + t * d
             f_new = f(x_new, y).reshape(B)
 
-        # gradient at the accepted point (value f_new already known above)
+        # value and gradient at the accepted point
         f_new, g_new = f_and_nabla(x_new, y)
         f_new = f_new.reshape(B)
 
@@ -143,18 +142,14 @@ def lbfgs_batched(
 
         # --- convergence checks (per sample; cumulative, monotone) ---
         step_res = s.flatten(1).norm(dim=1) / x.flatten(1).norm(dim=1).clamp_min(1e-12)
-        res = torch.where(converged, res, step_res)
+        if verbose:  # res is only ever read in the verbose prints below
+            res = torch.where(converged, res, step_res)
         converged = converged | (step_res <= tol)
 
         converged = converged | (g.flatten(1).norm(dim=1) / g_norm_0 <= gtol)
 
-        nonfinite = ~f_val.isfinite()
-        if bool(nonfinite.any()):
-            converged = converged | nonfinite
-            if verbose:
-                print(
-                    f"iter {n_iter}: non-finite energy in {int(nonfinite.sum())} sample(s)"
-                )
+        # Freeze any sample whose energy went non-finite.
+        converged = converged | ~f_val.isfinite()
 
         if bool(converged.all()):
             if verbose:
