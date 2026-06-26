@@ -119,7 +119,9 @@ def lbfgs_batched(
         y_k = g_new - g
         rho_inv = red(y_k * s)
         if damping_eps is not None:
-            # Powell damping (Nocedal & Wright §18.3). Applied via masking.
+            # Powell damping (Nocedal & Wright §18.3): where y^T s is too small,
+            # blend y toward Bs = -t g (exact since the L-BFGS direction gives
+            # B d = -g, hence B s = -t g) so y^T s > 0. Per sample via masking.
             Bs = g.mul(-t)
             sBs = red(s * Bs)
             damp = rho_inv < damping_eps * sBs
@@ -130,7 +132,9 @@ def lbfgs_batched(
         # leave H_diag unchanged for those samples.
         pos = rho_inv > 1e-10
         H_diag = torch.where(pos, rho_inv / red(y_k * y_k).clamp_min(1e-12), H_diag)
-        rho = torch.where(pos, 1.0 / rho_inv.clamp_min(1e-12), torch.zeros_like(rho_inv))
+        rho = torch.where(
+            pos, 1.0 / rho_inv.clamp_min(1e-12), torch.zeros_like(rho_inv)
+        )
         history.append((s, y_k, rho))
 
         f_val = f_new
@@ -149,7 +153,9 @@ def lbfgs_batched(
         if bool(nonfinite.any()):
             converged = converged | nonfinite
             if verbose:
-                print(f"iter {n_iter}: non-finite energy in {int(nonfinite.sum())} sample(s)")
+                print(
+                    f"iter {n_iter}: non-finite energy in {int(nonfinite.sum())} sample(s)"
+                )
 
         if bool(converged.all()):
             if verbose:
@@ -158,7 +164,9 @@ def lbfgs_batched(
 
     else:
         if verbose:
-            print(f"Maximum number of iterations exceeded (max res {float(res.max()):.6f}).")
+            print(
+                f"Maximum number of iterations exceeded (max res {float(res.max()):.6f})."
+            )
 
-    inv_H_diag = (1.0 / H_diag.clamp_min(1e-12)).reshape(B, 1, 1, 1)
+    inv_H_diag = 1.0 / H_diag.clamp_min(1e-12)  # (B, 1, 1, ...), broadcasts against x
     return x, inv_H_diag, n_iter, converged, path
