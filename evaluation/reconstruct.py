@@ -54,8 +54,7 @@ def reconstruct(
     step_size : float
         Initial step size.  Interpretation is method-specific: for *nmapg*
         ``L_init`` defaults to ``1 / step_size``; for *adam* it is the
-        initial Adam learning rate; for *lbfgs_batched* it scales the very
-        first steepest-descent step.
+        initial Adam learning rate.  Not used by *lbfgs_batched*.
     max_iter : int
         Maximum number of solver iterations.
     tol : float
@@ -99,6 +98,8 @@ def reconstruct(
                 Maximum backtracking evaluations per iteration.
             ``gtol`` : float, default 1e-5
                 Relative gradient-norm tolerance: ``‖g_k‖ / ‖g_0‖ ≤ gtol``.
+            ``damping_eps`` : float or None, default 0.2
+                Powell-damping threshold; ``None`` disables damping.
 
         adam
             No additional kwargs beyond the shared ``step_size``.
@@ -186,14 +187,12 @@ def reconstruct(
         )
 
     elif method == "lbfgs_batched":
-        rec, L_est, steps, converged, _ = lbfgs_batched(
+        rec, L_est, steps, converged = lbfgs_batched(
             x0=x,
             y=y,
             f=energy,
-            nabla=energy_grad,
             f_and_nabla=energy_and_grad,
             max_iter=max_iter,
-            step_size=step_size,
             tol=tol,
             verbose=verbose,
             **kwargs,

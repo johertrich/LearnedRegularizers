@@ -67,7 +67,6 @@ def lbfgs_batched(
     n_iter = 0
     converged = torch.zeros(B, dtype=torch.bool, device=x.device)
     res = (tol + 1) * torch.ones(B, device=x.device, dtype=x.dtype)
-    path = []
 
     for n_iter in range(1, max_iter + 1):
         # --- Quasi-Newton direction (two-loop recursion: d = -H g) ---
@@ -169,4 +168,4 @@ def lbfgs_batched(
             )
 
     inv_H_diag = 1.0 / H_diag.clamp_min(1e-12)  # (B, 1, 1, ...), broadcasts against x
-    return x, inv_H_diag, n_iter, converged, path
+    return x, inv_H_diag, n_iter, converged
