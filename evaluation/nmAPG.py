@@ -19,6 +19,7 @@ import torch
 import numpy as np
 from typing import Callable
 import inspect
+from tqdm import tqdm
 
 
 def nmAPG(
@@ -29,6 +30,7 @@ def nmAPG(
     f_and_nabla: Callable[
         [torch.Tensor], [torch.Tensor]
     ],  # callble which returns both, objective function and its gradient
+    sigma: any = None,  # noise std of the forward model (used for scaling the data fidelity term in the variational problem)
     max_iter: int = 200,  # maximal number of iterations
     L_init: float = 1,  # initial guess of the local Lipschitz constant of the gradient (used in the line search)
     tol: float = 1e-4,  # tolerance for the stopping criterion (relative residual between two iterates)
@@ -40,20 +42,23 @@ def nmAPG(
     """
     Algorithm 4: nonmonotone APG with line search
 
-    Solve for a given y: min_x f(x, y)
-
-    In the notation of the paper F(x) = f(x, y).
+    Solve for a given y: min_x f(x, y, sigma) and ignore sigma if it is None.
+    
+    In the notation of the paper F(x) = f(x, y, sigma) and ignore sigma if it is None.
     """
 
     # initialize variables
     x = x0.clone()  # Noation of the paper: x1
     x_old = x.clone()  # x0
     z = x0.clone()  # z1
+    dims = tuple(range(1, x.ndim)) # For a shape agnostic solver
+    nones = (None,) * (x.ndim -1) # For a shape agnostic solver
+    ones = (1,) * (x.ndim -1) # For a shape agnostic solver
     t = 1.0  # t1
     t_old = 0.0  # t0
     q = 1.0  # q1
-    c = f(x, y)  # c1
-    L = torch.full((x.shape[0], 1, 1, 1), L_init, dtype=x.dtype, device=x.device)
+    c = f(x, y, sigma)  # c1
+    L = torch.full((x.shape[0],) + ones, L_init, dtype=x.dtype, device=x.device)
     L_old = L.clone()
     res = (tol + 1) * torch.ones(x.shape[0], device=x.device, dtype=x.dtype)
     idx = torch.arange(0, x.shape[0], device=x.device)
@@ -63,7 +68,7 @@ def nmAPG(
     grad_old = grad.clone()
 
     # Main loop
-    for i in range(max_iter):
+    for i in tqdm(range(max_iter)):
         assert not torch.any(
             torch.isnan(x)
         ), "Numerical errors! Some values became NaN!"
@@ -73,16 +78,16 @@ def nmAPG(
             + (t_old - 1) / t * (x[idx] - x_old[idx])
         )  # Eq 148, x_bar = yk
         x_old.copy_(x)
-        energy, grad[idx] = f_and_nabla(x_bar[idx], y[idx])
+        energy, grad[idx] = f_and_nabla(x_bar[idx], y[idx], sigma[idx] if sigma is not None else None)
 
         # Lipschitz Update (Barzilai-Borwein style step)
         if i > 0:
             dx = grad[idx] - grad_old[idx]  # r in the paper
-            s = (dx * dx).sum((1, 2, 3), keepdim=True)  # r^Tr
+            s = (dx * dx).sum(dims, keepdim=True)  # r^Tr
             L[idx] = torch.clip(
                 s
                 / (dx * (x_bar[idx] - x_bar_old[idx]))
-                .sum((1, 2, 3), keepdim=True)
+                .sum(dims, keepdim=True)
                 .abs()
                 .clip(min=1e-12, max=None),  # alpha_y = <s,r>/<r,r> in paper, Eq 150
                 min=1.0,
@@ -99,11 +104,11 @@ def nmAPG(
             )  # Eq 151, 1/L = alpha_y
             dx[idx_sub] = z[idx_search] - x_bar[idx_search]
             bound = torch.max(
-                energy[idx_sub, None, None, None], c[idx_search, None, None, None]
-            ) - delta * (dx[idx_sub] * dx[idx_sub]).sum((1, 2, 3), keepdim=True)
+                energy[idx_sub, *nones], c[idx_search, *nones]
+            ) - delta * (dx[idx_sub] * dx[idx_sub]).sum(dims, keepdim=True)
 
             if torch.all(
-                (energy_new_ := f(z[idx_search], y[idx_search])) <= bound.view(-1)
+                (energy_new_ := f(z[idx_search], y[idx_search], sigma[idx_search] if sigma is not None else None)) <= bound.view(-1)
             ):
                 energy_new[idx_sub] = energy_new_
                 break
@@ -115,21 +120,21 @@ def nmAPG(
 
         # If for Eq 153-158
         idx2 = (
-            (energy_new[:] >= (c[idx] - delta * (dx * dx).sum((1, 2, 3))))
+            (energy_new[:] >= (c[idx] - delta * (dx * dx).sum(dims)))
             .nonzero()
             .view(-1)
         )
         if idx2.nelement() > 0:
             idx_idx2 = idx[idx2]
-            gradx = nabla(x[idx_idx2], y[idx_idx2])  # nabla f(xk)
+            gradx = nabla(x[idx_idx2], y[idx_idx2], sigma[idx_idx2] if sigma is not None else None)  # nabla f(xk)
 
             if i > 0:
                 dx = gradx - grad_old[idx_idx2]
-                s = (dx * dx).sum((1, 2, 3), keepdim=True)
+                s = (dx * dx).sum(dims, keepdim=True)
                 L[idx_idx2] = torch.clip(
                     s
                     / (dx * (x[idx_idx2] - x_bar_old[idx_idx2]))
-                    .sum((1, 2, 3), keepdim=True)
+                    .sum(dims, keepdim=True)
                     .abs()
                     .clip(min=1e-12, max=None),
                     min=1.0,
@@ -141,15 +146,16 @@ def nmAPG(
             for ii in range(150):
                 v = x[idx_idx2] - gradx / L[idx_idx2]
                 dx = v - x[idx_idx2]
-                bound = c[idx_idx2, None, None, None] - delta * (dx * dx).sum(
-                    (1, 2, 3), keepdim=True
+                bound = c[idx_idx2, *nones] - delta * (dx * dx).sum(
+                    dims, keepdim=True
                 )
+
                 if torch.all(
-                    (energy_new2 := f(v, y[idx_idx2])) <= bound.view(-1) * (1 + 1e-4)
+                    (energy_new2 := f(v, y[idx_idx2], sigma[idx_idx2] if sigma is not None else None)) <= bound.view(-1) * (1 + 1e-4)
                 ):
                     break
                 L[idx_idx2] = torch.where(
-                    energy_new2[:, None, None, None] <= bound,
+                    energy_new2[:, *nones] <= bound,
                     L[idx_idx2],
                     L[idx_idx2] / rho,
                 )
@@ -171,8 +177,8 @@ def nmAPG(
         c[idx] = (eta * q_old * c[idx] + f_x) / q  # Eq 161
         
         if i > 0:
-            res[idx] = torch.norm(x[idx] - x_old[idx], p=2, dim=(1, 2, 3)) / torch.norm(
-                x[idx], p=2, dim=(1, 2, 3)
+            res[idx] = torch.norm(x[idx] - x_old[idx], p=2, dim=dims) / torch.norm(
+                x[idx], p=2, dim=dims
             )
         assert not torch.any(
             torch.isnan(res)
@@ -202,6 +208,7 @@ def reconstruct_nmAPG(
     step_size,  # initial step size for the nmAPG
     max_iter,  # maximal number of iterations in the nmAPG
     tol,  # tolerance for the stopping criterion (relative residual) in the nmAPG
+    sigma=None, # Noise level
     x_init=None,  # initialization (None for using physics.A_dagger(y))
     detach_grads=True,  # detach the gradients after each iteration (shoud be set to True)
     verbose=False,  # set to True for some debug prints
@@ -215,15 +222,21 @@ def reconstruct_nmAPG(
     else:
         x = physics.A_dagger(y)
 
-    def energy(val, y_in):
+    def energy(val, y_in, sigma_in):
         with torch.no_grad():
-            fun = data_fidelity(val, y_in, physics) + lamda * regularizer.g(val)
+            if sigma_in is not None:
+                fun = data_fidelity(val, y_in, physics) + lamda * regularizer.g(val, sigma_in)
+            else:
+                fun = data_fidelity(val, y_in, physics) + lamda * regularizer.g(val)
         if detach_grads:
             fun = fun.detach()
         return fun.reshape(-1)
 
-    def energy_grad(val, y_in):
-        grad = data_fidelity.grad(val, y_in, physics) + lamda * regularizer.grad(val)
+    def energy_grad(val, y_in, sigma_in):
+        if sigma_in is not None:
+            grad = data_fidelity.grad(val, y_in, physics) + lamda * regularizer.grad(val, sigma_in)
+        else:
+            grad = data_fidelity.grad(val, y_in, physics) + lamda * regularizer.grad(val)
         if detach_grads:
             grad = grad.detach()
         return grad
@@ -233,8 +246,11 @@ def reconstruct_nmAPG(
     argument_names = [param.name for param in signature.parameters.values()]
     if "get_energy" in argument_names:
 
-        def energy_and_grad(val, y_in):
-            fun, grad = regularizer.grad(val, get_energy=True)
+        def energy_and_grad(val, y_in, sigma_in):
+            if sigma_in is not None:
+                fun, grad = regularizer.grad(val, sigma_in, get_energy=True)
+            else:
+                fun, grad = regularizer.grad(val, get_energy=True)
             fun = data_fidelity(val, y_in, physics) + lamda * fun
             grad = data_fidelity.grad(val, y_in, physics) + lamda * grad
             if detach_grads:
@@ -243,8 +259,12 @@ def reconstruct_nmAPG(
             return fun.reshape(-1), grad
 
     else:
-        energy_and_grad = lambda val, y_in: (energy(val, y_in), energy_grad(val, y_in))
-
+        def energy_and_grad(val, y_in, sigma_in):
+            if sigma_in is not None:
+                return energy(val, y_in, sigma_in), energy_grad(val, y_in, sigma_in)
+            else:
+                return energy(val, y_in, sigma_in), energy_grad(val, y_in, sigma_in)
+            
     # example energies
     rec, L, steps, converged = nmAPG(
         x0=x,
@@ -253,6 +273,7 @@ def reconstruct_nmAPG(
         f=energy,
         nabla=energy_grad,
         f_and_nabla=energy_and_grad,
+        sigma=sigma,
         L_init=1 / step_size,
         tol=tol,
         verbose=verbose,
